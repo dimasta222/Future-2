@@ -1,0 +1,147 @@
+import { useMemo, useState } from "react";
+import { PORTFOLIO_CATEGORIES, PORTFOLIO_SECTIONS } from "../data/portfolio";
+
+const STYLES = `
+::selection{background:#e84393;color:#fff}
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-track{background:#111}
+::-webkit-scrollbar-thumb{background:linear-gradient(#e84393,#6c5ce7);border-radius:3px}
+.tb{padding:10px 24px;border-radius:50px;border:none;cursor:pointer;font-size:14px;font-weight:400;letter-spacing:.5px;transition:all .3s;font-family:'Outfit',sans-serif}
+.ta{background:linear-gradient(135deg,#e84393,#6c5ce7);color:#fff}
+.ti{background:rgba(255,255,255,.05);color:rgba(240,238,245,.5)}
+.ti:hover{background:rgba(255,255,255,.08);color:rgba(240,238,245,.7)}
+.cg{background:rgba(255,255,255,.03);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.06);border-radius:20px;transition:all .5s cubic-bezier(.16,1,.3,1)}
+.cg:hover{background:rgba(255,255,255,.06);border-color:rgba(232,67,147,.2);transform:translateY(-6px)}
+`;
+
+function LogoMini({ onClick }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }} onClick={onClick}>
+      <div style={{ width: 36, height: 36, position: "relative" }}>
+        <div style={{ width: 18, height: 18, borderRadius: "50%", background: "linear-gradient(135deg,#d4a0c0,#8a3a6a)", position: "absolute", top: 4, left: 0 }} />
+        <div style={{ width: 20, height: 20, borderRadius: "50%", background: "linear-gradient(135deg,#e84393,#c0247a)", position: "absolute", top: 2, left: 9 }} />
+        <div style={{ width: 16, height: 16, borderRadius: "50%", background: "linear-gradient(135deg,#6c5ce7,#3d2e7c)", position: "absolute", top: 6, left: 20 }} />
+      </div>
+      <span style={{ fontSize: 18, fontWeight: 600, letterSpacing: 3 }}>FUTURE</span>
+    </div>
+  );
+}
+
+function SectionGrid({ title, items }) {
+  if (!items.length) return null;
+
+  return (
+    <section style={{ display: "grid", gap: 24 }}>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+        <h2 style={{ margin: 0, fontSize: "clamp(24px,3vw,34px)", fontWeight: 600 }}>{title}</h2>
+        <span style={{ color: "rgba(240,238,245,.5)", fontSize: 14 }}>{items.length} работ</span>
+      </div>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))",
+          gap: 20,
+        }}
+      >
+        {items.map((item) => (
+          <article
+            key={`${title}-${item.label}`}
+            className="cg"
+            style={{ overflow: "hidden", boxShadow: "0 16px 40px rgba(0,0,0,.18)" }}
+          >
+            <div
+              style={{
+                aspectRatio: "4 / 5",
+                background: item.gradient || "linear-gradient(135deg,#181824,#0f0f16)",
+                overflow: "hidden",
+              }}
+            >
+              {item.image ? (
+                <img
+                  src={item.image}
+                  alt={item.label}
+                  loading="lazy"
+                  draggable={false}
+                  style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", pointerEvents: "none", userSelect: "none", WebkitUserDrag: "none" }}
+                />
+              ) : null}
+            </div>
+            <div style={{ padding: 16, display: "grid", gap: 6 }}>
+              <div style={{ fontSize: 16, fontWeight: 500 }}>{item.label}</div>
+              {item.note ? (
+                <div style={{ fontSize: 13, color: "rgba(240,238,245,.5)", lineHeight: 1.5 }}>{item.note}</div>
+              ) : null}
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+export default function PortfolioCatalogPage({ onBack }) {
+  const [activeCategory, setActiveCategory] = useState("Все");
+
+  const visibleSections = useMemo(() => {
+    if (activeCategory === "Все") return PORTFOLIO_SECTIONS;
+    return PORTFOLIO_SECTIONS.filter((section) => section.category === activeCategory);
+  }, [activeCategory]);
+
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        background: "#08080c",
+        color: "#f0eef5",
+        fontFamily: "'Outfit',sans-serif",
+      }}
+    >
+      <style>{STYLES}</style>
+      <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@200;300;400;500;600;700&display=swap" rel="stylesheet" />
+      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "28px 5% 80px", display: "grid", gap: 36 }}>
+        <div onClick={onBack} style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 12 }}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#e84393" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
+          <LogoMini onClick={onBack} />
+        </div>
+
+        <section style={{ display: "grid", gap: 22 }}>
+          <div style={{ display: "grid", gap: 12, maxWidth: 760, margin: "0 auto", textAlign: "center" }}>
+            <span style={{ fontSize: 12, fontWeight: 500, letterSpacing: 4, color: "#6c5ce7", textTransform: "uppercase" }}>
+              Наши работы
+            </span>
+            <h1 style={{ margin: 0, fontSize: "clamp(28px,4vw,44px)", fontWeight: 200, lineHeight: 1.1 }}>
+              Наши <span style={{ fontWeight: 600, background: "linear-gradient(135deg,#e84393,#6c5ce7)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>работы</span>
+            </h1>
+            <p style={{ margin: "8px auto 0", fontSize: 15, lineHeight: 1.75, color: "rgba(240,238,245,.4)", fontWeight: 300, maxWidth: 600 }}>
+              Реальные работы нашей студии — от единичных принтов до крупных тиражей.
+            </p>
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", justifyContent: "center", marginTop: 6 }}>
+            {PORTFOLIO_CATEGORIES.map((category) => {
+              const active = category === activeCategory;
+              return (
+                <button
+                  key={category}
+                  onClick={() => setActiveCategory(category)}
+                  className={`tb ${active ? "ta" : "ti"}`}
+                >
+                  {category}
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        <div style={{ display: "grid", gap: 42 }}>
+          {visibleSections.map((section) => (
+            <SectionGrid key={section.slug} title={section.category} items={section.items} />
+          ))}
+        </div>
+
+        <footer style={{ borderTop: "1px solid rgba(255,255,255,.05)", paddingTop: 24, textAlign: "center" }}>
+          <p style={{ fontSize: 12, fontWeight: 300, color: "rgba(240,238,245,.2)" }}>© 2026 Future Studio • СПб • DTF-печать</p>
+        </footer>
+      </div>
+    </div>
+  );
+}

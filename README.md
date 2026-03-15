@@ -42,6 +42,23 @@
 - выгрузка в GitHub: `npm run git:sync -- "описание изменений"`
 - загрузка из GitHub: `npm run git:update`
 
+## Автодеплой на GitHub Pages
+
+В проект добавлен workflow GitHub Actions для автоматической сборки и публикации сайта на GitHub Pages при каждом `push` в `main`.
+
+Что уже настроено:
+
+- build и deploy workflow в `.github/workflows/deploy-pages.yml`
+- автоматический `base` для Vite при сборке в GitHub Actions
+
+Что нужно включить один раз на GitHub:
+
+1. Откройте репозиторий на GitHub.
+2. Перейдите в `Settings` → `Pages`.
+3. В разделе `Source` выберите `GitHub Actions`.
+
+После этого каждый новый `push` в `main` будет автоматически публиковать свежую версию сайта.
+
 ## Фото футболок
 
 Фото футболок теперь хранятся отдельно в `public/tshirts/` и подтягиваются в карточки автоматически.

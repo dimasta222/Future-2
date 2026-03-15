@@ -218,8 +218,8 @@ a{color:inherit}
 .mb-16{margin-bottom:4rem}
 .gap-4{gap:1rem}
 .gap-12{gap:3rem}
-.flex\!{display:flex!important}
-@media(min-width:768px){.md\:flex{display:flex!important}.md\:hidden\!{display:none!important}}
+.flex\\!{display:flex!important}
+@media(min-width:768px){.md\\:flex{display:flex!important}.md\\:hidden\\!{display:none!important}}
 @media(max-width:1180px){.nav-left{gap:16px!important}.nav-main{gap:18px!important;margin-left:24px!important}.nav-contacts{gap:10px!important;padding:8px 12px!important}.nav-contacts-stack a:first-child{font-size:13px!important}.nav-contacts-stack a:last-child{font-size:11px!important}.nav-social-btn{width:34px!important;height:34px!important}.nav-calc-btn{padding:8px 16px!important}}
 @media(max-width:1040px){.nav-main{gap:14px!important}.nav-contacts-stack{display:none!important}}
 .nav-left{display:flex;align-items:center;gap:24px;flex-shrink:0}
@@ -835,11 +835,11 @@ function TshirtPhotoGallery({ itemName, galleryModel, activeColor, activeVariant
 
       if (cancelled) return;
       setSlides(resolvedSlides.length ? resolvedSlides : buildTshirtFallbackSlides(itemName, galleryModel, activeColor || "Чёрный"));
+      setActiveIndex(0);
       setLoading(false);
     };
 
     loadSlides();
-    setActiveIndex(0);
     return () => {
       cancelled = true;
     };
@@ -935,18 +935,6 @@ function MainTshirtCard({ item, onOpen }) {
   const [selectedSize, setSelectedSize] = useState("");
   const [selectedColor, setSelectedColor] = useState("");
 
-  useEffect(() => {
-    if (selectedSize && sizeOptions.length && !sizeOptions.includes(selectedSize)) {
-      setSelectedSize("");
-    }
-  }, [selectedSize, sizeOptions]);
-
-  useEffect(() => {
-    if (selectedColor && colorOptions.length && !colorOptions.includes(selectedColor)) {
-      setSelectedColor("");
-    }
-  }, [selectedColor, colorOptions]);
-
   return (
     <div className="cg" style={{ padding: 32, display: "flex", flexDirection: "column", height: "100%", minWidth: 0 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
@@ -960,7 +948,11 @@ function MainTshirtCard({ item, onOpen }) {
           <FieldRow label="Плотность">
             <div style={{ ...CONTROL_STRIP_STYLE, gap: 6 }}>
               {item.variants.map((v, j) => (
-                <button key={j} onClick={() => setVi(j)} style={{
+                <button key={j} onClick={() => {
+                  setVi(j);
+                  setSelectedSize("");
+                  setSelectedColor("");
+                }} style={{
                   minWidth: 110,
                   flexShrink: 0,
                   padding: "8px 10px", borderRadius: 10, cursor: "pointer", fontSize: 13,
@@ -1001,8 +993,9 @@ function ProductCard({ item, i, type, onAddTshirtSelection, onOpenGallery }) {
   const desc = hasVariants && displayVariant?.desc ? displayVariant.desc : item.desc;
   const sizeOptions = isTshirt ? getTshirtSizes(item) : [];
   const colorOptions = isTshirt ? parseColorOptions(colors) : [];
+  const defaultColor = isTshirt ? getDefaultTshirtColor(colorOptions) : "";
   const [selectedSize, setSelectedSize] = useState("");
-  const [selectedColor, setSelectedColor] = useState(() => isTshirt ? getDefaultTshirtColor(colorOptions) : "");
+  const [selectedColor, setSelectedColor] = useState(defaultColor);
   const [selectedQty, setSelectedQty] = useState(1);
   const galleryColor = selectedColor || colorOptions[0] || "Чёрный";
   const orderLink = isTshirt
@@ -1023,28 +1016,6 @@ function ProductCard({ item, i, type, onAddTshirtSelection, onOpenGallery }) {
       price,
     }, originRect);
   };
-
-  useEffect(() => {
-    if (isTshirt && selectedSize && sizeOptions.length && !sizeOptions.includes(selectedSize)) {
-      setSelectedSize("");
-    }
-  }, [isTshirt, selectedSize, sizeOptions]);
-
-  useEffect(() => {
-    if (!isTshirt) return;
-
-    if (!selectedColor) {
-      const defaultColor = getDefaultTshirtColor(colorOptions);
-      if (defaultColor) {
-        setSelectedColor(defaultColor);
-      }
-      return;
-    }
-
-    if (colorOptions.length && !colorOptions.includes(selectedColor)) {
-      setSelectedColor(getDefaultTshirtColor(colorOptions));
-    }
-  }, [isTshirt, selectedColor, colorOptions]);
 
   return (
     <div className="cs" style={{
@@ -1076,7 +1047,13 @@ function ProductCard({ item, i, type, onAddTshirtSelection, onOpenGallery }) {
           <FieldRow label="Плотность">
             <div style={{ ...CONTROL_STRIP_STYLE, gap: 6 }}>
               {item.variants.map((v, vi) => (
-                <button key={vi} onClick={() => setVarIdx(vi)}
+                <button key={vi} onClick={() => {
+                  const nextVariant = item.variants[vi];
+                  const nextDefaultColor = getDefaultTshirtColor(parseColorOptions(nextVariant?.colors || ""));
+                  setVarIdx(vi);
+                  setSelectedSize("");
+                  setSelectedColor(nextDefaultColor);
+                }}
                   style={{
                     minWidth: 110,
                     flexShrink: 0,
@@ -1139,7 +1116,6 @@ function TextilePage({ type, onBack, onNavigate }) {
   const [sizeGuideOpen, setSizeGuideOpen] = useState(false);
   const [galleryModal, setGalleryModal] = useState(null);
   const basketSummaryRef = useRef(null);
-  if (!data) return null;
 
   useEffect(() => {
     if (!sizeGuideOpen && !galleryModal) return undefined;
@@ -1173,6 +1149,8 @@ function TextilePage({ type, onBack, onNavigate }) {
       window.removeEventListener("keydown", onKeyDown);
     };
   }, [sizeGuideOpen, galleryModal]);
+
+  if (!data) return null;
 
   const addTshirtSelection = (selection, originRect) => {
     setTshirtOrder((current) => {

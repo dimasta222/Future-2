@@ -11,7 +11,8 @@
     "portfolio:prepare": "node scripts/prepare-portfolio-images.mjs",
     "git:sync": "sh ./scripts/git-sync.sh",
     "git:update": "sh ./scripts/git-update.sh",
-    "git:status": "git status -sb"
+    "git:status": "git status -sb",
+    "publish": "sh ./scripts/publish-site.sh"
   },
   "dependencies": {
     "react": "^19.2.0",

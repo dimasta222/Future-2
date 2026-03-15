@@ -425,10 +425,3 @@ export const PORTFOLIO_CATEGORIES = [
   "Все",
   ...PORTFOLIO_SECTIONS.map((section) => section.category),
 ];
-
-export const PORTFOLIO_ITEMS = PORTFOLIO_SECTIONS.flatMap((section) =>
-  section.items.map((item) => ({
-    ...item,
-    cat: section.category,
-  }))
-);

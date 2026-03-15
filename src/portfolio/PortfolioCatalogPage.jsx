@@ -14,9 +14,9 @@ const STYLES = `
 .cg:hover{background:rgba(255,255,255,.06);border-color:rgba(232,67,147,.2);transform:translateY(-6px)}
 `;
 
-function LogoMini({ onClick }) {
+function LogoMini() {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }} onClick={onClick}>
+    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
       <div style={{ width: 36, height: 36, position: "relative" }}>
         <div style={{ width: 18, height: 18, borderRadius: "50%", background: "linear-gradient(135deg,#d4a0c0,#8a3a6a)", position: "absolute", top: 4, left: 0 }} />
         <div style={{ width: 20, height: 20, borderRadius: "50%", background: "linear-gradient(135deg,#e84393,#c0247a)", position: "absolute", top: 2, left: 9 }} />
@@ -97,12 +97,11 @@ export default function PortfolioCatalogPage({ onBack }) {
       }}
     >
       <style>{STYLES}</style>
-      <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@200;300;400;500;600;700&display=swap" rel="stylesheet" />
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: "28px 5% 80px", display: "grid", gap: 36 }}>
-        <div onClick={onBack} style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 12 }}>
+        <button type="button" onClick={onBack} style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 12, background: "none", border: "none", color: "inherit", padding: 0, font: "inherit" }}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#e84393" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
-          <LogoMini onClick={onBack} />
-        </div>
+          <LogoMini />
+        </button>
 
         <section style={{ display: "grid", gap: 22 }}>
           <div style={{ display: "grid", gap: 12, maxWidth: 760, margin: "0 auto", textAlign: "center" }}>

@@ -252,9 +252,9 @@ input[type=number]{-moz-appearance:textfield}
 `;
 
 /* Shared components */
-function LogoMini({ onClick }) {
+function LogoMini() {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }} onClick={onClick}>
+    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
       <div style={{ width: 36, height: 36, position: "relative" }}>
         <div style={{ width: 18, height: 18, borderRadius: "50%", background: "linear-gradient(135deg,#d4a0c0,#8a3a6a)", position: "absolute", top: 4, left: 0 }} />
         <div style={{ width: 20, height: 20, borderRadius: "50%", background: "linear-gradient(135deg,#e84393,#c0247a)", position: "absolute", top: 2, left: 9 }} />
@@ -1211,7 +1211,6 @@ function TextilePage({ type, onBack, onNavigate }) {
   return (
     <div style={{ fontFamily: "'Outfit',sans-serif", background: "#08080c", color: "#f0eef5", minHeight: "100vh" }}>
       <style>{STYLES}{`@keyframes fadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}@keyframes cartPulseGlow{0%{transform:scale(1);box-shadow:0 0 0 rgba(232,67,147,0)}30%{transform:scale(1.035);box-shadow:0 0 0 6px rgba(232,67,147,.06),0 10px 30px rgba(232,67,147,.18)}65%{transform:scale(1.015);box-shadow:0 0 0 10px rgba(108,92,231,.04),0 12px 34px rgba(108,92,231,.14)}100%{transform:scale(1);box-shadow:0 0 0 rgba(232,67,147,0)}}@keyframes cartFly{0%{transform:translate3d(0,0,0) scale(1) rotate(0deg);opacity:.98;filter:blur(0)}38%{transform:translate3d(calc(var(--dx) * .42),calc(var(--dy) * .34 - var(--lift)),0) scale(.96) rotate(-8deg);opacity:1;filter:blur(0)}72%{transform:translate3d(calc(var(--dx) * .78),calc(var(--dy) * .82 - calc(var(--lift) * .18)),0) scale(.78) rotate(6deg);opacity:.72;filter:blur(.2px)}100%{transform:translate3d(var(--dx),var(--dy),0) scale(.52) rotate(12deg);opacity:0;filter:blur(.8px)}}`}</style>
-      <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@200;300;400;500;600;700&display=swap" rel="stylesheet" />
 
       {flyingCartItem && (
         <div
@@ -1403,10 +1402,10 @@ function TextilePage({ type, onBack, onNavigate }) {
       )}
 
       <div style={{ maxWidth: 1240, margin: "0 auto", padding: "28px 5% 0" }}>
-        <div onClick={onBack} style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 12 }}>
+        <button type="button" onClick={onBack} style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 12, background: "none", border: "none", color: "inherit", padding: 0, font: "inherit" }}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#e84393" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
-          <LogoMini onClick={onBack} />
-        </div>
+          <LogoMini />
+        </button>
 
         <div style={{ textAlign: "center", margin: "36px 0 20px" }}>
           <span style={{ fontSize: 12, fontWeight: 500, letterSpacing: 4, color: "#6c5ce7", textTransform: "uppercase" }}>Текстиль</span>
@@ -1579,13 +1578,12 @@ function CalcPage({ onBack }) {
   return (
     <div style={{ fontFamily: "'Outfit',sans-serif", background: "#08080c", color: "#f0eef5", minHeight: "100vh" }}>
       <style>{STYLES}</style>
-      <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@200;300;400;500;600;700&display=swap" rel="stylesheet" />
 
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: "28px 5% 0" }}>
-        <div onClick={onBack} style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 12 }}>
+        <button type="button" onClick={onBack} style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 12, background: "none", border: "none", color: "inherit", padding: 0, font: "inherit" }}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#e84393" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
-          <LogoMini onClick={onBack} />
-        </div>
+          <LogoMini />
+        </button>
 
         <div style={{ textAlign: "center", margin: "36px 0 32px" }}>
           <span style={{ fontSize: 12, fontWeight: 500, letterSpacing: 4, color: "#e84393", textTransform: "uppercase" }}>Оптовым клиентам</span>
@@ -1836,17 +1834,16 @@ export default function App() {
   const [ac, setAc] = useState("Главная");
   const [mn, setMn] = useState(false);
   const [fm, setFm] = useState({ n: "", p: "", m: "" });
-  const [sent, setSent] = useState(false);
   const [sy, setSy] = useState(0);
   const [pt, setPt] = useState("format");
-  const [txHover, setTxHover] = useState(false);
+  const [txMenuOpen, setTxMenuOpen] = useState(false);
 
   useEffect(() => { const h = () => setSy(window.scrollY); window.addEventListener("scroll", h, { passive: true }); return () => window.removeEventListener("scroll", h); }, []);
   useEffect(() => {
     const onHashChange = () => {
       setPg(getPageFromHash());
       setMn(false);
-      setTxHover(false);
+      setTxMenuOpen(false);
       window.scrollTo(0, 0);
     };
 
@@ -1861,7 +1858,7 @@ export default function App() {
   const navigateToPage = (page, { scrollToTop = true } = {}) => {
     setPg(page);
     setMn(false);
-    setTxHover(false);
+    setTxMenuOpen(false);
     if (scrollToTop) window.scrollTo(0, 0);
   };
 
@@ -1874,6 +1871,25 @@ export default function App() {
   const goTextile = (type) => { navigateToPage("textile_" + type); };
   const oc = () => { navigateToPage("calc"); };
 
+  const handleContactSubmit = (event) => {
+    event.preventDefault();
+    if (!fm.n.trim() || !fm.p.trim()) return;
+
+    const message = [
+      "Здравствуйте! Хочу оформить заказ.",
+      `Имя: ${fm.n.trim()}`,
+      `Телефон: ${fm.p.trim()}`,
+      fm.m.trim() ? `Комментарий: ${fm.m.trim()}` : null,
+    ].filter(Boolean).join("\n");
+
+    const telegramUrl = `https://t.me/FUTURE_178?text=${encodeURIComponent(message)}`;
+    const popup = window.open(telegramUrl, "_blank", "noopener,noreferrer");
+
+    if (!popup) {
+      window.location.assign(telegramUrl);
+    }
+  };
+
   if (pg === "calc") return <CalcPage onBack={() => navigateToPage("main")} />;
   if (pg === "portfolio") return (
     <Suspense fallback={<div style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "#08080c", color: "#f0eef5", fontFamily: "'Outfit',sans-serif" }}>Загрузка портфолио…</div>}>
@@ -1884,40 +1900,69 @@ export default function App() {
 
   return (
     <div style={{ fontFamily: "'Outfit',sans-serif", background: "#08080c", color: "#f0eef5", minHeight: "100vh", overflowX: "hidden" }}>
-      <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@200;300;400;500;600;700&display=swap" rel="stylesheet" />
       <style>{STYLES}</style>
 
       {/* NAV */}
       <nav className="nb" style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 100, background: sy > 50 ? "rgba(8,8,12,.85)" : "transparent", borderBottom: sy > 50 ? "1px solid rgba(255,255,255,.05)" : "none", transition: "all .4s", padding: "0 5%" }}>
         <div style={{ maxWidth: 1320, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", height: 72 }}>
           <div className="nav-left">
-            <LogoMini onClick={() => go("Главная")} />
+            <button type="button" onClick={() => go("Главная")} style={{ background: "none", border: "none", color: "inherit", padding: 0, font: "inherit", cursor: "pointer" }} aria-label="На главную">
+              <LogoMini />
+            </button>
             <button onClick={oc} className="nav-calc-btn hidden md:flex" style={{ background: "linear-gradient(135deg,#e84393,#6c5ce7)", border: "none", color: "#fff", padding: "8px 20px", borderRadius: 50, fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "'Outfit',sans-serif" }}>Оптовый калькулятор</button>
           </div>
           <div style={{ display: "flex", gap: 28, alignItems: "center" }} className="hidden md:flex nav-main">
             {NAV.map(n => n === "Текстиль" ? (
-              <div key={n} style={{ position: "relative" }} onMouseEnter={() => setTxHover(true)} onMouseLeave={() => setTxHover(false)}>
-                <span style={{ cursor: "pointer", fontSize: 14, fontWeight: 300, letterSpacing: 1.5, color: txHover || pg.startsWith("textile_") ? "#e84393" : "rgba(240,238,245,.6)", transition: "color .3s", textTransform: "uppercase", display: "flex", alignItems: "center", gap: 4 }}>
+              <div
+                key={n}
+                style={{ position: "relative" }}
+                onMouseEnter={() => setTxMenuOpen(true)}
+                onMouseLeave={() => setTxMenuOpen(false)}
+                onBlur={(event) => {
+                  if (!event.currentTarget.contains(event.relatedTarget)) {
+                    setTxMenuOpen(false);
+                  }
+                }}
+              >
+                <button
+                  type="button"
+                  aria-haspopup="menu"
+                  aria-expanded={txMenuOpen}
+                  onClick={() => setTxMenuOpen((current) => !current)}
+                  onKeyDown={(event) => {
+                    if (event.key === "ArrowDown" || event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      setTxMenuOpen(true);
+                    }
+                    if (event.key === "Escape") {
+                      setTxMenuOpen(false);
+                    }
+                  }}
+                  style={{ cursor: "pointer", fontSize: 14, fontWeight: 300, letterSpacing: 1.5, color: txMenuOpen || pg.startsWith("textile_") ? "#e84393" : "rgba(240,238,245,.6)", transition: "color .3s", textTransform: "uppercase", display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", padding: 0, fontFamily: "inherit" }}
+                >
                   {n}
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ transition: "transform .3s", transform: txHover ? "rotate(180deg)" : "rotate(0)" }}><path d="M6 9l6 6 6-6" /></svg>
-                </span>
-                {txHover && (
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ transition: "transform .3s", transform: txMenuOpen ? "rotate(180deg)" : "rotate(0)" }}><path d="M6 9l6 6 6-6" /></svg>
+                </button>
+                {txMenuOpen && (
                   <div style={{ position: "absolute", top: "100%", left: "50%", transform: "translateX(-50%)", paddingTop: 8, zIndex: 110 }}>
-                    <div style={{ background: "rgba(16,16,24,.95)", backdropFilter: "blur(20px)", border: "1px solid rgba(255,255,255,.08)", borderRadius: 14, padding: "8px 0", minWidth: 160, boxShadow: "0 16px 48px rgba(0,0,0,.5)" }}>
+                    <div role="menu" aria-label="Разделы текстиля" style={{ background: "rgba(16,16,24,.95)", backdropFilter: "blur(20px)", border: "1px solid rgba(255,255,255,.08)", borderRadius: 14, padding: "8px 0", minWidth: 160, boxShadow: "0 16px 48px rgba(0,0,0,.5)" }}>
                       {TEXTILE_MENU.map(([key, label]) => (
-                        <div key={key} onClick={() => goTextile(key)}
-                          style={{ padding: "10px 20px", fontSize: 14, fontWeight: 300, color: pg === "textile_" + key ? "#e84393" : "rgba(240,238,245,.6)", cursor: "pointer", transition: "all .2s", letterSpacing: 0.5 }}
-                          onMouseEnter={e => { e.target.style.color = "#e84393"; e.target.style.background = "rgba(232,67,147,.06)"; }}
-                          onMouseLeave={e => { e.target.style.color = pg === "textile_" + key ? "#e84393" : "rgba(240,238,245,.6)"; e.target.style.background = "transparent"; }}>
+                        <button
+                          type="button"
+                          key={key}
+                          onClick={() => { setTxMenuOpen(false); goTextile(key); }}
+                          style={{ width: "100%", textAlign: "left", padding: "10px 20px", fontSize: 14, fontWeight: 300, color: pg === "textile_" + key ? "#e84393" : "rgba(240,238,245,.6)", cursor: "pointer", transition: "all .2s", letterSpacing: 0.5, background: "none", border: "none", fontFamily: "inherit" }}
+                          onMouseEnter={e => { e.currentTarget.style.color = "#e84393"; e.currentTarget.style.background = "rgba(232,67,147,.06)"; }}
+                          onMouseLeave={e => { e.currentTarget.style.color = pg === "textile_" + key ? "#e84393" : "rgba(240,238,245,.6)"; e.currentTarget.style.background = "transparent"; }}>
                           {label}
-                        </div>
+                        </button>
                       ))}
                     </div>
                   </div>
                 )}
               </div>
             ) : (
-              <span key={n} onClick={() => go(n)} style={{ cursor: "pointer", fontSize: 14, fontWeight: 300, letterSpacing: 1.5, color: ac === n ? "#e84393" : "rgba(240,238,245,.6)", transition: "color .3s", textTransform: "uppercase" }} onMouseEnter={e => e.target.style.color = "#e84393"} onMouseLeave={e => { if (ac !== n) e.target.style.color = "rgba(240,238,245,.6)"; }}>{n}</span>
+              <button type="button" key={n} onClick={() => go(n)} style={{ cursor: "pointer", fontSize: 14, fontWeight: 300, letterSpacing: 1.5, color: ac === n ? "#e84393" : "rgba(240,238,245,.6)", transition: "color .3s", textTransform: "uppercase", background: "none", border: "none", padding: 0, fontFamily: "inherit" }} onMouseEnter={e => e.currentTarget.style.color = "#e84393"} onMouseLeave={e => { if (ac !== n) e.currentTarget.style.color = "rgba(240,238,245,.6)"; }}>{n}</button>
             ))}
             <div style={{ display: "flex", alignItems: "center", gap: 12 }} className="nav-contacts">
               <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }} className="nav-contacts-stack">
@@ -1934,11 +1979,11 @@ export default function App() {
               </div>
             </div>
           </div>
-          <div onClick={() => setMn(!mn)} style={{ cursor: "pointer", display: "none", flexDirection: "column", gap: 5, padding: 8 }} className="flex! md:hidden!">
+          <button type="button" onClick={() => setMn(!mn)} style={{ cursor: "pointer", display: "none", flexDirection: "column", gap: 5, padding: 8, background: "none", border: "none", color: "inherit" }} className="flex! md:hidden!" aria-label="Открыть меню">
             <span style={{ width: 24, height: 2, background: "#e84393", transition: "all .3s", transform: mn ? "rotate(45deg) translateY(7px)" : "none" }} />
             <span style={{ width: 24, height: 2, background: "#e84393", transition: "all .3s", opacity: mn ? 0 : 1 }} />
             <span style={{ width: 24, height: 2, background: "#e84393", transition: "all .3s", transform: mn ? "rotate(-45deg) translateY(-7px)" : "none" }} />
-          </div>
+          </button>
         </div>
         {mn && <div style={{ background: "rgba(8,8,12,.95)", padding: "20px 5%", display: "flex", flexDirection: "column", gap: 16 }}>
           {NAV.map(n => n === "Текстиль" ? (
@@ -1946,12 +1991,12 @@ export default function App() {
               <span style={{ fontSize: 16, fontWeight: 400, letterSpacing: 2, color: "rgba(240,238,245,.5)" }}>Текстиль</span>
               <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 10, paddingLeft: 16 }}>
                 {TEXTILE_MENU.map(([key, label]) => (
-                  <span key={key} onClick={() => goTextile(key)} style={{ cursor: "pointer", fontSize: 15, fontWeight: 300, letterSpacing: 1, color: pg === "textile_" + key ? "#e84393" : "rgba(240,238,245,.6)" }}>{label}</span>
+                  <button type="button" key={key} onClick={() => goTextile(key)} style={{ cursor: "pointer", fontSize: 15, fontWeight: 300, letterSpacing: 1, color: pg === "textile_" + key ? "#e84393" : "rgba(240,238,245,.6)", background: "none", border: "none", padding: 0, fontFamily: "inherit", textAlign: "left" }}>{label}</button>
                 ))}
               </div>
             </div>
           ) : (
-            <span key={n} onClick={() => go(n)} style={{ cursor: "pointer", fontSize: 16, fontWeight: 300, letterSpacing: 2, color: ac === n ? "#e84393" : "rgba(240,238,245,.6)" }}>{n}</span>
+            <button type="button" key={n} onClick={() => go(n)} style={{ cursor: "pointer", fontSize: 16, fontWeight: 300, letterSpacing: 2, color: ac === n ? "#e84393" : "rgba(240,238,245,.6)", background: "none", border: "none", padding: 0, fontFamily: "inherit" }}>{n}</button>
           ))}
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <a href="tel:+79500003464" style={{ fontSize: 16, fontWeight: 500, letterSpacing: 1, color: "#f0eef5", textDecoration: "none" }}>+7 (950) 000-34-64</a>
@@ -1965,7 +2010,7 @@ export default function App() {
               </a>
             </div>
           </div>
-          <span onClick={() => { setMn(false); oc(); }} style={{ cursor: "pointer", fontSize: 16, fontWeight: 500, letterSpacing: 2, color: "#e84393" }}>Оптовый калькулятор</span>
+          <button type="button" onClick={() => { setMn(false); oc(); }} style={{ cursor: "pointer", fontSize: 16, fontWeight: 500, letterSpacing: 2, color: "#e84393", background: "none", border: "none", padding: 0, fontFamily: "inherit" }}>Оптовый калькулятор</button>
         </div>}
       </nav>
 
@@ -2066,16 +2111,17 @@ export default function App() {
           <A className="text-center mb-12"><span style={{ fontSize: 12, fontWeight: 500, letterSpacing: 4, color: "#6c5ce7", textTransform: "uppercase" }}>Свяжитесь с нами</span><h2 style={{ fontSize: "clamp(28px,4vw,44px)", fontWeight: 200, marginTop: 12 }}>Оставить <span style={{ fontWeight: 600 }}>заявку</span></h2></A>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))", gap: 32 }}>
             <A delay={.1}>
-              {sent ? (
-                <div className="cg" style={{ padding: 48, textAlign: "center" }}><div style={{ fontSize: 48, marginBottom: 16 }}>✨</div><h3 style={{ fontSize: 24, fontWeight: 500, marginBottom: 8 }}>Отправлено!</h3><button className="bo" style={{ marginTop: 24 }} onClick={() => { setSent(false); setFm({ n: "", p: "", m: "" }); }}>Новая заявка</button></div>
-              ) : (
-                <div className="cg" style={{ padding: "36px 32px" }}><div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                  <input className="inf" placeholder="Ваше имя" value={fm.n} onChange={e => setFm({ ...fm, n: e.target.value })} />
-                  <input className="inf" placeholder="Телефон" value={fm.p} onChange={e => setFm({ ...fm, p: e.target.value })} />
-                  <textarea className="inf" placeholder="Опишите заказ..." rows={4} style={{ resize: "vertical", minHeight: 100 }} value={fm.m} onChange={e => setFm({ ...fm, m: e.target.value })} />
-                  <button className="bp" style={{ width: "100%", marginTop: 4 }} onClick={() => { if (fm.n && fm.p) setSent(true); }}>Отправить</button>
-                </div></div>
-              )}
+                <form className="cg" style={{ padding: "36px 32px" }} onSubmit={handleContactSubmit}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                    <input className="inf" placeholder="Ваше имя" value={fm.n} onChange={e => setFm({ ...fm, n: e.target.value })} required />
+                    <input className="inf" placeholder="Телефон" value={fm.p} onChange={e => setFm({ ...fm, p: e.target.value })} required />
+                    <textarea className="inf" placeholder="Опишите заказ..." rows={4} style={{ resize: "vertical", minHeight: 100 }} value={fm.m} onChange={e => setFm({ ...fm, m: e.target.value })} />
+                    <div style={{ fontSize: 12, color: "rgba(240,238,245,.45)", lineHeight: 1.5 }}>
+                      После отправки откроется Telegram с подготовленным сообщением для менеджера.
+                    </div>
+                    <button type="submit" className="bp" style={{ width: "100%", marginTop: 4 }}>Отправить в Telegram</button>
+                  </div>
+                </form>
             </A>
             <A delay={.2}><div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
               <div className="cg" style={{ padding: 24, overflow: "hidden" }}><div style={{ fontSize: 11, fontWeight: 500, letterSpacing: 2, color: "#e84393", textTransform: "uppercase", marginBottom: 12 }}>Адрес</div><div style={{ fontSize: 16 }}>Санкт-Петербург</div><div style={{ fontSize: 14, fontWeight: 300, color: "rgba(240,238,245,.6)" }}>пр. Авиаконструкторов, 5к2, эт. 2</div><div style={{ fontSize: 12, fontWeight: 300, color: "rgba(240,238,245,.35)", marginTop: 6, display: "flex", alignItems: "center", gap: 6 }}><svg width="16" height="16" viewBox="0 0 100 100"><circle cx="50" cy="50" r="46" fill="none" stroke="#6c5ce7" strokeWidth="10"/><path d="M22 65 C22 35, 35 25, 50 58 C65 25, 78 35, 78 65" fill="none" stroke="#6c5ce7" strokeWidth="10" strokeLinecap="round" strokeLinejoin="round"/></svg>Комендантский проспект</div><div style={{ marginTop: 14, borderRadius: 12, overflow: "hidden", border: "1px solid rgba(255,255,255,.06)" }}><iframe src="https://yandex.ru/map-widget/v1/?pt=30.246977,60.011073,pm2rdm&z=16&l=map" width="100%" height="180" frameBorder="0" style={{ display: "block", filter: "invert(0.9) hue-rotate(180deg) brightness(1.1) contrast(0.9)" }} allowFullScreen /></div></div>

@@ -11,6 +11,7 @@ const MAX_CALC_ITEMS = 40;
 const ORIENTATION_EXHAUSTIVE_LIMIT = 12;
 const LAYOUT_PREVIEW_HEIGHT = 160;
 const LAYOUT_SCROLL_MAX_HEIGHT = "min(72vh, 820px)";
+const PUBLIC_BASE_URL = import.meta.env.BASE_URL || "/";
 
 const PRINT_TIERS = [
   { min: 1, max: 2, price: 1400 },
@@ -706,6 +707,12 @@ function svgToDataUri(svg) {
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
 
+function toPublicAssetUrl(path) {
+  if (!path) return "";
+  const normalizedPath = String(path).replace(/^\/+/, "");
+  return encodeURI(`${PUBLIC_BASE_URL}${normalizedPath}`);
+}
+
 function normalizeVariantLabel(variantLabel = "") {
   const match = String(variantLabel).match(/\d+/);
   return match ? match[0] : "";
@@ -718,7 +725,7 @@ function resolveRealGalleryPath(model, colorName, variantLabel) {
 
   const normalizedVariant = normalizeVariantLabel(variantLabel);
   const variantPath = normalizedVariant ? modelConfig.variants?.[normalizedVariant]?.[normalizedColor] : "";
-  return variantPath || modelConfig.shared?.[normalizedColor] || "";
+  return toPublicAssetUrl(variantPath || modelConfig.shared?.[normalizedColor] || "");
 }
 
 function buildOrderedGalleryCandidates(model, colorName, variantLabel) {
@@ -748,7 +755,7 @@ function resolveHomepageTshirtPreview(model, colorName, variantLabel) {
     ? HOME_TSHIRT_PREVIEW_PATHS[normalizedModel]?.[normalizedVariant]?.[normalizedColor]
     : "";
 
-  return previewSrc ? encodeURI(previewSrc) : "";
+  return toPublicAssetUrl(previewSrc);
 }
 
 function preloadHomepageTshirtPreview(src) {

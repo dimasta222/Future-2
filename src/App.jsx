@@ -359,17 +359,33 @@ a{color:inherit}
 .mobile-pricing-meta{min-width:0}
 .mobile-pricing-price{flex-shrink:0;text-align:right}
 .mobile-pricing-note{display:none}
+.main-card.main-showcase-card{background:none!important;border:none!important;backdrop-filter:none!important;box-shadow:none!important;padding:0!important;transition:none!important}
+.main-card.main-showcase-card:hover{background:none!important;border:none!important;transform:none!important}
+.main-showcase-shell{width:min(100%,340px);margin:0 auto}
+.main-showcase-meta{display:flex;flex-direction:column;gap:10px}
+.main-showcase-stage{position:relative;margin-top:12px}
+.main-showcase-media{position:relative;width:100%;margin:0 auto}
+.main-showcase-preview{width:100%;max-width:100%;display:block;filter:drop-shadow(0 24px 40px rgba(18,14,20,.18))}
+.main-showcase-swatches{position:absolute;left:clamp(10px,2vw,18px);top:clamp(12px,2.2vw,20px);display:flex;flex-direction:column;gap:clamp(6px,1vw,10px);z-index:2}
+.main-showcase-swatches-title{font-size:clamp(8px,.85vw,10px);font-weight:500;letter-spacing:1px;color:#111;text-transform:uppercase;line-height:1.2;max-width:78px}
+.main-showcase-swatch{width:clamp(16px,1.8vw,22px);height:clamp(16px,1.8vw,22px);border-radius:50%;border:1px solid rgba(17,17,20,.18);cursor:pointer;box-shadow:0 6px 14px rgba(0,0,0,.12);transition:border-color .25s,box-shadow .25s}
+.main-showcase-swatch:hover{box-shadow:0 10px 18px rgba(0,0,0,.16)}
+.main-showcase-swatch-active{border-color:#ff6b2c;box-shadow:0 0 0 3px rgba(255,107,44,.18),0 12px 24px rgba(17,14,20,.14)}
+.main-showcase-size-label{font-size:10px;font-weight:500;letter-spacing:1.6px;color:rgba(240,238,245,.34);text-transform:uppercase;margin-bottom:6px}
+.main-showcase-size-row{display:flex;flex-wrap:wrap;gap:6px}
+.main-showcase-size-pill{padding:6px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.03);font-size:12px;font-weight:500;color:rgba(240,238,245,.82)}
 .bp{background:linear-gradient(135deg,#e84393,#6c5ce7);border:none;color:#fff;padding:14px 36px;border-radius:50px;font-size:16px;font-weight:500;cursor:pointer;letter-spacing:1px;position:relative;overflow:hidden;transition:all .4s;font-family:'Outfit',sans-serif}
-.bp:hover{transform:translateY(-2px);box-shadow:0 10px 40px rgba(232,67,147,.4)}
+.bp:hover{box-shadow:0 10px 40px rgba(232,67,147,.4)}
 .bp::after{content:'';position:absolute;top:0;width:60%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.15),transparent);animation:shimmer 3s infinite}
 .bo{background:0 0;border:1.5px solid rgba(232,67,147,.5);color:#e84393;padding:14px 36px;border-radius:50px;font-size:16px;font-weight:400;cursor:pointer;transition:all .4s;font-family:'Outfit',sans-serif}
-.bo:hover{background:rgba(232,67,147,.1);border-color:#e84393;transform:translateY(-2px)}
+.bo:hover{background:rgba(232,67,147,.1);border-color:#e84393}
 .btg{background:linear-gradient(135deg,#0088cc,#6c5ce7);border:none;color:#fff;padding:14px 36px;border-radius:50px;font-size:16px;font-weight:500;cursor:pointer;transition:all .4s;font-family:'Outfit',sans-serif;display:inline-flex;align-items:center;gap:10px;text-decoration:none}
-.btg:hover{transform:translateY(-2px);box-shadow:0 10px 40px rgba(0,136,204,.3)}
+.btg:hover{box-shadow:0 10px 40px rgba(0,136,204,.3)}
 .bcalc{background:linear-gradient(135deg,rgba(232,67,147,.15),rgba(108,92,231,.15));border:1.5px solid rgba(232,67,147,.3);color:#f0eef5;padding:14px 36px;border-radius:50px;font-size:16px;font-weight:500;cursor:pointer;transition:all .4s;font-family:'Outfit',sans-serif;display:inline-flex;align-items:center;gap:10px}
-.bcalc:hover{transform:translateY(-2px);background:linear-gradient(135deg,rgba(232,67,147,.25),rgba(108,92,231,.25));box-shadow:0 10px 40px rgba(232,67,147,.2)}
+.bcalc:hover{background:linear-gradient(135deg,rgba(232,67,147,.25),rgba(108,92,231,.25));box-shadow:0 10px 40px rgba(232,67,147,.2)}
+.hero-primary:hover,.hero-secondary:hover,.hero-tertiary:hover,.hero-support:hover{transform:none!important}
 .cg{background:rgba(255,255,255,.03);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.06);border-radius:20px;transition:all .5s cubic-bezier(.16,1,.3,1)}
-.cg:hover{background:rgba(255,255,255,.06);border-color:rgba(232,67,147,.2);transform:translateY(-6px)}
+.cg:hover{background:rgba(255,255,255,.06);border-color:rgba(232,67,147,.2)}
 .cs{background:rgba(255,255,255,.03);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.06);border-radius:20px}
 .inf{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:16px 20px;color:#f0eef5;font-size:15px;width:100%;outline:none;transition:all .3s;font-family:'Outfit',sans-serif}
 .inf:focus{border-color:#e84393;box-shadow:0 0 20px rgba(232,67,147,.15)}
@@ -391,10 +407,16 @@ input[type=number]{-moz-appearance:textfield}
   .desktop-pricing-table{display:none!important}
   .mobile-pricing-list{display:grid!important;gap:8px!important}
   .mobile-pricing-note{display:block!important;margin-top:4px;font-size:10px;font-weight:400;color:rgba(240,238,245,.48);line-height:1.35}
+  .main-showcase-stage{margin-top:12px!important}
+  .main-showcase-shell{width:min(100%,300px)!important}
+  .main-showcase-swatches{left:clamp(8px,2.4vw,16px)!important;top:clamp(10px,2.8vw,18px)!important}
   .hero-rating{flex-wrap:wrap!important;justify-content:center!important;padding:8px 16px!important}
   .hero-actions{width:100%!important;gap:10px!important;margin-top:28px!important}
   .hero-actions>*{flex:1 1 calc(50% - 10px)!important;justify-content:center!important}
   .hero-stats{width:100%!important;gap:18px!important;margin-top:42px!important}
+  .hero-stat{display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:flex-start!important;min-width:0!important}
+  .hero-stat-value{white-space:nowrap!important;line-height:1.05!important}
+  .hero-stat-label{display:flex!important;align-items:flex-start!important;justify-content:center!important;min-height:32px!important;line-height:1.35!important;text-align:center!important}
   .textile-card-grid,.main-tshirt-grid,.reviews-grid,.contact-grid,.size-guide-grid,.constructor-shell,.constructor-two-grid{grid-template-columns:1fr!important}
   .constructor-preview{position:relative!important;top:auto!important}
   .constructor-meta-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
@@ -420,6 +442,15 @@ input[type=number]{-moz-appearance:textfield}
   .field-row-label{width:auto!important;min-width:0!important}
   .field-row-content{width:100%!important}
   .field-value{text-align:left!important;margin-left:0!important}
+  .main-showcase-shell{width:min(100%,250px)!important}
+  .main-showcase-card .main-card-header{flex-direction:row!important;align-items:flex-start!important;justify-content:space-between!important}
+  .main-showcase-card .field-row{flex-direction:row!important;align-items:center!important;gap:14px!important}
+  .main-showcase-card .field-row-label{width:92px!important;min-width:92px!important}
+  .main-showcase-card .field-row-content{width:auto!important;flex:1!important}
+  .main-showcase-card .field-value{text-align:right!important;margin-left:auto!important}
+  .main-showcase-swatches-title{font-size:clamp(8px,2.6vw,9px)!important;letter-spacing:.9px!important;max-width:72px!important}
+  .main-showcase-swatch{width:clamp(16px,4.2vw,20px)!important;height:clamp(16px,4.2vw,20px)!important}
+  .main-showcase-preview{width:100%!important}
   .main-card,.product-card,.review-card,.contact-card,.calc-panel,.constructor-panel{padding:22px!important}
   .main-card-header,.product-card-header,.constructor-top,.constructor-basket-summary{flex-direction:column!important;align-items:flex-start!important}
   .price-pill{align-self:flex-start!important}
@@ -615,6 +646,18 @@ const TSHIRT_REAL_GALLERY_PATHS = {
   },
 };
 
+const HOME_TSHIRT_PREVIEW_PATHS = {
+  oversize: {
+    "180": {
+      "черный": "/tshirts/home img t-shirt/oversize/180/black/futbolka_oversize_black_180.png",
+      "белый": "/tshirts/home img t-shirt/oversize/180/white/futbolka_oversize_white_180.png",
+      "розовый": "/tshirts/home img t-shirt/oversize/180/pink/futbolka_oversize_pink_180.png",
+    },
+  },
+};
+
+const HOME_TSHIRT_PREVIEW_CACHE = new Set();
+
 const TSHIRT_GALLERY_EXTENSIONS = ["jpg", "jpeg", "png", "webp", "avif"];
 const TSHIRT_GALLERY_MAX_IMAGES = 12;
 
@@ -695,6 +738,25 @@ function buildOrderedGalleryCandidates(model, colorName, variantLabel) {
       ])),
     };
   });
+}
+
+function resolveHomepageTshirtPreview(model, colorName, variantLabel) {
+  const normalizedModel = model || "classic";
+  const normalizedColor = normalizeColorName(colorName);
+  const normalizedVariant = normalizeVariantLabel(variantLabel);
+  const previewSrc = normalizedVariant
+    ? HOME_TSHIRT_PREVIEW_PATHS[normalizedModel]?.[normalizedVariant]?.[normalizedColor]
+    : "";
+
+  return previewSrc ? encodeURI(previewSrc) : "";
+}
+
+function preloadHomepageTshirtPreview(src) {
+  if (!src || HOME_TSHIRT_PREVIEW_CACHE.has(src)) return;
+  HOME_TSHIRT_PREVIEW_CACHE.add(src);
+  const image = new Image();
+  image.decoding = "async";
+  image.src = src;
 }
 
 function loadImageCandidate(sources) {
@@ -789,6 +851,58 @@ function buildTshirtMockupSvg({ model, colorName, view }) {
   `;
 }
 
+function buildHomepageTshirtPlaceholderSvg({ model, colorName }) {
+  const colorKey = normalizeColorName(colorName) || "черный";
+  const palette = resolveTshirtGalleryColor(colorKey);
+  const gradientId = `${model}-${colorKey}-home-gradient`;
+  const highlightId = `${model}-${colorKey}-home-highlight`;
+  const patternId = `${model}-${colorKey}-home-speckle`;
+  const isOversize = model === "oversize";
+  const body = isOversize
+    ? { x: 240, y: 180, width: 440, height: 620, radius: 78, leftSleeve: "rotate(-22 196 308)", rightSleeve: "rotate(22 724 308)", sleeveWidth: 178, sleeveHeight: 194, sleeveX: 126, sleeveY: 224, neckCx: 460, neckCy: 192, neckOuterRx: 96, neckOuterRy: 46, neckInnerRx: 64, neckInnerRy: 26 }
+    : { x: 266, y: 188, width: 388, height: 604, radius: 66, leftSleeve: "rotate(-18 220 314)", rightSleeve: "rotate(18 700 314)", sleeveWidth: 146, sleeveHeight: 176, sleeveX: 154, sleeveY: 246, neckCx: 460, neckCy: 202, neckOuterRx: 84, neckOuterRy: 40, neckInnerRx: 54, neckInnerRy: 24 };
+  const fabricFill = palette.pattern === "speckle" ? `url(#${patternId})` : `url(#${gradientId})`;
+
+  return `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 980" fill="none">
+      <defs>
+        <linearGradient id="${gradientId}" x1="240" y1="160" x2="676" y2="836" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stop-color="${palette.highlight}" />
+          <stop offset="0.44" stop-color="${palette.base}" />
+          <stop offset="1" stop-color="${palette.shade}" />
+        </linearGradient>
+        <radialGradient id="${highlightId}" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(372 276) rotate(56) scale(338 314)">
+          <stop offset="0" stop-color="rgba(255,255,255,.3)" />
+          <stop offset=".5" stop-color="rgba(255,255,255,.08)" />
+          <stop offset="1" stop-color="rgba(255,255,255,0)" />
+        </radialGradient>
+        <pattern id="${patternId}" width="30" height="30" patternUnits="userSpaceOnUse">
+          <rect width="30" height="30" fill="${palette.base}" />
+          <circle cx="7" cy="8" r="2.2" fill="${palette.highlight}" opacity=".32" />
+          <circle cx="19" cy="15" r="1.8" fill="${palette.shade}" opacity=".22" />
+          <circle cx="12" cy="24" r="2" fill="${palette.highlight}" opacity=".18" />
+        </pattern>
+        <filter id="home-shadow" x="46" y="72" width="828" height="838" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+          <feDropShadow dx="0" dy="32" stdDeviation="32" flood-color="rgba(20,16,24,.16)" />
+        </filter>
+      </defs>
+
+      <ellipse cx="460" cy="874" rx="198" ry="30" fill="rgba(20,16,24,.12)" />
+
+      <g filter="url(#home-shadow)">
+        <rect x="${body.x}" y="${body.y}" width="${body.width}" height="${body.height}" rx="${body.radius}" fill="${fabricFill}" />
+        <rect x="${body.sleeveX}" y="${body.sleeveY}" width="${body.sleeveWidth}" height="${body.sleeveHeight}" rx="58" transform="${body.leftSleeve}" fill="${fabricFill}" />
+        <rect x="${920 - body.sleeveX - body.sleeveWidth}" y="${body.sleeveY}" width="${body.sleeveWidth}" height="${body.sleeveHeight}" rx="58" transform="${body.rightSleeve}" fill="${fabricFill}" />
+        <rect x="${body.x}" y="${body.y}" width="${body.width}" height="${body.height}" rx="${body.radius}" fill="url(#${highlightId})" opacity=".88" />
+        <ellipse cx="${body.neckCx}" cy="${body.neckCy}" rx="${body.neckOuterRx}" ry="${body.neckOuterRy}" fill="#efe8df" />
+        <ellipse cx="${body.neckCx}" cy="${body.neckCy + 7}" rx="${body.neckInnerRx}" ry="${body.neckInnerRy}" fill="${fabricFill}" opacity=".96" />
+        <path d="M${body.x + 32} ${body.y + body.height - 46}H${body.x + body.width - 32}" stroke="rgba(255,255,255,.12)" stroke-width="5" stroke-linecap="round" opacity=".42" />
+        <path d="M382 386c42 16 116 18 156 0" stroke="${palette.accent}" stroke-width="12" stroke-linecap="round" opacity=".64" />
+      </g>
+    </svg>
+  `;
+}
+
 function buildTshirtFallbackSlides(itemName, model, colorName) {
   const previewColor = colorName || "Чёрный";
   return TSHIRT_GALLERY_FALLBACK_VIEWS.map((view) => {
@@ -818,6 +932,24 @@ function buildTelegramOrderLink({ itemName, material, price, size, color }) {
 
   return `https://t.me/FUTURE_178?text=${encodeURIComponent(details)}`;
 }
+
+function buildHomepageShowcaseItems(items) {
+  return items.flatMap((item) => {
+    if (!item?.variants?.length) return [item];
+
+    return item.variants.map((variant) => {
+      const baseName = item.galleryModel === "classic" ? "Футболка базовая" : item.name;
+
+      return {
+        ...item,
+        name: baseName,
+        variants: [variant],
+      };
+    });
+  });
+}
+
+const HOMEPAGE_TSHIRT_SHOWCASE_ITEMS = buildHomepageShowcaseItems(TEXTILE_DATA.tshirts.items);
 
 function buildTelegramBasketLink(lines) {
   const message = [
@@ -1259,60 +1391,132 @@ function TshirtPhotoGallery({ itemName, galleryModel, activeColor, activeVariant
 }
 
 function MainTshirtCard({ item, onOpen }) {
-  const [vi, setVi] = useState(0);
   const hv = item.variants && item.variants.length > 0;
-  const cur = hv ? item.variants[vi] : null;
-  const price = hv && cur.price ? cur.price : item.price;
-  const material = hv ? cur.material : item.material;
-  const colors = hv ? cur.colors : item.colors;
-  const desc = hv && cur.desc ? cur.desc : item.desc;
+  const [variantIndex, setVariantIndex] = useState(0);
+  const currentVariant = hv ? item.variants[variantIndex] || item.variants[0] : null;
   const sizeOptions = getTshirtSizes(item);
-  const colorOptions = parseColorOptions(colors);
-  const [selectedSize, setSelectedSize] = useState("");
-  const [selectedColor, setSelectedColor] = useState("");
+  const material = currentVariant?.material || item.material || "";
+  const variantPrice = currentVariant?.price || item.price;
+  const densityLabel = currentVariant?.label || "";
+  const colorOptions = currentVariant ? parseColorOptions(currentVariant.colors) : parseColorOptions(item.colors);
+  const defaultColor = getDefaultTshirtColor(colorOptions) || colorOptions[0] || "Чёрный";
+  const [selectedColor, setSelectedColor] = useState(defaultColor);
+  const previewColor = colorOptions.includes(selectedColor) ? selectedColor : defaultColor;
+  const densityValue = normalizeVariantLabel(densityLabel) || densityLabel || "180";
+  const previewSrc = resolveHomepageTshirtPreview(item.galleryModel || "classic", previewColor, densityValue)
+    || svgToDataUri(buildHomepageTshirtPlaceholderSvg({ model: item.galleryModel || "classic", colorName: previewColor }));
+  const priceLabel = variantPrice;
+  const densityVariants = hv && item.variants.length
+    ? item.variants
+    : [{ label: densityLabel || "180 г/м²", colors: item.colors || "" }];
+  const previewPreloadKey = densityVariants.map((variant) => `${variant.label}:${variant.colors || item.colors || ""}`).join("|");
+
+  useEffect(() => {
+    const model = item.galleryModel || "classic";
+    previewPreloadKey.split("|").filter(Boolean).forEach((entry) => {
+      const [variantLabel, variantColorsValue = ""] = entry.split(":");
+      const variantColors = parseColorOptions(variantColorsValue || item.colors || "");
+      variantColors.forEach((color) => {
+        const src = resolveHomepageTshirtPreview(model, color, variantLabel);
+        preloadHomepageTshirtPreview(src);
+      });
+    });
+  }, [item.galleryModel, item.colors, previewPreloadKey]);
 
   return (
-    <div className="cg main-card" style={{ padding: 32, display: "flex", flexDirection: "column", height: "100%", minWidth: 0 }}>
-      <div className="main-card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14, gap: 12 }}>
-        <h3 style={{ fontSize: 20, fontWeight: 500 }}>{item.name}</h3>
-        <span className="price-pill" style={{ background: "linear-gradient(135deg,rgba(232,67,147,.15),rgba(108,92,231,.15))", padding: "6px 14px", borderRadius: 20, fontSize: 15, fontWeight: 600, color: "#e84393", whiteSpace: "nowrap" }}>{price}</span>
-      </div>
-      <p style={{ fontSize: 14, fontWeight: 300, color: "rgba(240,238,245,.5)", lineHeight: 1.7, marginBottom: 16 }}>{desc}</p>
+    <div className="main-card main-showcase-card" style={{ padding: 0, display: "flex", flexDirection: "column", height: "100%", minWidth: 0 }}>
+      <div className="main-showcase-shell">
+        <div className="main-card-header" style={{ marginBottom: 16, gap: 12, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <h3 style={{ fontSize: 17, fontWeight: 500 }}>{item.name}</h3>
+          <span style={{ fontSize: 18, fontWeight: 600, background: "linear-gradient(135deg,#e84393,#6c5ce7)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", whiteSpace: "nowrap", lineHeight: 1.1 }}>{priceLabel}</span>
+        </div>
 
-      {hv && (
-        <div style={{ marginBottom: 14 }}>
+        <div className="main-showcase-meta">
           <FieldRow label="Плотность">
-            <div style={{ ...CONTROL_STRIP_STYLE, gap: 6 }}>
-              {item.variants.map((v, j) => (
-                <button key={j} onClick={() => {
-                  setVi(j);
-                  setSelectedSize("");
-                  setSelectedColor("");
-                }} style={{
-                  minWidth: 110,
-                  flexShrink: 0,
-                  padding: "8px 10px", borderRadius: 10, cursor: "pointer", fontSize: 13,
-                  fontWeight: vi === j ? 600 : 400, fontFamily: "'Outfit',sans-serif",
-                  background: vi === j ? "linear-gradient(135deg,rgba(232,67,147,.15),rgba(108,92,231,.15))" : "rgba(255,255,255,.03)",
-                  color: vi === j ? "#e84393" : "rgba(240,238,245,.45)",
-                  border: vi === j ? "1px solid rgba(232,67,147,.25)" : "1px solid rgba(255,255,255,.06)",
-                  transition: "all .3s",
-                }}>{v.label}</button>
+            <div style={{ ...CONTROL_STRIP_STYLE, gap: 6, justifyContent: "flex-end", marginLeft: "auto" }}>
+              {densityVariants.map((variant, index) => (
+                <button
+                  key={`${item.name}-${variant.label}-${index}`}
+                  type="button"
+                  onClick={() => {
+                    if (!hv) return;
+                    const nextVariant = item.variants[index];
+                    const nextColorOptions = parseColorOptions(nextVariant?.colors || "");
+                    const nextDefaultColor = getDefaultTshirtColor(nextColorOptions) || nextColorOptions[0] || "Чёрный";
+                    setVariantIndex(index);
+                    setSelectedColor(nextDefaultColor);
+                  }}
+                  style={{
+                    minWidth: 92,
+                    flexShrink: 0,
+                    padding: "7px 9px",
+                    borderRadius: 9,
+                    cursor: densityVariants.length > 1 ? "pointer" : "default",
+                    fontSize: 12,
+                    fontWeight: variantIndex === index ? 600 : 400,
+                    fontFamily: "'Outfit',sans-serif",
+                    background: variantIndex === index ? "linear-gradient(135deg,rgba(232,67,147,.15),rgba(108,92,231,.15))" : "rgba(255,255,255,.03)",
+                    color: variantIndex === index ? "#e84393" : "rgba(240,238,245,.45)",
+                    border: variantIndex === index ? "1px solid rgba(232,67,147,.25)" : "1px solid rgba(255,255,255,.06)",
+                    transition: "all .3s",
+                  }}
+                >
+                  {variant.label}
+                </button>
               ))}
             </div>
           </FieldRow>
+
+          <FieldRow label="Материал">
+            <div className="field-value" style={{ fontSize: 12, fontWeight: 400, color: "rgba(240,238,245,.65)", textAlign: "right", marginLeft: "auto" }}>{material}</div>
+          </FieldRow>
         </div>
-      )}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 12, flex: 1 }}>
-        <FieldRow label="Материал">
-          <div className="field-value" style={{ fontSize: 13, fontWeight: 400, color: "rgba(240,238,245,.65)", textAlign: "right", marginLeft: "auto" }}>{material}</div>
-        </FieldRow>
-        <SizeSelector options={sizeOptions} value={selectedSize} onChange={setSelectedSize} />
-        <ColorSelector options={colorOptions} value={selectedColor} onChange={setSelectedColor} />
+        <div className="main-showcase-stage">
+          <div className="main-showcase-media">
+            <img
+              src={previewSrc}
+              alt={`${item.name} — ${previewColor}`}
+              draggable={false}
+              className="main-showcase-preview"
+              style={{ userSelect: "none", WebkitUserDrag: "none" }}
+            />
+
+            <div className="main-showcase-swatches">
+              <div className="main-showcase-swatches-title">Цвет • {previewColor}</div>
+              {colorOptions.map((color) => {
+                const swatch = resolveColorSwatch(color);
+                const active = previewColor === color;
+                return (
+                  <button
+                    key={`${item.name}-${color}`}
+                    type="button"
+                    aria-label={`Выбрать цвет ${color}`}
+                    onClick={() => setSelectedColor(color)}
+                    className={`main-showcase-swatch${active ? " main-showcase-swatch-active" : ""}`}
+                    style={{ background: swatch.background }}
+                  />
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, flex: 1, marginTop: 14 }}>
+          <div>
+            <div className="main-showcase-size-label">Размерный ряд</div>
+            <div className="main-showcase-size-row">
+              {sizeOptions.map((size) => (
+                <span key={size} className="main-showcase-size-pill">
+                  {size}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <button onClick={onOpen} className="bo" style={{ width: "100%", marginTop: 14, padding: "10px 20px", fontSize: 13 }}>Подробнее</button>
       </div>
-
-      <button onClick={onOpen} className="bo" style={{ width: "100%", marginTop: 18, padding: "12px 24px", fontSize: 14 }}>Подробнее</button>
     </div>
   );
 }
@@ -1360,8 +1564,8 @@ function ProductCard({ item, i, type, onAddTshirtSelection, onOpenGallery }) {
       border: "1px solid rgba(255,255,255,.06)",
       transition: "border-color 0.4s, transform 0.4s",
     }}
-      onMouseEnter={e => { e.currentTarget.style.borderColor = "rgba(232,67,147,.2)"; e.currentTarget.style.transform = "translateY(-4px)"; }}
-      onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,.06)"; e.currentTarget.style.transform = "translateY(0)"; }}>
+      onMouseEnter={e => { e.currentTarget.style.borderColor = "rgba(232,67,147,.2)"; }}
+      onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,.06)"; }}>
       <div className="product-card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16, gap: 12 }}>
         <h3 style={{ fontSize: 18, fontWeight: 500 }}>{item.name}</h3>
         <span className="price-pill" style={{ background: "linear-gradient(135deg,rgba(232,67,147,.15),rgba(108,92,231,.15))", padding: "6px 14px", borderRadius: 20, fontSize: 14, fontWeight: 600, color: "#e84393", whiteSpace: "nowrap" }}>{price}</span>
@@ -2799,13 +3003,17 @@ export default function App() {
 
         <A delay={.4}><div className="hero-rating" style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 20, background: "rgba(255,255,255,.04)", padding: "8px 20px", borderRadius: 50, border: "1px solid rgba(255,255,255,.06)" }}><Stars /><span style={{ fontSize: 14, fontWeight: 500 }}>5.0</span><span style={{ fontSize: 13, fontWeight: 300, color: "rgba(240,238,245,.4)" }}>• 63 оценки</span></div></A>
         <A delay={.5} className="flex gap-4 mt-10 flex-wrap justify-center hero-actions">
-          <button className="bp hero-primary" onClick={() => go("Контакты")}>Оставить заявку</button>
-          <button className="bo hero-secondary" onClick={goConstructor}>Конструктор футболок</button>
+          <button className="bp hero-primary" onClick={goConstructor}>Собрать свою футболку</button>
           <button className="bcalc hero-tertiary" onClick={oc}><CalcIcon /> Оптовый калькулятор</button>
-          <a className="btg hero-support" href="https://t.me/FUTURE_178" target="_blank" rel="noopener noreferrer"><TG /> Быстрый ответ</a>
+          <a className="btg hero-support" href="https://t.me/FUTURE_178" target="_blank" rel="noopener noreferrer"><TG /> Задать вопрос</a>
         </A>
         <A delay={.65} className="flex gap-12 mt-20 flex-wrap justify-center hero-stats">
-          {[["3 000+", "Заказов"], ["от 1 шт", "Печатаем"], ["от 30мин", "Срочно"]].map(([v, l]) => <div key={l} className="hero-stat" style={{ textAlign: "center" }}><div style={{ fontSize: "clamp(24px,3.5vw,36px)", fontWeight: 600, background: "linear-gradient(135deg,#e84393,#6c5ce7)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{v}</div><div style={{ fontSize: 12, fontWeight: 300, color: "rgba(240,238,245,.4)", letterSpacing: 1, marginTop: 4 }}>{l}</div></div>)}
+          {[["3 000+", "Заказов"], ["от 1 шт", "Печатаем"], ["от 30мин", "Срочно"]].map(([v, l]) => (
+            <div key={l} className="hero-stat" style={{ textAlign: "center" }}>
+              <div className="hero-stat-value" style={{ fontSize: "clamp(24px,3.5vw,36px)", fontWeight: 600, background: "linear-gradient(135deg,#e84393,#6c5ce7)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{v}</div>
+              <div className="hero-stat-label" style={{ fontSize: 12, fontWeight: 300, color: "rgba(240,238,245,.4)", letterSpacing: 1, marginTop: 4 }}>{l}</div>
+            </div>
+          ))}
         </A>
       </section>
 
@@ -2890,8 +3098,8 @@ export default function App() {
             <h2 style={{ fontSize: "clamp(28px,4vw,44px)", fontWeight: 200, marginTop: 12 }}>Наши <span style={{ fontWeight: 600 }}>футболки</span></h2>
             <p style={{ color: "rgba(240,238,245,.4)", fontWeight: 300, marginTop: 10, fontSize: 15, maxWidth: 600, margin: "10px auto 0" }}>Создаём напрямую на фабрике по собственным лекалам. От кроя и посадки до выбора ткани — всё продумано до мелочей.</p>
           </A>
-          <div className="main-tshirt-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(380px,1fr))", gap: 24 }}>
-            {TEXTILE_DATA.tshirts.items.map((item, i) => (
+          <div className="main-tshirt-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(300px,340px))", justifyContent: "center", gap: 20, maxWidth: 1060, margin: "0 auto" }}>
+            {HOMEPAGE_TSHIRT_SHOWCASE_ITEMS.map((item, i) => (
               <A key={i} delay={i * 0.1}>
                 <MainTshirtCard item={item} onOpen={() => navigateToPage("textile_tshirts")} />
               </A>

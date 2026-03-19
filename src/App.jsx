@@ -7,6 +7,10 @@ const PortfolioPage = lazy(() => import("./portfolio/PortfolioCatalogPage.jsx"))
    ══════════════════════════════════════════ */
 const BED_W = 58;
 const GAP = 0.5;
+const MAX_CALC_ITEMS = 40;
+const ORIENTATION_EXHAUSTIVE_LIMIT = 12;
+const LAYOUT_PREVIEW_HEIGHT = 160;
+const LAYOUT_SCROLL_MAX_HEIGHT = "min(72vh, 820px)";
 
 const PRINT_TIERS = [
   { min: 1, max: 2, price: 1400 },
@@ -18,7 +22,9 @@ const PRINT_TIERS = [
 const APPLY_TIERS = [
   { min: 1, max: 29, price: 100 },
   { min: 30, max: 59, price: 80 },
-  { min: 60, max: Infinity, price: 70 },
+  { min: 60, max: 199, price: 70 },
+  { min: 200, max: 499, price: 60 },
+  { min: 500, max: Infinity, price: 50 },
 ];
 
 function getPrintCost(meters) {
@@ -58,8 +64,9 @@ function getFormat(w, h) {
    RULE: All copies of the same print type
    share ONE fixed orientation (H or V).
    Different types are independent.
-   We try all 2^N orientation combos (max 64)
-   and pick the most compact result.
+   For small sets we try all orientation combos.
+   For large sets we switch to a heuristic search
+   so the calculator stays responsive.
    ══════════════════════════════════════════ */
 
 // Core skyline packer — places rects with FIXED w/h (no rotation)
@@ -139,54 +146,140 @@ function skylinePack(rects) {
   return { length: totalLength, placements };
 }
 
-// Main entry: tries all 2^N orientation combos per type
-function packOnBed(items) {
-  const n = items.length;
-  if (n === 0) return { length: 0, placements: [] };
-
-  // For each type, determine valid orientations
-  // orientation 0 = original (w, h), orientation 1 = rotated (h, w)
-  const typeCanRotate = items.map(it => {
+function getOrientationMeta(items) {
+  return items.map((it) => {
     const fits0 = it.w <= BED_W;
     const fits1 = it.h <= BED_W;
-    return { fits0, fits1, isSquare: Math.abs(it.w - it.h) < 0.001 };
+    return {
+      fits0,
+      fits1,
+      isSquare: Math.abs(it.w - it.h) < 0.001,
+      flexible: fits0 && fits1 && Math.abs(it.w - it.h) >= 0.001,
+    };
   });
+}
 
-  const combos = 1 << n; // 2^n combinations
-  let bestResult = null;
+function normalizeOrientationChoice(choice, meta) {
+  if (!meta.fits0 && meta.fits1) return 1;
+  if (!meta.fits1) return 0;
+  if (meta.isSquare) return 0;
+  return choice ? 1 : 0;
+}
 
-  for (let mask = 0; mask < combos; mask++) {
-    // Check if this combo is valid (each type's chosen orientation fits)
-    let valid = true;
-    for (let i = 0; i < n; i++) {
-      const rotated = (mask >> i) & 1;
-      const tc = typeCanRotate[i];
-      if (tc.isSquare && rotated) { valid = false; break; } // skip duplicate for squares
-      if (rotated && !tc.fits1) { valid = false; break; }
-      if (!rotated && !tc.fits0) { valid = false; break; }
+function buildOrientationSeed(items, meta, pickChoice) {
+  return items.map((it, index) => normalizeOrientationChoice(pickChoice(it, meta[index], index), meta[index]));
+}
+
+function buildRectsForOrientations(items, orientations) {
+  const rects = [];
+
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i];
+    const rotated = orientations[i];
+    const pw = rotated ? it.h : it.w;
+    const ph = rotated ? it.w : it.h;
+
+    for (let j = 0; j < it.qty; j++) {
+      rects.push({ w: pw, h: ph, idx: i, color: it.color });
     }
-    if (!valid) continue;
+  }
 
-    // Build rect list with fixed orientations
-    const rects = [];
-    for (let i = 0; i < n; i++) {
-      const it = items[i];
-      const rotated = (mask >> i) & 1;
-      const pw = rotated ? it.h : it.w;
-      const ph = rotated ? it.w : it.h;
-      for (let j = 0; j < it.qty; j++) {
-        rects.push({ w: pw, h: ph, idx: i, color: it.color });
+  return rects;
+}
+
+function estimateTypeLength(w, h, qty) {
+  const perRow = Math.max(1, Math.floor((BED_W + GAP) / (w + GAP)));
+  const rows = Math.ceil(qty / perRow);
+  return rows * (h + GAP);
+}
+
+function optimizeOrientationSeed(items, meta, seed) {
+  const flexibleIndexes = meta
+    .map((entry, index) => (entry.flexible ? index : -1))
+    .filter((index) => index >= 0);
+
+  const orientations = seed.map((choice, index) => normalizeOrientationChoice(choice, meta[index]));
+  let bestResult = skylinePack(buildRectsForOrientations(items, orientations));
+  let improved = true;
+
+  while (improved) {
+    improved = false;
+    let bestFlip = null;
+
+    for (const index of flexibleIndexes) {
+      orientations[index] = orientations[index] ? 0 : 1;
+      const candidate = skylinePack(buildRectsForOrientations(items, orientations));
+      orientations[index] = orientations[index] ? 0 : 1;
+
+      if (!bestFlip || candidate.length < bestFlip.result.length - 0.001) {
+        bestFlip = { index, result: candidate };
       }
     }
 
-    const result = skylinePack(rects);
+    if (bestFlip && bestFlip.result.length < bestResult.length - 0.001) {
+      orientations[bestFlip.index] = orientations[bestFlip.index] ? 0 : 1;
+      bestResult = bestFlip.result;
+      improved = true;
+    }
+  }
 
+  return bestResult;
+}
+
+// Main entry: exact search for small sets, heuristic for large ones
+function packOnBed(items) {
+  if (items.length === 0) return { length: 0, placements: [] };
+
+  const meta = getOrientationMeta(items);
+  const flexibleIndexes = meta
+    .map((entry, index) => (entry.flexible ? index : -1))
+    .filter((index) => index >= 0);
+
+  if (flexibleIndexes.length <= ORIENTATION_EXHAUSTIVE_LIMIT) {
+    const combos = 1 << flexibleIndexes.length;
+    let bestResult = null;
+
+    for (let mask = 0; mask < combos; mask++) {
+      const orientations = meta.map((entry) => normalizeOrientationChoice(0, entry));
+
+      for (let i = 0; i < flexibleIndexes.length; i++) {
+        orientations[flexibleIndexes[i]] = (mask >> i) & 1;
+      }
+
+      const result = skylinePack(buildRectsForOrientations(items, orientations));
+      if (bestResult === null || result.length < bestResult.length - 0.001) {
+        bestResult = result;
+      }
+    }
+
+    return bestResult || { length: 0, placements: [] };
+  }
+
+  const seeds = [
+    buildOrientationSeed(items, meta, () => 0),
+    buildOrientationSeed(items, meta, () => 1),
+    buildOrientationSeed(items, meta, (it) => it.h < it.w),
+    buildOrientationSeed(items, meta, (it) => it.h > it.w),
+    buildOrientationSeed(items, meta, (it) => it.w < it.h),
+    buildOrientationSeed(items, meta, (it) => it.w > it.h),
+    buildOrientationSeed(items, meta, (it) => estimateTypeLength(it.h, it.w, it.qty) < estimateTypeLength(it.w, it.h, it.qty)),
+  ];
+
+  let bestResult = null;
+  const seen = new Set();
+
+  for (const seed of seeds) {
+    const key = seed.join("");
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    const result = optimizeOrientationSeed(items, meta, seed);
     if (bestResult === null || result.length < bestResult.length - 0.001) {
       bestResult = result;
     }
   }
 
-  return bestResult || { length: 0, placements: [] };
+  return bestResult || skylinePack(buildRectsForOrientations(items, buildOrientationSeed(items, meta, () => 0)));
 }
 
 /* ══════════════════════════════════════════ */
@@ -206,6 +299,7 @@ a{color:inherit}
 ::-webkit-scrollbar-thumb{background:linear-gradient(#e84393,#6c5ce7);border-radius:3px}
 @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-20px)}}
 @keyframes shimmer{0%{left:-100%}100%{left:200%}}
+@keyframes sheetIn{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:translateX(0)}}
 .hidden{display:none}
 .flex{display:flex}
 .flex-wrap{flex-wrap:wrap}
@@ -219,13 +313,52 @@ a{color:inherit}
 .gap-4{gap:1rem}
 .gap-12{gap:3rem}
 .flex\\!{display:flex!important}
+.mobile-only{display:none}
+.mobile-bottom-spacer{display:none}
+.field-row{display:flex;align-items:center;gap:14px}
+.field-row-label{width:92px;min-width:92px}
+.field-row-content{flex:1;min-width:0}
+.field-value{text-align:right;margin-left:auto}
+.mobile-quick-actions{display:none;position:fixed;left:16px;right:16px;bottom:16px;z-index:120;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.mobile-quick-actions a,.mobile-quick-actions button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:52px;padding:12px 10px;border-radius:18px;border:1px solid rgba(255,255,255,.08);background:rgba(12,12,18,.92);backdrop-filter:blur(16px);color:#f0eef5;text-decoration:none;font-size:13px;font-weight:600;font-family:'Outfit',sans-serif;box-shadow:0 12px 30px rgba(0,0,0,.24)}
+.mobile-quick-actions button{cursor:pointer}
+.mobile-quick-primary{background:linear-gradient(135deg,#e84393,#6c5ce7)!important;border:none!important;color:#fff!important}
+.mobile-quick-accent{background:linear-gradient(135deg,#0088cc,#6c5ce7)!important;border:none!important;color:#fff!important}
 @media(min-width:768px){.md\\:flex{display:flex!important}.md\\:hidden\\!{display:none!important}}
 @media(max-width:1180px){.nav-left{gap:16px!important}.nav-main{gap:18px!important;margin-left:24px!important}.nav-contacts{gap:10px!important;padding:8px 12px!important}.nav-contacts-stack a:first-child{font-size:13px!important}.nav-contacts-stack a:last-child{font-size:11px!important}.nav-social-btn{width:34px!important;height:34px!important}.nav-calc-btn{padding:8px 16px!important}}
 @media(max-width:1040px){.nav-main{gap:14px!important}.nav-contacts-stack{display:none!important}}
 .nav-left{display:flex;align-items:center;gap:24px;flex-shrink:0}
+.nav-desktop-calc{display:inline-flex}
+.nav-desktop-main{display:flex}
 .nav-main{justify-content:flex-end;flex:1;margin-left:44px}
 .nav-contacts{justify-content:center;padding:10px 14px;border-radius:18px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.05)}
 .nav-socials{display:flex;align-items:center;justify-content:center;gap:8px}
+.mobile-nav-trigger{width:42px;height:42px;border-radius:14px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);display:none;align-items:center;justify-content:center;color:#f0eef5;cursor:pointer;backdrop-filter:blur(16px);box-shadow:0 10px 28px rgba(0,0,0,.18)}
+.mobile-nav-overlay{position:fixed;inset:0;z-index:140;background:rgba(6,6,10,.62);backdrop-filter:blur(10px);display:flex;justify-content:flex-end;padding:12px}
+.mobile-nav-sheet{width:min(340px,100%);height:100%;border-radius:28px;background:linear-gradient(180deg,rgba(18,18,28,.98),rgba(10,10,16,.98));border:1px solid rgba(255,255,255,.08);box-shadow:0 28px 80px rgba(0,0,0,.42);padding:20px 18px 24px;display:flex;flex-direction:column;gap:18px;overflow:auto;animation:sheetIn .28s cubic-bezier(.16,1,.3,1)}
+.mobile-nav-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
+.mobile-nav-eyebrow{font-size:11px;font-weight:500;letter-spacing:2px;color:#6c5ce7;text-transform:uppercase}
+.mobile-nav-title{font-size:24px;font-weight:500;margin-top:6px}
+.mobile-nav-subtitle{font-size:13px;font-weight:300;color:rgba(240,238,245,.5);margin-top:6px;line-height:1.55}
+.mobile-nav-close{width:42px;height:42px;border-radius:14px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);display:inline-flex;align-items:center;justify-content:center;color:#f0eef5;cursor:pointer;font-family:'Outfit',sans-serif;font-size:22px;flex-shrink:0}
+.mobile-nav-group{display:flex;flex-direction:column;gap:8px}
+.mobile-nav-link{width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-radius:18px;border:1px solid rgba(255,255,255,.06);background:rgba(255,255,255,.03);color:#f0eef5;cursor:pointer;text-align:left;font-family:'Outfit',sans-serif;font-size:15px;font-weight:400}
+.mobile-nav-link-active{border-color:rgba(232,67,147,.24);background:linear-gradient(135deg,rgba(232,67,147,.12),rgba(108,92,231,.12));color:#fff}
+.mobile-nav-section-title{font-size:11px;font-weight:500;letter-spacing:2px;color:rgba(240,238,245,.34);text-transform:uppercase;padding:0 4px}
+.mobile-nav-submenu{display:flex;flex-direction:column;gap:8px;padding-left:10px}
+.mobile-nav-submenu .mobile-nav-link{padding:12px 14px;font-size:14px}
+.mobile-nav-meta{display:flex;flex-direction:column;gap:14px;padding:16px;border-radius:20px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06)}
+.mobile-nav-meta a{text-decoration:none}
+.mobile-nav-socials{display:flex;gap:10px}
+.mobile-nav-socials a{width:42px;height:42px;border-radius:14px;display:inline-flex;align-items:center;justify-content:center;text-decoration:none}
+.mobile-nav-actions{display:flex;flex-direction:column;gap:10px}
+.mobile-nav-action{width:100%;justify-content:center}
+.desktop-pricing-table{display:block}
+.mobile-pricing-list{display:none}
+.mobile-pricing-row{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:14px 16px;border-radius:16px;border:1px solid rgba(255,255,255,.06);background:rgba(255,255,255,.03)}
+.mobile-pricing-meta{min-width:0}
+.mobile-pricing-price{flex-shrink:0;text-align:right}
+.mobile-pricing-note{display:none}
 .bp{background:linear-gradient(135deg,#e84393,#6c5ce7);border:none;color:#fff;padding:14px 36px;border-radius:50px;font-size:16px;font-weight:500;cursor:pointer;letter-spacing:1px;position:relative;overflow:hidden;transition:all .4s;font-family:'Outfit',sans-serif}
 .bp:hover{transform:translateY(-2px);box-shadow:0 10px 40px rgba(232,67,147,.4)}
 .bp::after{content:'';position:absolute;top:0;width:60%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.15),transparent);animation:shimmer 3s infinite}
@@ -241,7 +374,7 @@ a{color:inherit}
 .inf{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:16px 20px;color:#f0eef5;font-size:15px;width:100%;outline:none;transition:all .3s;font-family:'Outfit',sans-serif}
 .inf:focus{border-color:#e84393;box-shadow:0 0 20px rgba(232,67,147,.15)}
 .inf::placeholder{color:rgba(240,238,245,.25)}
-.nb{backdrop-filter:blur(24px) saturate(1.5);-webkit-backdrop-filter:blur(24px) saturate(1.5)}
+.nb{backdrop-filter:blur(24px) saturate(1.5);-webkit-backdrop-filter:blur(24px) saturate(1.5);isolation:isolate;transform:translateZ(0);backface-visibility:hidden}
 .tb{padding:10px 24px;border-radius:50px;border:none;cursor:pointer;font-size:14px;font-weight:400;letter-spacing:.5px;transition:all .3s;font-family:'Outfit',sans-serif}
 .ta{background:linear-gradient(135deg,#e84393,#6c5ce7);color:#fff}
 .ti{background:rgba(255,255,255,.05);color:rgba(240,238,245,.5)}
@@ -249,6 +382,67 @@ a{color:inherit}
 input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
 input[type=number]{-moz-appearance:textfield}
 @media(max-width:860px){.cg2{grid-template-columns:1fr!important}}
+@media(max-width:860px){
+  .nav-desktop-calc,.nav-desktop-main{display:none!important}
+  .section-shell{padding:80px 5%!important}
+  .page-shell,.page-shell-narrow{padding-left:5%!important;padding-right:5%!important}
+  .hero-shell{min-height:auto!important;padding:108px 5% 76px!important}
+  .mobile-nav-trigger{display:inline-flex}
+  .desktop-pricing-table{display:none!important}
+  .mobile-pricing-list{display:grid!important;gap:8px!important}
+  .mobile-pricing-note{display:block!important;margin-top:4px;font-size:10px;font-weight:400;color:rgba(240,238,245,.48);line-height:1.35}
+  .hero-rating{flex-wrap:wrap!important;justify-content:center!important;padding:8px 16px!important}
+  .hero-actions{width:100%!important;gap:10px!important;margin-top:28px!important}
+  .hero-actions>*{flex:1 1 calc(50% - 10px)!important;justify-content:center!important}
+  .hero-stats{width:100%!important;gap:18px!important;margin-top:42px!important}
+  .textile-card-grid,.main-tshirt-grid,.reviews-grid,.contact-grid,.size-guide-grid,.constructor-shell,.constructor-two-grid{grid-template-columns:1fr!important}
+  .constructor-preview{position:relative!important;top:auto!important}
+  .constructor-meta-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  .constructor-order-actions>*{flex:1 1 100%!important}
+  .constructor-basket-row,.textile-order-line{flex-direction:column!important;align-items:flex-start!important}
+  .constructor-basket-summary,.textile-order-summary{flex-direction:column!important;align-items:stretch!important}
+  .textile-order-cards{justify-content:stretch!important;width:100%!important}
+  .textile-order-cards>*{flex:1 1 100%!important;min-width:0!important}
+  .gallery-thumb-grid{flex-wrap:nowrap!important;overflow-x:auto!important;padding-bottom:4px!important}
+  .modal-shell{padding:16px!important}
+  .modal-card{padding:18px!important}
+  .scroll-tabs{overflow-x:auto!important;justify-content:flex-start!important;padding-bottom:4px!important;scrollbar-width:none}
+  .scroll-tabs::-webkit-scrollbar{display:none}
+  .pricing-table table{min-width:620px!important}
+  .mobile-only{display:block}
+  .mobile-quick-actions{display:grid}
+  .mobile-bottom-spacer{display:block;height:92px}
+}
+@media(max-width:640px){
+  .bp,.bo,.btg,.bcalc{padding:12px 20px!important;font-size:14px!important}
+  .tb{padding:10px 16px!important;font-size:13px!important}
+  .field-row{flex-direction:column!important;align-items:flex-start!important;gap:10px!important}
+  .field-row-label{width:auto!important;min-width:0!important}
+  .field-row-content{width:100%!important}
+  .field-value{text-align:left!important;margin-left:0!important}
+  .main-card,.product-card,.review-card,.contact-card,.calc-panel,.constructor-panel{padding:22px!important}
+  .main-card-header,.product-card-header,.constructor-top,.constructor-basket-summary{flex-direction:column!important;align-items:flex-start!important}
+  .price-pill{align-self:flex-start!important}
+  .hero-title{font-size:clamp(32px,9vw,46px)!important;letter-spacing:1px!important;line-height:1.16!important;margin-top:18px!important}
+  .hero-subtitle{font-size:14px!important;margin-top:16px!important}
+  .hero-actions>*{flex:1 1 100%!important}
+  .hero-support{display:none!important}
+  .hero-stats{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:12px!important}
+  .calc-item-grid{grid-template-columns:1fr!important}
+  .constructor-meta-grid{grid-template-columns:1fr!important}
+  .qty-inline{width:100%!important;justify-content:space-between!important}
+  .mobile-quick-actions{left:12px;right:12px;bottom:12px;gap:8px}
+}
+@media(max-width:480px){
+  .page-shell,.page-shell-narrow{padding-left:16px!important;padding-right:16px!important}
+  .section-shell{padding:72px 16px!important}
+  .hero-shell{padding:96px 16px 64px!important}
+  .nav-left{gap:12px!important}
+  .hero-rating{width:100%!important}
+  .pricing-table table{min-width:540px!important}
+  .main-card,.product-card,.review-card,.contact-card,.constructor-panel,.calc-panel{padding:20px!important}
+  .textile-card-grid,.main-tshirt-grid,.reviews-grid,.contact-grid{gap:18px!important}
+}
 `;
 
 /* Shared components */
@@ -335,6 +529,41 @@ const TSHIRT_SIZE_GUIDE = [
 const TSHIRT_SIZE_GUIDE_SECTIONS = [
   { title: "Оверсайз футболки", rows: TSHIRT_SIZE_GUIDE },
   { title: "Базовые футболки", rows: TSHIRT_SIZE_GUIDE },
+];
+const CONSTRUCTOR_PRODUCTS = [
+  {
+    key: "basic",
+    name: "Базовая футболка",
+    model: "classic",
+    price: 650,
+    description: "Классический крой для повседневых и корпоративных тиражей.",
+    colors: ["Чёрный", "Белый"],
+    sizes: TSHIRT_SIZE_OPTIONS,
+    printAreas: {
+      front: { left: 50, top: 48, width: 28, height: 31 },
+      back: { left: 50, top: 44, width: 30, height: 34 },
+    },
+  },
+  {
+    key: "oversize",
+    name: "Футболка оверсайз",
+    model: "oversize",
+    price: 800,
+    description: "Свободный силуэт для ярких принтов и мерча с объёмной посадкой.",
+    colors: ["Чёрный", "Белый"],
+    sizes: TSHIRT_SIZE_OPTIONS,
+    printAreas: {
+      front: { left: 50, top: 47, width: 30, height: 33 },
+      back: { left: 50, top: 43, width: 32, height: 36 },
+    },
+  },
+];
+const CONSTRUCTOR_TABS = [
+  ["textile", "Текстиль"],
+  ["upload", "Загрузить"],
+  ["text", "Текст"],
+  ["prints", "Принты"],
+  ["order", "В заказ"],
 ];
 const COLOR_SWATCHES = {
   "чёрный": { background: "#111111", border: "rgba(255,255,255,.2)", labelColor: "#f0eef5" },
@@ -609,6 +838,113 @@ function buildTelegramBasketLink(lines) {
   return `https://t.me/FUTURE_178?text=${encodeURIComponent(message)}`;
 }
 
+function buildConstructorPresetSvg(kind) {
+  const presets = {
+    future: `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" fill="none">
+        <rect width="600" height="600" rx="120" fill="url(#bg)" />
+        <defs>
+          <linearGradient id="bg" x1="80" y1="60" x2="520" y2="540" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#e84393" />
+            <stop offset="1" stop-color="#6c5ce7" />
+          </linearGradient>
+        </defs>
+        <text x="300" y="330" text-anchor="middle" fill="white" font-size="132" font-family="Outfit, Arial, sans-serif" font-weight="700">FS</text>
+      </svg>
+    `,
+    lightning: `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" fill="none">
+        <rect width="600" height="600" rx="120" fill="#151517" />
+        <path d="M334 56 148 332h116l-40 212 228-316H332l2-172Z" fill="url(#bolt)"/>
+        <defs>
+          <linearGradient id="bolt" x1="140" y1="60" x2="442" y2="540" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#f9ed69" />
+            <stop offset="1" stop-color="#f08a5d" />
+          </linearGradient>
+        </defs>
+      </svg>
+    `,
+    smile: `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" fill="none">
+        <circle cx="300" cy="300" r="250" fill="url(#face)" />
+        <circle cx="220" cy="250" r="28" fill="#151517" />
+        <circle cx="380" cy="250" r="28" fill="#151517" />
+        <path d="M194 336c28 64 92 104 164 104 72 0 136-40 164-104" stroke="#151517" stroke-width="26" stroke-linecap="round"/>
+        <defs>
+          <linearGradient id="face" x1="90" y1="90" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#f9ed69" />
+            <stop offset="1" stop-color="#f08a5d" />
+          </linearGradient>
+        </defs>
+      </svg>
+    `,
+    circle: `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" fill="none">
+        <circle cx="300" cy="300" r="250" fill="url(#ring)" />
+        <circle cx="300" cy="300" r="154" fill="#0b0b10" />
+        <text x="300" y="280" text-anchor="middle" fill="white" font-size="54" font-family="Outfit, Arial, sans-serif" font-weight="500">FUTURE</text>
+        <text x="300" y="346" text-anchor="middle" fill="#e84393" font-size="74" font-family="Outfit, Arial, sans-serif" font-weight="700">DTF</text>
+        <defs>
+          <linearGradient id="ring" x1="90" y1="70" x2="510" y2="530" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#6c5ce7" />
+            <stop offset="1" stop-color="#e84393" />
+          </linearGradient>
+        </defs>
+      </svg>
+    `,
+  };
+
+  return svgToDataUri(presets[kind] || presets.future);
+}
+
+const CONSTRUCTOR_PRESET_PRINTS = [
+  { key: "future", label: "Future Badge", src: buildConstructorPresetSvg("future") },
+  { key: "lightning", label: "Lightning", src: buildConstructorPresetSvg("lightning") },
+  { key: "smile", label: "Smile", src: buildConstructorPresetSvg("smile") },
+  { key: "circle", label: "Future DTF", src: buildConstructorPresetSvg("circle") },
+];
+
+function buildConstructorTelegramLink(lines) {
+  const message = [
+    "Здравствуйте! Хочу оформить заказ через конструктор футболок.",
+    "",
+    ...lines.map((line, index) => {
+      const details = [
+        `${index + 1}. ${line.productName}`,
+        `цвет ${line.color}`,
+        `размер ${line.size}`,
+        `сторона ${line.side === "front" ? "спереди" : "сзади"}`,
+        `кол-во ${line.qty} шт`,
+        line.uploadName ? `макет ${line.uploadName}` : null,
+        line.text ? `текст «${line.text}»` : null,
+        line.presetLabel ? `принт ${line.presetLabel}` : null,
+        `предварительно ${line.total.toLocaleString("ru-RU")} ₽`,
+      ].filter(Boolean);
+      return details.join(", ");
+    }),
+  ].join("\n");
+
+  return `https://t.me/FUTURE_178?text=${encodeURIComponent(message)}`;
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function readImageSize(src) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve({ width: image.naturalWidth, height: image.naturalHeight });
+    image.onerror = reject;
+    image.src = src;
+  });
+}
+
 function parsePriceValue(price) {
   if (!price) return 0;
   const digits = String(price).replace(/[^\d]/g, "");
@@ -652,9 +988,9 @@ const CONTROL_STRIP_STYLE = {
 
 function FieldRow({ label, children, minHeight = 56 }) {
   return (
-    <div style={{ ...FIELD_BOX_STYLE, minHeight }}>
-      <span style={FIELD_LABEL_STYLE}>{label}</span>
-      <div style={{ flex: 1, minWidth: 0 }}>{children}</div>
+    <div className="field-row" style={{ ...FIELD_BOX_STYLE, minHeight }}>
+      <span className="field-row-label" style={FIELD_LABEL_STYLE}>{label}</span>
+      <div className="field-row-content" style={{ flex: 1, minWidth: 0 }}>{children}</div>
     </div>
   );
 }
@@ -735,7 +1071,7 @@ function ColorSelector({ options, value, onChange }) {
 function QtySelector({ value, onChange }) {
   return (
     <FieldRow label="Количество">
-      <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+      <div className="qty-inline" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
         {[
           { label: "−", next: Math.max(1, value - 1) },
           { label: "+", next: value + 1 },
@@ -936,10 +1272,10 @@ function MainTshirtCard({ item, onOpen }) {
   const [selectedColor, setSelectedColor] = useState("");
 
   return (
-    <div className="cg" style={{ padding: 32, display: "flex", flexDirection: "column", height: "100%", minWidth: 0 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
+    <div className="cg main-card" style={{ padding: 32, display: "flex", flexDirection: "column", height: "100%", minWidth: 0 }}>
+      <div className="main-card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14, gap: 12 }}>
         <h3 style={{ fontSize: 20, fontWeight: 500 }}>{item.name}</h3>
-        <span style={{ background: "linear-gradient(135deg,rgba(232,67,147,.15),rgba(108,92,231,.15))", padding: "6px 14px", borderRadius: 20, fontSize: 15, fontWeight: 600, color: "#e84393", whiteSpace: "nowrap" }}>{price}</span>
+        <span className="price-pill" style={{ background: "linear-gradient(135deg,rgba(232,67,147,.15),rgba(108,92,231,.15))", padding: "6px 14px", borderRadius: 20, fontSize: 15, fontWeight: 600, color: "#e84393", whiteSpace: "nowrap" }}>{price}</span>
       </div>
       <p style={{ fontSize: 14, fontWeight: 300, color: "rgba(240,238,245,.5)", lineHeight: 1.7, marginBottom: 16 }}>{desc}</p>
 
@@ -970,7 +1306,7 @@ function MainTshirtCard({ item, onOpen }) {
 
       <div style={{ display: "flex", flexDirection: "column", gap: 12, flex: 1 }}>
         <FieldRow label="Материал">
-          <div style={{ fontSize: 13, fontWeight: 400, color: "rgba(240,238,245,.65)", textAlign: "right", marginLeft: "auto" }}>{material}</div>
+          <div className="field-value" style={{ fontSize: 13, fontWeight: 400, color: "rgba(240,238,245,.65)", textAlign: "right", marginLeft: "auto" }}>{material}</div>
         </FieldRow>
         <SizeSelector options={sizeOptions} value={selectedSize} onChange={setSelectedSize} />
         <ColorSelector options={colorOptions} value={selectedColor} onChange={setSelectedColor} />
@@ -1018,7 +1354,7 @@ function ProductCard({ item, i, type, onAddTshirtSelection, onOpenGallery }) {
   };
 
   return (
-    <div className="cs" style={{
+    <div className="cs product-card" style={{
       padding: 32, display: "flex", flexDirection: "column",
       opacity: 0, animation: `fadeUp 0.6s ${i * 0.08}s forwards`,
       border: "1px solid rgba(255,255,255,.06)",
@@ -1026,9 +1362,9 @@ function ProductCard({ item, i, type, onAddTshirtSelection, onOpenGallery }) {
     }}
       onMouseEnter={e => { e.currentTarget.style.borderColor = "rgba(232,67,147,.2)"; e.currentTarget.style.transform = "translateY(-4px)"; }}
       onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,.06)"; e.currentTarget.style.transform = "translateY(0)"; }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+      <div className="product-card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16, gap: 12 }}>
         <h3 style={{ fontSize: 18, fontWeight: 500 }}>{item.name}</h3>
-        <span style={{ background: "linear-gradient(135deg,rgba(232,67,147,.15),rgba(108,92,231,.15))", padding: "6px 14px", borderRadius: 20, fontSize: 14, fontWeight: 600, color: "#e84393", whiteSpace: "nowrap" }}>{price}</span>
+        <span className="price-pill" style={{ background: "linear-gradient(135deg,rgba(232,67,147,.15),rgba(108,92,231,.15))", padding: "6px 14px", borderRadius: 20, fontSize: 14, fontWeight: 600, color: "#e84393", whiteSpace: "nowrap" }}>{price}</span>
       </div>
       {isTshirt && (
         <TshirtPhotoGallery
@@ -1074,7 +1410,7 @@ function ProductCard({ item, i, type, onAddTshirtSelection, onOpenGallery }) {
 
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <FieldRow label="Материал">
-          <div style={{ fontSize: 13, fontWeight: 400, color: "rgba(240,238,245,.65)", textAlign: "right", marginLeft: "auto" }}>{material}</div>
+          <div className="field-value" style={{ fontSize: 13, fontWeight: 400, color: "rgba(240,238,245,.65)", textAlign: "right", marginLeft: "auto" }}>{material}</div>
         </FieldRow>
         {isTshirt ? (
           <>
@@ -1085,7 +1421,7 @@ function ProductCard({ item, i, type, onAddTshirtSelection, onOpenGallery }) {
         ) : (
           [["Цвета", colors], ["Размеры", item.sizes]].map(([label, val]) => (
             <FieldRow key={label} label={label}>
-              <div style={{ fontSize: 13, fontWeight: 400, color: "rgba(240,238,245,.65)", textAlign: "right", marginLeft: "auto" }}>{val}</div>
+              <div className="field-value" style={{ fontSize: 13, fontWeight: 400, color: "rgba(240,238,245,.65)", textAlign: "right", marginLeft: "auto" }}>{val}</div>
             </FieldRow>
           ))
         )}
@@ -1236,6 +1572,7 @@ function TextilePage({ type, onBack, onNavigate }) {
       {type === "tshirts" && sizeGuideOpen && (
         <div
           onClick={() => setSizeGuideOpen(false)}
+          className="modal-shell"
           style={{
             position: "fixed",
             inset: 0,
@@ -1249,7 +1586,7 @@ function TextilePage({ type, onBack, onNavigate }) {
           }}
         >
           <div
-            className="cs"
+            className="cs modal-card"
             onClick={(event) => event.stopPropagation()}
             style={{
               width: "min(1100px, 100%)",
@@ -1287,7 +1624,7 @@ function TextilePage({ type, onBack, onNavigate }) {
               </button>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 16, alignItems: "start" }}>
+            <div className="size-guide-grid" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 16, alignItems: "start" }}>
               {TSHIRT_SIZE_GUIDE_SECTIONS.map((section) => (
                 <TshirtSizeGuideTable key={section.title} title={section.title} rows={section.rows} />
               ))}
@@ -1301,6 +1638,7 @@ function TextilePage({ type, onBack, onNavigate }) {
       {type === "tshirts" && galleryModal && (
         <div
           onClick={() => setGalleryModal(null)}
+          className="modal-shell"
           style={{
             position: "fixed",
             inset: 0,
@@ -1314,7 +1652,7 @@ function TextilePage({ type, onBack, onNavigate }) {
           }}
         >
           <div
-            className="cs"
+            className="cs modal-card"
             onClick={(event) => event.stopPropagation()}
             style={{
               width: "min(1180px, 100%)",
@@ -1361,7 +1699,7 @@ function TextilePage({ type, onBack, onNavigate }) {
               />
             </div>
 
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 16 }}>
+            <div className="gallery-thumb-grid" style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 16 }}>
               {galleryModal.slides.map((slide, index) => {
                 const active = galleryModal.activeIndex === index;
                 return (
@@ -1401,7 +1739,7 @@ function TextilePage({ type, onBack, onNavigate }) {
         </div>
       )}
 
-      <div style={{ maxWidth: 1240, margin: "0 auto", padding: "28px 5% 0" }}>
+      <div className="page-shell" style={{ maxWidth: 1240, margin: "0 auto", padding: "28px 5% 0" }}>
         <button type="button" onClick={onBack} style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 12, background: "none", border: "none", color: "inherit", padding: 0, font: "inherit" }}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#e84393" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
           <LogoMini />
@@ -1416,14 +1754,14 @@ function TextilePage({ type, onBack, onNavigate }) {
         </div>
 
         {/* Category tabs */}
-        <div style={{ display: "flex", justifyContent: "center", gap: 8, margin: "28px 0 40px" }}>
+        <div className="scroll-tabs" style={{ display: "flex", justifyContent: "center", gap: 8, margin: "28px 0 40px" }}>
           {[["tshirts", "Футболки"], ["hoodies", "Худи"], ["shoppers", "Шопперы"]].map(([key, label]) => (
             <button key={key} onClick={() => onNavigate(key)} className={`tb ${type === key ? "ta" : "ti"}`}>{label}</button>
           ))}
         </div>
 
         {/* Product cards */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(360px,1fr))", gap: 24, marginBottom: 48 }}>
+        <div className="textile-card-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(360px,1fr))", gap: 24, marginBottom: 48 }}>
           {data.items.map((item, i) => <ProductCard key={i} item={item} i={i} type={type} onAddTshirtSelection={type === "tshirts" ? addTshirtSelection : undefined} onOpenGallery={type === "tshirts" ? setGalleryModal : undefined} />)}
         </div>
 
@@ -1466,12 +1804,12 @@ function TextilePage({ type, onBack, onNavigate }) {
 
         {type === "tshirts" && (
           <div className="cs" style={{ padding: 26, marginBottom: 28, border: "1px solid rgba(232,67,147,.15)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap", marginBottom: tshirtOrder.length ? 18 : 0 }}>
+            <div className="textile-order-summary" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap", marginBottom: tshirtOrder.length ? 18 : 0 }}>
               <div>
                 <div style={{ fontSize: 22, fontWeight: 500 }}>Ваш заказ по футболкам</div>
                 <div style={{ fontSize: 14, color: "rgba(240,238,245,.45)", marginTop: 6 }}>Добавляйте несколько позиций с разным кроем, плотностью, цветом, размером и количеством.</div>
               </div>
-              <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "flex-end" }}>
+              <div className="textile-order-cards" style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "flex-end" }}>
                 <div style={{ padding: "10px 14px", borderRadius: 12, background: "rgba(255,255,255,.03)", minWidth: 160, border: "1px solid transparent" }}>
                   <div style={{ fontSize: 11, fontWeight: 500, letterSpacing: 1.5, color: "rgba(240,238,245,.38)", textTransform: "uppercase", marginBottom: 6 }}>Всего в заказе</div>
                   <div style={{ fontSize: 24, fontWeight: 600 }}>{tshirtOrderQty} <span style={{ fontSize: 14, color: "rgba(240,238,245,.45)" }}>шт</span></div>
@@ -1486,7 +1824,7 @@ function TextilePage({ type, onBack, onNavigate }) {
             {tshirtOrder.length ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {tshirtOrder.map((line) => (
-                  <div key={line.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 14, padding: "12px 14px", background: "rgba(255,255,255,.02)", borderRadius: 12, flexWrap: "wrap" }}>
+                  <div key={line.id} className="textile-order-line" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 14, padding: "12px 14px", background: "rgba(255,255,255,.02)", borderRadius: 12, flexWrap: "wrap" }}>
                     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                       <div style={{ fontSize: 15, fontWeight: 500 }}>{line.itemName}</div>
                       <div style={{ fontSize: 13, color: "rgba(240,238,245,.45)" }}>
@@ -1534,8 +1872,13 @@ function CalcPage({ onBack }) {
   const [items, setItems] = useState([{ id: 1, w: 20, h: 30, qty: 10 }]);
   const [nid, setNid] = useState(2);
   const [layoutOpen, setLayoutOpen] = useState(false);
+  const layoutViewportRef = useRef(null);
 
-  const add = () => { if (items.length >= 6) return; setItems([...items, { id: nid, w: 15, h: 20, qty: 5 }]); setNid(nid + 1); };
+  const add = () => {
+    if (items.length >= MAX_CALC_ITEMS) return;
+    setItems([...items, { id: nid, w: 15, h: 20, qty: 5 }]);
+    setNid((prev) => prev + 1);
+  };
   const rm = (id) => { if (items.length > 1) setItems(items.filter(i => i.id !== id)); };
   const upd = (id, f, v) => {
     let n = parseFloat(v); if (isNaN(n) || n < 0) n = 0;
@@ -1570,16 +1913,29 @@ function CalcPage({ onBack }) {
 
   const svgW = 370;
   const pad = 24;
+  const bedTop = pad + 16;
   const scale = (svgW - pad * 2) / BED_W;
-  const maxVisCm = 250;
-  const visCm = Math.min(lengthCm, maxVisCm);
-  const svgH = Math.max(visCm * scale + pad * 2 + 28, 140);
+  const svgH = Math.max(lengthCm * scale + pad * 2 + 28, 140);
+  const layoutViewportMaxHeight = layoutOpen ? LAYOUT_SCROLL_MAX_HEIGHT : LAYOUT_PREVIEW_HEIGHT;
+
+  useEffect(() => {
+    if (!layoutOpen) return undefined;
+
+    const scrollToBottom = () => {
+      const node = layoutViewportRef.current;
+      if (node) node.scrollTop = node.scrollHeight;
+    };
+
+    scrollToBottom();
+    const frameId = window.requestAnimationFrame(scrollToBottom);
+    return () => window.cancelAnimationFrame(frameId);
+  }, [layoutOpen, lengthCm]);
 
   return (
     <div style={{ fontFamily: "'Outfit',sans-serif", background: "#08080c", color: "#f0eef5", minHeight: "100vh" }}>
       <style>{STYLES}</style>
 
-      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "28px 5% 0" }}>
+      <div className="page-shell-narrow" style={{ maxWidth: 1100, margin: "0 auto", padding: "28px 5% 0" }}>
         <button type="button" onClick={onBack} style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 12, background: "none", border: "none", color: "inherit", padding: 0, font: "inherit" }}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#e84393" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
           <LogoMini />
@@ -1595,13 +1951,13 @@ function CalcPage({ onBack }) {
         <div className="cg2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 28, marginBottom: 48, alignItems: "start" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             {items.map((it, idx) => (
-              <div key={it.id} className="cs" style={{ padding: "20px 22px" }}>
+              <div key={it.id} className="cs calc-panel" style={{ padding: "20px 22px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
                   <div style={{ width: 14, height: 14, borderRadius: 4, background: COLORS[idx % COLORS.length], flexShrink: 0 }} />
                   <span style={{ fontSize: 14, fontWeight: 500 }}>Принт #{idx + 1}</span>
                   {items.length > 1 && <button onClick={() => rm(it.id)} style={{ marginLeft: "auto", background: "none", border: "none", color: "rgba(240,238,245,.3)", cursor: "pointer", fontSize: 16, fontFamily: "inherit" }} onMouseEnter={e => e.target.style.color = "#e84393"} onMouseLeave={e => e.target.style.color = "rgba(240,238,245,.3)"}>✕</button>}
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+                <div className="calc-item-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
                   {[["Ширина, см", "w"], ["Высота, см", "h"], ["Кол-во", "qty"]].map(([label, f]) => (
                     <div key={f}>
                       <label style={{ fontSize: 10, fontWeight: 400, color: "rgba(240,238,245,.4)", letterSpacing: 1, textTransform: "uppercase", marginBottom: 5, display: "block" }}>{label}</label>
@@ -1616,55 +1972,70 @@ function CalcPage({ onBack }) {
                 )}
               </div>
             ))}
-            {items.length < 6 && (
+            {items.length < MAX_CALC_ITEMS && (
               <button onClick={add} style={{ background: "rgba(255,255,255,.02)", border: "1.5px dashed rgba(255,255,255,.1)", borderRadius: 20, padding: 18, cursor: "pointer", color: "rgba(240,238,245,.35)", fontSize: 14, fontFamily: "'Outfit',sans-serif", transition: "all .3s" }} onMouseEnter={e => { e.target.style.borderColor = "rgba(232,67,147,.4)"; e.target.style.color = "#e84393"; }} onMouseLeave={e => { e.target.style.borderColor = "rgba(255,255,255,.1)"; e.target.style.color = "rgba(240,238,245,.35)"; }}>
                 + Добавить размер
               </button>
             )}
+            <div style={{ fontSize: 12, color: "rgba(240,238,245,.38)", marginTop: items.length < MAX_CALC_ITEMS ? -4 : 0 }}>
+              Добавлено {items.length} из {MAX_CALC_ITEMS} размеров.
+            </div>
 
             {valid && !oversized && lengthCm > 0 && (
-              <div className="cs" style={{ padding: 20, overflow: "hidden" }}>
+              <div className="cs calc-panel" style={{ padding: 20, overflow: "hidden" }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: layoutOpen ? 14 : 0 }}>
                   <div style={{ fontSize: 11, fontWeight: 500, letterSpacing: 2, color: "#6c5ce7", textTransform: "uppercase" }}>Раскладка на полотне</div>
                 </div>
                 <div style={{ position: "relative" }}>
-                  <div style={{ maxHeight: layoutOpen ? (visCm * scale + pad * 2 + 40) : 160, overflow: "hidden", transition: "max-height 0.5s cubic-bezier(0.16, 1, 0.3, 1)" }}>
-                    <div style={{ display: "flex", justifyContent: "center", overflowX: "auto" }}>
+                  <div
+                    ref={layoutViewportRef}
+                    style={{
+                      maxHeight: layoutViewportMaxHeight,
+                      height: layoutOpen ? "auto" : LAYOUT_PREVIEW_HEIGHT,
+                      overflowX: "auto",
+                      overflowY: layoutOpen ? "auto" : "hidden",
+                      transition: "max-height 0.5s cubic-bezier(0.16, 1, 0.3, 1)",
+                      paddingRight: layoutOpen ? 4 : 0,
+                      display: "flex",
+                      justifyContent: "center",
+                      alignItems: layoutOpen ? "flex-start" : "flex-end",
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "center", minWidth: "fit-content", flexShrink: 0 }}>
                       <svg width={svgW} height={svgH} style={{ background: "rgba(255,255,255,.015)", borderRadius: 10, border: "1px solid rgba(255,255,255,.04)" }}>
                         <line x1={pad} y1={pad + 4} x2={pad + BED_W * scale} y2={pad + 4} stroke="rgba(240,238,245,.2)" strokeWidth=".5" />
                         <line x1={pad} y1={pad} x2={pad} y2={pad + 8} stroke="rgba(240,238,245,.2)" strokeWidth=".5" />
                         <line x1={pad + BED_W * scale} y1={pad} x2={pad + BED_W * scale} y2={pad + 8} stroke="rgba(240,238,245,.2)" strokeWidth=".5" />
                         <text x={pad + BED_W * scale / 2} y={pad - 4} textAnchor="middle" fill="rgba(240,238,245,.3)" fontSize="10" fontFamily="Outfit">{BED_W} см</text>
-                        <rect x={pad} y={pad + 16} width={BED_W * scale} height={visCm * scale} fill="none" stroke="rgba(255,255,255,.07)" strokeWidth="1" strokeDasharray="4 2" rx="3" />
-                        {pack.placements.filter(p => p.y < visCm + 1).map((p, i) => {
-                          const visH = Math.min(p.h, visCm - p.y);
+                        <rect x={pad} y={bedTop} width={BED_W * scale} height={Math.max(lengthCm * scale, 1)} fill="none" stroke="rgba(255,255,255,.07)" strokeWidth="1" strokeDasharray="4 2" rx="3" />
+                        {pack.placements.map((p, i) => {
+                          const renderY = lengthCm - p.y - p.h;
                           return (
                             <g key={i}>
-                              <rect x={pad + p.x * scale} y={pad + 16 + p.y * scale} width={Math.max(p.w * scale - .3, 1)} height={Math.max(visH * scale - .3, 1)} fill={p.color} stroke="rgba(255,255,255,.15)" strokeWidth=".5" rx="2" />
-                              {p.w * scale > 30 && visH * scale > 16 && (
-                                <text x={pad + (p.x + p.w / 2) * scale} y={pad + 16 + (p.y + Math.min(p.h, visH) / 2) * scale + 3} textAnchor="middle" fill="rgba(255,255,255,.7)" fontSize="8" fontFamily="Outfit">{p.w}×{p.h}</text>
+                              <rect x={pad + p.x * scale} y={bedTop + renderY * scale} width={Math.max(p.w * scale - .3, 1)} height={Math.max(p.h * scale - .3, 1)} fill={p.color} stroke="rgba(255,255,255,.15)" strokeWidth=".5" rx="2" />
+                              {p.w * scale > 30 && p.h * scale > 16 && (
+                                <text x={pad + (p.x + p.w / 2) * scale} y={bedTop + (renderY + p.h / 2) * scale + 3} textAnchor="middle" fill="rgba(255,255,255,.7)" fontSize="8" fontFamily="Outfit">{p.w}×{p.h}</text>
                               )}
                             </g>
                           );
                         })}
-                        {lengthCm > maxVisCm && (
-                          <>
-                            <line x1={pad} y1={pad + 16 + visCm * scale - 2} x2={pad + BED_W * scale} y2={pad + 16 + visCm * scale - 2} stroke="rgba(232,67,147,.35)" strokeWidth="1" strokeDasharray="4 4" />
-                            <text x={pad + BED_W * scale / 2} y={pad + 16 + visCm * scale + 12} textAnchor="middle" fill="rgba(240,238,245,.25)" fontSize="9" fontFamily="Outfit">... ещё {(lengthCm - visCm).toFixed(1)} см ниже</text>
-                          </>
-                        )}
                       </svg>
                     </div>
                   </div>
                   {!layoutOpen && (
-                    <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 80, background: "linear-gradient(transparent, rgba(8,8,12,0.95))", pointerEvents: "none", borderRadius: "0 0 10px 10px" }} />
+                    <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 80, background: "linear-gradient(rgba(8,8,12,0.95), transparent)", pointerEvents: "none", borderRadius: "10px 10px 0 0" }} />
                   )}
                 </div>
+                {layoutOpen && (
+                  <div style={{ marginTop: 10, fontSize: 12, color: "rgba(240,238,245,.38)", textAlign: "center" }}>
+                    Полную раскладку можно прокручивать внутри этого окна снизу вверх.
+                  </div>
+                )}
                 <button onClick={() => setLayoutOpen(!layoutOpen)} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", marginTop: layoutOpen ? 12 : -8, padding: "10px 0", background: "none", border: "none", cursor: "pointer", color: "#6c5ce7", fontSize: 13, fontWeight: 400, fontFamily: "'Outfit',sans-serif", transition: "all 0.3s", position: "relative", zIndex: 2 }} onMouseEnter={e => e.target.style.color = "#e84393"} onMouseLeave={e => e.target.style.color = "#6c5ce7"}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ transition: "transform 0.4s", transform: layoutOpen ? "rotate(180deg)" : "rotate(0deg)" }}>
                     <path d="M6 9l6 6 6-6" />
                   </svg>
-                  {layoutOpen ? "Свернуть раскладку" : "Посмотреть полную раскладку"}
+                  {layoutOpen ? "Свернуть раскладку" : "Открыть полную раскладку"}
                 </button>
               </div>
             )}
@@ -1675,7 +2046,7 @@ function CalcPage({ onBack }) {
               <button onClick={() => setWithApply(true)} className={`tb ${withApply ? "ta" : "ti"}`}>С нанесением</button>
               <button onClick={() => setWithApply(false)} className={`tb ${!withApply ? "ta" : "ti"}`}>Только печать</button>
             </div>
-            <div className="cs" style={{ padding: 28, border: "1px solid rgba(232,67,147,.15)" }}>
+            <div className="cs calc-panel" style={{ padding: 28, border: "1px solid rgba(232,67,147,.15)" }}>
               <div style={{ fontSize: 12, fontWeight: 500, letterSpacing: 2, color: "#e84393", textTransform: "uppercase", marginBottom: 24 }}>Результат</div>
 
               {!valid || oversized ? (
@@ -1753,7 +2124,7 @@ function CalcPage({ onBack }) {
             </div>
 
             {isSmallOrder ? (
-              <div className="cs" style={{ padding: 22 }}>
+              <div className="cs calc-panel" style={{ padding: 22 }}>
                 <div style={{ fontSize: 11, fontWeight: 500, letterSpacing: 2, color: "rgba(240,238,245,.35)", textTransform: "uppercase", marginBottom: 14 }}>Цены по формату (до 15 шт, печать + нанесение)</div>
                 {FORMAT_PRICES.map((f, i) => {
                   const active = itemFormats.some(it => it.format && it.format.name === f.name);
@@ -1762,7 +2133,7 @@ function CalcPage({ onBack }) {
               </div>
             ) : (
               <>
-                <div className="cs" style={{ padding: 22 }}>
+                <div className="cs calc-panel" style={{ padding: 22 }}>
                   <div style={{ fontSize: 11, fontWeight: 500, letterSpacing: 2, color: "rgba(240,238,245,.35)", textTransform: "uppercase", marginBottom: 14 }}>Тарифы — печать</div>
                   {PRINT_TIERS.map((t, i) => {
                     const a = valid && metersRound > 0 && Math.ceil(metersRound) >= t.min && Math.ceil(metersRound) <= t.max;
@@ -1770,7 +2141,7 @@ function CalcPage({ onBack }) {
                   })}
                 </div>
                 {withApply && (
-                  <div className="cs" style={{ padding: 22 }}>
+                  <div className="cs calc-panel" style={{ padding: 22 }}>
                     <div style={{ fontSize: 11, fontWeight: 500, letterSpacing: 2, color: "rgba(240,238,245,.35)", textTransform: "uppercase", marginBottom: 14 }}>Тарифы — нанесение</div>
                     {APPLY_TIERS.map((t, i) => {
                       const a = valid && totalQty >= t.min && totalQty <= t.max;
@@ -1784,6 +2155,330 @@ function CalcPage({ onBack }) {
         </div>
       </div>
       <footer style={{ borderTop: "1px solid rgba(255,255,255,.05)", padding: "24px 5%", textAlign: "center" }}><p style={{ fontSize: 12, fontWeight: 300, color: "rgba(240,238,245,.2)" }}>© 2026 Future Studio • СПб • DTF-печать</p></footer>
+    </div>
+  );
+}
+
+function ConstructorPage({ onBack }) {
+  const [activeTab, setActiveTab] = useState("textile");
+  const [productKey, setProductKey] = useState("oversize");
+  const [side, setSide] = useState("front");
+  const [color, setColor] = useState("Чёрный");
+  const [size, setSize] = useState("");
+  const [qty, setQty] = useState(1);
+  const [uploadDesign, setUploadDesign] = useState(null);
+  const [uploadScale, setUploadScale] = useState(78);
+  const [uploadPosition, setUploadPosition] = useState({ x: 50, y: 50 });
+  const [isDraggingUpload, setIsDraggingUpload] = useState(false);
+  const [textValue, setTextValue] = useState("");
+  const [textSize, setTextSize] = useState(36);
+  const [textColor, setTextColor] = useState("#ffffff");
+  const [textWeight, setTextWeight] = useState(700);
+  const [textUppercase, setTextUppercase] = useState(true);
+  const [presetKey, setPresetKey] = useState("");
+  const [presetScale, setPresetScale] = useState(52);
+  const [basket, setBasket] = useState([]);
+  const printAreaRef = useRef(null);
+
+  const product = CONSTRUCTOR_PRODUCTS.find((item) => item.key === productKey) || CONSTRUCTOR_PRODUCTS[0];
+  const printArea = product.printAreas[side];
+  const previewSrc = svgToDataUri(buildTshirtMockupSvg({ model: product.model, colorName: color, view: side }));
+  const selectedPreset = CONSTRUCTOR_PRESET_PRINTS.find((item) => item.key === presetKey) || null;
+  const hasDecoration = Boolean(uploadDesign || textValue.trim() || selectedPreset);
+  const canAddToBasket = Boolean(size && hasDecoration && qty >= 1);
+  const currentTotal = product.price * qty;
+  const currentOrderLine = {
+    productName: product.name,
+    color,
+    size,
+    qty,
+    side,
+    uploadName: uploadDesign?.name || "",
+    text: textValue.trim(),
+    presetLabel: selectedPreset?.label || "",
+    total: currentTotal,
+  };
+
+  const getUploadMetrics = (scaleValue = uploadScale) => {
+    if (!printAreaRef.current || !uploadDesign?.width || !uploadDesign?.height) return null;
+
+    const { width: areaWidth, height: areaHeight } = printAreaRef.current.getBoundingClientRect();
+    if (!areaWidth || !areaHeight) return null;
+
+    const aspectRatio = uploadDesign.width / uploadDesign.height;
+    const preferredWidth = areaWidth * (scaleValue / 100);
+    const width = Math.min(preferredWidth, areaHeight * aspectRatio, areaWidth);
+    const height = aspectRatio ? width / aspectRatio : areaHeight;
+
+    return { areaWidth, areaHeight, width, height };
+  };
+
+  const clampUploadPosition = (position, metrics = getUploadMetrics()) => {
+    const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+    if (!metrics) {
+      return { x: clamp(position.x, 0, 100), y: clamp(position.y, 0, 100) };
+    }
+
+    const minX = (metrics.width / 2 / metrics.areaWidth) * 100;
+    const maxX = 100 - minX;
+    const minY = (metrics.height / 2 / metrics.areaHeight) * 100;
+    const maxY = 100 - minY;
+
+    return {
+      x: minX > maxX ? 50 : clamp(position.x, minX, maxX),
+      y: minY > maxY ? 50 : clamp(position.y, minY, maxY),
+    };
+  };
+
+  const resolveUploadPositionFromPointer = (clientX, clientY) => {
+    if (!printAreaRef.current) return uploadPosition;
+    const rect = printAreaRef.current.getBoundingClientRect();
+    const nextPosition = {
+      x: ((clientX - rect.left) / rect.width) * 100,
+      y: ((clientY - rect.top) / rect.height) * 100,
+    };
+    return clampUploadPosition(nextPosition);
+  };
+
+  const handleProductChange = (nextProductKey) => {
+    const nextProduct = CONSTRUCTOR_PRODUCTS.find((item) => item.key === nextProductKey);
+    if (!nextProduct) return;
+    setProductKey(nextProductKey);
+    setSize("");
+    if (!nextProduct.colors.includes(color)) {
+      setColor(nextProduct.colors[0]);
+    }
+  };
+
+  const handleColorChange = (nextColor) => {
+    const resolvedColor = nextColor || product.colors[0];
+    const previousAutoTextColor = color === "Белый" ? "#111111" : "#ffffff";
+    setColor(resolvedColor);
+    if (textColor === previousAutoTextColor) {
+      setTextColor(resolvedColor === "Белый" ? "#111111" : "#ffffff");
+    }
+  };
+
+  const handleUploadChange = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const src = await readFileAsDataUrl(file);
+    const dimensions = await readImageSize(src);
+    setUploadDesign({ name: file.name, src, ...dimensions });
+    setUploadPosition({ x: 50, y: 50 });
+    setActiveTab("upload");
+  };
+
+  const handleUploadScaleChange = (event) => {
+    const nextScale = Number(event.target.value);
+    setUploadScale(nextScale);
+    setUploadPosition((current) => clampUploadPosition(current, getUploadMetrics(nextScale)));
+  };
+
+  const handleUploadRemove = () => {
+    setUploadDesign(null);
+    setUploadPosition({ x: 50, y: 50 });
+    setIsDraggingUpload(false);
+  };
+
+  const handleUploadPointerDown = (event) => {
+    if (!uploadDesign || !printAreaRef.current) return;
+
+    event.preventDefault();
+
+    const pointerId = event.pointerId;
+    const node = event.currentTarget;
+    const updatePosition = (clientX, clientY) => {
+      const nextPosition = resolveUploadPositionFromPointer(clientX, clientY);
+      setUploadPosition((current) => (
+        current.x === nextPosition.x && current.y === nextPosition.y ? current : nextPosition
+      ));
+    };
+
+    setIsDraggingUpload(true);
+    node.setPointerCapture?.(pointerId);
+    updatePosition(event.clientX, event.clientY);
+
+    const handlePointerMove = (moveEvent) => {
+      if (moveEvent.pointerId !== pointerId) return;
+      moveEvent.preventDefault();
+      updatePosition(moveEvent.clientX, moveEvent.clientY);
+    };
+
+    const stopDragging = (endEvent) => {
+      if (endEvent.pointerId !== pointerId) return;
+      setIsDraggingUpload(false);
+      node.releasePointerCapture?.(pointerId);
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", stopDragging);
+      window.removeEventListener("pointercancel", stopDragging);
+    };
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", stopDragging);
+    window.addEventListener("pointercancel", stopDragging);
+  };
+
+  const addCurrentToBasket = () => {
+    if (!canAddToBasket) return;
+    setBasket((current) => [
+      ...current,
+      {
+        ...currentOrderLine,
+        id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      },
+    ]);
+    setActiveTab("order");
+  };
+
+  const removeBasketItem = (id) => {
+    setBasket((current) => current.filter((item) => item.id !== id));
+  };
+
+  const telegramLink = buildConstructorTelegramLink(basket.length ? basket : [currentOrderLine]);
+  const basketTotal = (basket.length ? basket : [currentOrderLine]).reduce((sum, item) => sum + item.total, 0);
+  const overlayText = textUppercase ? textValue.toUpperCase() : textValue;
+
+  return (
+    <div style={{ fontFamily: "'Outfit',sans-serif", background: "#08080c", color: "#f0eef5", minHeight: "100vh" }}>
+      <style>{STYLES}</style>
+
+      <div className="page-shell" style={{ maxWidth: 1320, margin: "0 auto", padding: "28px 5% 56px" }}>
+        <button type="button" onClick={onBack} style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 12, background: "none", border: "none", color: "inherit", padding: 0, font: "inherit" }}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#e84393" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
+          <LogoMini />
+        </button>
+
+        <div style={{ textAlign: "center", margin: "34px auto 28px", maxWidth: 860 }}>
+          <span style={{ fontSize: 12, fontWeight: 500, letterSpacing: 4, color: "#6c5ce7", textTransform: "uppercase" }}>Новая страница</span>
+          <h1 style={{ fontSize: "clamp(28px,4vw,46px)", fontWeight: 200, marginTop: 12 }}>
+            Конструктор <span style={{ fontWeight: 600, background: "linear-gradient(135deg,#e84393,#6c5ce7)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>футболок</span>
+          </h1>
+          <p style={{ color: "rgba(240,238,245,.45)", fontWeight: 300, fontSize: 15, marginTop: 10, lineHeight: 1.75 }}>
+            Отдельный экран для быстрого подбора базовой или оверсайз футболки, выбора стороны печати, загрузки макета, добавления текста и отправки заказа менеджеру.
+          </p>
+        </div>
+
+        <div className="constructor-shell" style={{ display: "grid", gridTemplateColumns: "1.05fr .95fr", gap: 26, alignItems: "start" }}>
+          <div className="cs constructor-preview constructor-panel" style={{ padding: 24, border: "1px solid rgba(255,255,255,.06)", position: "sticky", top: 28 }}>
+            <div className="constructor-top" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap", marginBottom: 18 }}>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 500, letterSpacing: 1.8, color: "rgba(240,238,245,.4)", textTransform: "uppercase", marginBottom: 6 }}>Предпросмотр</div>
+                <div style={{ fontSize: 24, fontWeight: 600 }}>{product.name}</div>
+                <div style={{ fontSize: 14, color: "rgba(240,238,245,.45)", marginTop: 8 }}>{product.description}</div>
+              </div>
+              <div style={{ padding: "10px 14px", borderRadius: 16, background: "linear-gradient(135deg,rgba(232,67,147,.14),rgba(108,92,231,.14))", border: "1px solid rgba(232,67,147,.12)" }}>
+                <div style={{ fontSize: 11, letterSpacing: 1.5, textTransform: "uppercase", color: "rgba(240,238,245,.38)", marginBottom: 6 }}>Предварительно</div>
+                <div style={{ fontSize: 28, fontWeight: 700, background: "linear-gradient(135deg,#f08ac0,#9c8bff)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{currentTotal.toLocaleString("ru-RU")} ₽</div>
+              </div>
+            </div>
+
+            <div style={{ borderRadius: 28, overflow: "hidden", border: "1px solid rgba(255,255,255,.06)", background: "rgba(255,255,255,.02)", position: "relative" }}>
+              <img src={previewSrc} alt={`${product.name} — ${color}`} draggable={false} style={{ width: "100%", display: "block", aspectRatio: "1 / 1.08", objectFit: "cover", userSelect: "none", WebkitUserDrag: "none" }} />
+              <div ref={printAreaRef} style={{ position: "absolute", left: `${printArea.left}%`, top: `${printArea.top}%`, width: `${printArea.width}%`, height: `${printArea.height}%`, transform: "translate(-50%, -50%)", display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
+                {selectedPreset ? <img src={selectedPreset.src} alt={selectedPreset.label} draggable={false} style={{ position: "absolute", width: `${presetScale}%`, maxWidth: "100%", maxHeight: "100%", objectFit: "contain", filter: "drop-shadow(0 10px 20px rgba(0,0,0,.25))" }} /> : null}
+                {uploadDesign ? <div role="presentation" onPointerDown={handleUploadPointerDown} style={{ position: "absolute", left: `${uploadPosition.x}%`, top: `${uploadPosition.y}%`, transform: "translate(-50%, -50%)", width: `${uploadScale}%`, maxWidth: "100%", maxHeight: "100%", display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "auto", cursor: isDraggingUpload ? "grabbing" : "grab", touchAction: "none" }}><img src={uploadDesign.src} alt={uploadDesign.name} draggable={false} style={{ width: "100%", maxWidth: "100%", maxHeight: "100%", objectFit: "contain", display: "block", filter: "drop-shadow(0 12px 24px rgba(0,0,0,.24))", userSelect: "none", WebkitUserDrag: "none" }} /></div> : null}
+                {overlayText ? <div style={{ position: "absolute", bottom: "8%", maxWidth: "100%", padding: "0 6%", textAlign: "center", fontSize: `${textSize}px`, lineHeight: 1.05, fontWeight: textWeight, color: textColor, letterSpacing: 1, textShadow: color === "Белый" ? "0 2px 14px rgba(0,0,0,.16)" : "0 2px 14px rgba(0,0,0,.32)" }}>{overlayText}</div> : null}
+              </div>
+              <div style={{ position: "absolute", left: 16, top: 16, padding: "7px 11px", borderRadius: 999, background: "rgba(8,8,12,.72)", border: "1px solid rgba(255,255,255,.08)", fontSize: 12, fontWeight: 500, color: "#f0eef5", backdropFilter: "blur(10px)" }}>{side === "front" ? "Спереди" : "Сзади"}</div>
+            </div>
+
+            <div className="constructor-meta-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 10, marginTop: 14 }}>
+              {[["Модель", product.name.replace("футболка", "").trim()], ["Цвет", color], ["Размер", size || "—"], ["Кол-во", `${qty} шт`]].map(([label, value]) => (
+                <div key={label} style={{ padding: "12px 14px", borderRadius: 14, background: "rgba(255,255,255,.03)", border: "1px solid rgba(255,255,255,.05)" }}>
+                  <div style={{ fontSize: 11, letterSpacing: 1.4, textTransform: "uppercase", color: "rgba(240,238,245,.36)", marginBottom: 6 }}>{label}</div>
+                  <div style={{ fontSize: 14, fontWeight: 500 }}>{value}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+            <div className="cs constructor-panel" style={{ padding: 12, border: "1px solid rgba(255,255,255,.06)" }}>
+              <div className="scroll-tabs" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {CONSTRUCTOR_TABS.map(([key, label]) => {
+                  const active = activeTab === key;
+                  return <button key={key} type="button" onClick={() => setActiveTab(key)} className={`tb ${active ? "ta" : "ti"}`} style={{ padding: "10px 18px" }}>{label}</button>;
+                })}
+              </div>
+            </div>
+
+            {activeTab === "textile" ? (
+              <div className="cs constructor-panel" style={{ padding: 24, border: "1px solid rgba(255,255,255,.06)", display: "flex", flexDirection: "column", gap: 14 }}>
+                <SelectorTitle>Текстиль</SelectorTitle>
+                <FieldRow label="Модель" minHeight={112}>
+                  <div className="constructor-two-grid" style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 10 }}>
+                    {CONSTRUCTOR_PRODUCTS.map((item) => {
+                      const active = item.key === productKey;
+                      return <button key={item.key} type="button" onClick={() => handleProductChange(item.key)} style={{ textAlign: "left", padding: 16, borderRadius: 16, border: active ? "1px solid rgba(232,67,147,.3)" : "1px solid rgba(255,255,255,.06)", background: active ? "linear-gradient(135deg,rgba(232,67,147,.14),rgba(108,92,231,.14))" : "rgba(255,255,255,.03)", cursor: "pointer", fontFamily: "inherit" }}><div style={{ fontSize: 16, fontWeight: 600, color: "#f0eef5" }}>{item.name}</div><div style={{ fontSize: 13, color: "rgba(240,238,245,.45)", marginTop: 6 }}>{item.description}</div><div style={{ fontSize: 15, fontWeight: 600, color: "#e84393", marginTop: 10 }}>{item.price.toLocaleString("ru-RU")} ₽</div></button>;
+                    })}
+                  </div>
+                </FieldRow>
+                <FieldRow label="Сторона">
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    {[["front", "Спереди"], ["back", "Спина"]].map(([key, label]) => <button key={label} type="button" onClick={() => setSide(key)} className={`tb ${side === key ? "ta" : "ti"}`} style={{ padding: "9px 16px" }}>{label}</button>)}
+                  </div>
+                </FieldRow>
+                <ColorSelector options={product.colors} value={color} onChange={handleColorChange} />
+                <SizeSelector options={product.sizes} value={size} onChange={setSize} />
+                <QtySelector value={qty} onChange={setQty} />
+              </div>
+            ) : null}
+
+            {activeTab === "upload" ? (
+              <div className="cs constructor-panel" style={{ padding: 24, border: "1px solid rgba(255,255,255,.06)", display: "flex", flexDirection: "column", gap: 14 }}>
+                <SelectorTitle>Загрузить макет</SelectorTitle>
+                <label style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, minHeight: 180, borderRadius: 20, border: "1.5px dashed rgba(255,255,255,.12)", background: "rgba(255,255,255,.02)", cursor: "pointer", textAlign: "center", padding: 20 }}>
+                  <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={handleUploadChange} style={{ display: "none" }} />
+                  <div style={{ fontSize: 18, fontWeight: 500 }}>Перетащите файл или выберите изображение</div>
+                  <div style={{ fontSize: 13, color: "rgba(240,238,245,.45)", maxWidth: 380 }}>Подойдут PNG, JPG, WEBP или SVG. Загруженный макет сразу появится на превью футболки.</div>
+                </label>
+                {uploadDesign ? <><FieldRow label="Файл"><div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}><span style={{ fontSize: 14, color: "rgba(240,238,245,.75)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{uploadDesign.name}</span><button type="button" onClick={handleUploadRemove} className="bo" style={{ padding: "8px 14px", fontSize: 13 }}>Удалить</button></div></FieldRow><FieldRow label="Масштаб"><div style={{ display: "flex", alignItems: "center", gap: 14 }}><input type="range" min="35" max="100" value={uploadScale} onChange={handleUploadScaleChange} style={{ width: "100%" }} /><span style={{ minWidth: 52, textAlign: "right", fontSize: 13, color: "rgba(240,238,245,.6)" }}>{uploadScale}%</span></div></FieldRow><FieldRow label="Позиция"><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}><span style={{ fontSize: 13, color: "rgba(240,238,245,.48)" }}>Перетаскивайте изображение мышкой прямо на превью.</span><button type="button" onClick={() => setUploadPosition({ x: 50, y: 50 })} className="bo" style={{ padding: "8px 14px", fontSize: 13 }}>По центру</button></div></FieldRow></> : null}
+              </div>
+            ) : null}
+
+            {activeTab === "text" ? (
+              <div className="cs constructor-panel" style={{ padding: 24, border: "1px solid rgba(255,255,255,.06)", display: "flex", flexDirection: "column", gap: 14 }}>
+                <SelectorTitle>Текст</SelectorTitle>
+                <textarea className="inf" rows={4} placeholder="Например: FUTURE TEAM" value={textValue} onChange={(event) => setTextValue(event.target.value)} style={{ resize: "vertical", minHeight: 118 }} />
+                <FieldRow label="Размер"><div style={{ display: "flex", alignItems: "center", gap: 14 }}><input type="range" min="18" max="72" value={textSize} onChange={(event) => setTextSize(Number(event.target.value))} style={{ width: "100%" }} /><span style={{ minWidth: 52, textAlign: "right", fontSize: 13, color: "rgba(240,238,245,.6)" }}>{textSize}px</span></div></FieldRow>
+                <FieldRow label="Насыщенность"><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{[400, 500, 700, 800].map((weight) => <button key={weight} type="button" onClick={() => setTextWeight(weight)} className={`tb ${textWeight === weight ? "ta" : "ti"}`} style={{ padding: "9px 14px" }}>{weight}</button>)}</div></FieldRow>
+                <FieldRow label="Цвет"><div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>{[["#ffffff", "Белый"], ["#111111", "Чёрный"], ["#e84393", "Розовый"], ["#6c5ce7", "Фиолетовый"]].map(([hex, label]) => <button key={hex} type="button" onClick={() => setTextColor(hex)} style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "7px 10px 7px 7px", borderRadius: 999, border: textColor === hex ? "1px solid rgba(232,67,147,.35)" : "1px solid rgba(255,255,255,.08)", background: textColor === hex ? "rgba(255,255,255,.08)" : "rgba(255,255,255,.03)", cursor: "pointer", fontFamily: "inherit" }}><span style={{ width: 24, height: 24, borderRadius: "50%", background: hex, border: "1px solid rgba(255,255,255,.18)" }} /><span style={{ fontSize: 13, color: "rgba(240,238,245,.7)" }}>{label}</span></button>)}</div></FieldRow>
+                <label style={{ display: "inline-flex", alignItems: "center", gap: 10, fontSize: 14, color: "rgba(240,238,245,.65)", cursor: "pointer" }}><input type="checkbox" checked={textUppercase} onChange={(event) => setTextUppercase(event.target.checked)} />Автоматически переводить текст в верхний регистр</label>
+              </div>
+            ) : null}
+
+            {activeTab === "prints" ? (
+              <div className="cs constructor-panel" style={{ padding: 24, border: "1px solid rgba(255,255,255,.06)", display: "flex", flexDirection: "column", gap: 14 }}>
+                <SelectorTitle>Быстрые принты</SelectorTitle>
+                <div className="constructor-two-grid" style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 12 }}>
+                  {CONSTRUCTOR_PRESET_PRINTS.map((item) => {
+                    const active = presetKey === item.key;
+                    return <button key={item.key} type="button" onClick={() => setPresetKey(active ? "" : item.key)} style={{ padding: 12, borderRadius: 18, border: active ? "1px solid rgba(232,67,147,.3)" : "1px solid rgba(255,255,255,.06)", background: active ? "linear-gradient(135deg,rgba(232,67,147,.14),rgba(108,92,231,.14))" : "rgba(255,255,255,.03)", cursor: "pointer", fontFamily: "inherit" }}><img src={item.src} alt={item.label} draggable={false} style={{ width: "100%", aspectRatio: "1 / 1", borderRadius: 14, objectFit: "cover", display: "block" }} /><div style={{ fontSize: 14, fontWeight: 500, color: "#f0eef5", marginTop: 10 }}>{item.label}</div></button>;
+                  })}
+                </div>
+                {selectedPreset ? <FieldRow label="Масштаб"><div style={{ display: "flex", alignItems: "center", gap: 14 }}><input type="range" min="24" max="80" value={presetScale} onChange={(event) => setPresetScale(Number(event.target.value))} style={{ width: "100%" }} /><span style={{ minWidth: 52, textAlign: "right", fontSize: 13, color: "rgba(240,238,245,.6)" }}>{presetScale}%</span></div></FieldRow> : null}
+              </div>
+            ) : null}
+
+            {activeTab === "order" ? (
+              <div className="cs constructor-panel" style={{ padding: 24, border: "1px solid rgba(255,255,255,.06)", display: "flex", flexDirection: "column", gap: 14 }}>
+                <SelectorTitle>В заказ</SelectorTitle>
+                <div className="constructor-two-grid" style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 12 }}>
+                  <div style={{ padding: 16, borderRadius: 16, background: "rgba(255,255,255,.03)", border: "1px solid rgba(255,255,255,.05)" }}><div style={{ fontSize: 11, letterSpacing: 1.4, textTransform: "uppercase", color: "rgba(240,238,245,.36)", marginBottom: 6 }}>Текущая конфигурация</div><div style={{ fontSize: 18, fontWeight: 600 }}>{product.name}</div><div style={{ fontSize: 14, color: "rgba(240,238,245,.5)", marginTop: 8, lineHeight: 1.65 }}>Цвет: {color}<br />Сторона: {side === "front" ? "спереди" : "сзади"}<br />Размер: {size || "не выбран"}<br />Кол-во: {qty} шт</div></div>
+                  <div style={{ padding: 16, borderRadius: 16, background: "rgba(255,255,255,.03)", border: "1px solid rgba(255,255,255,.05)" }}><div style={{ fontSize: 11, letterSpacing: 1.4, textTransform: "uppercase", color: "rgba(240,238,245,.36)", marginBottom: 6 }}>Макет</div><div style={{ fontSize: 14, color: "rgba(240,238,245,.72)", lineHeight: 1.7 }}>{uploadDesign ? `Файл: ${uploadDesign.name}` : "Файл не загружен"}<br />{textValue.trim() ? `Текст: ${textValue.trim()}` : "Текст не добавлен"}<br />{selectedPreset ? `Принт: ${selectedPreset.label}` : "Пресет не выбран"}</div></div>
+                </div>
+                <div className="constructor-order-actions" style={{ display: "flex", gap: 12, flexWrap: "wrap" }}><button type="button" onClick={addCurrentToBasket} disabled={!canAddToBasket} className="btg" style={{ flex: 1, justifyContent: "center", opacity: canAddToBasket ? 1 : 0.45, cursor: canAddToBasket ? "pointer" : "not-allowed", filter: canAddToBasket ? "none" : "grayscale(.15)" }}>+ Добавить конфигурацию</button><a href={telegramLink} target="_blank" rel="noopener noreferrer" className="bo" style={{ flex: 1, textAlign: "center", textDecoration: "none", padding: "14px 22px" }}>Отправить в Telegram</a></div>
+                <div style={{ fontSize: 12, color: "rgba(240,238,245,.42)", lineHeight: 1.6 }}>Для добавления конфигурации выберите размер и добавьте хотя бы один элемент: файл, текст или быстрый принт.</div>
+                <div className="cs constructor-panel" style={{ padding: 18, border: "1px solid rgba(255,255,255,.06)", background: "rgba(255,255,255,.02)" }}>
+                  <div className="constructor-basket-summary" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: basket.length ? 12 : 0 }}><div><div style={{ fontSize: 18, fontWeight: 600 }}>Ваш список</div><div style={{ fontSize: 13, color: "rgba(240,238,245,.42)", marginTop: 4 }}>Можно собрать несколько разных футболок перед отправкой.</div></div><div style={{ fontSize: 24, fontWeight: 700, background: "linear-gradient(135deg,#f08ac0,#9c8bff)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{basketTotal.toLocaleString("ru-RU")} ₽</div></div>
+                  {basket.length ? basket.map((item) => <div key={item.id} className="constructor-basket-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 14, padding: "12px 0", borderTop: "1px solid rgba(255,255,255,.06)" }}><div style={{ fontSize: 14, lineHeight: 1.7 }}><div style={{ fontWeight: 600 }}>{item.productName}</div><div style={{ color: "rgba(240,238,245,.5)" }}>{item.color} • {item.size} • {item.qty} шт • {item.side === "front" ? "спереди" : "сзади"}</div><div style={{ color: "rgba(240,238,245,.42)" }}>{[item.uploadName, item.text ? `текст: ${item.text}` : null, item.presetLabel].filter(Boolean).join(" • ") || "без дополнительных элементов"}</div></div><div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}><div style={{ fontSize: 16, fontWeight: 600 }}>{item.total.toLocaleString("ru-RU")} ₽</div><button type="button" onClick={() => removeBasketItem(item.id)} className="bo" style={{ padding: "8px 12px", fontSize: 13 }}>Удалить</button></div></div>) : <div style={{ fontSize: 14, color: "rgba(240,238,245,.42)", marginTop: 12 }}>Пока нет сохранённых конфигураций. Соберите футболку и нажмите «Добавить конфигурацию».</div>}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1803,6 +2498,12 @@ const SERVICES = [
 ];
 const DP = [{ f: "A6 (10×15)", p: 250, n: "от 5 шт" }, { f: "A5 (15×20)", p: 290, n: "от 5 шт" }, { f: "A4 (20×30)", p: 350, n: "от 5 шт" }, { f: "A3 (30×42)", p: 450, n: "от 5 шт" }, { f: "A3+ (30×42)", p: 650, n: "" }, { f: "A3++ (40×50)", p: 800, n: "" }];
 const MP = [{ r: "1–2 м", p: "1 400 ₽" }, { r: "3–5 м", p: "1 200 ₽" }, { r: "6–20 м", p: "1 100 ₽" }, { r: "20–50 м", p: "1 000 ₽" }, { r: "от 50 м", p: "900 ₽" }];
+const PRICING_NOTES = [
+  { text: "Тестовый образец — 600 ₽ (A6–A3)", highlight: true },
+  { text: "Цены за принт + прижим" },
+  { text: "Отдельный перенос — 100 ₽/шт" },
+  { text: "Мин. стоимость — 500 ₽" },
+];
 const RV = [
   { name: "Наталья Гвоздева", date: "8 фев 2025", text: "Быстро, качественно, бюджетно. Напечатали форму на коллектив. Стирают — всё супер!" },
   { name: "Юлия", date: "18 фев 2025", text: "Работаем давно! Всегда чётко, быстро, качественно. Если недочёты в макете — ребята подсказывают." },
@@ -1812,7 +2513,7 @@ const RV = [
 function getPageFromHash() {
   const hash = window.location.hash.replace(/^#/, "").trim();
   if (!hash || hash === "main") return "main";
-  if (hash === "calc" || hash === "portfolio") return hash;
+  if (hash === "calc" || hash === "portfolio" || hash === "constructor") return hash;
 
   if (hash.startsWith("textile_")) {
     const textileType = hash.replace("textile_", "");
@@ -1855,6 +2556,32 @@ export default function App() {
     setPageHash(pg);
   }, [pg]);
 
+  useEffect(() => {
+    if (!mn) return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") setMn(false);
+    };
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [mn]);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth > 860) setMn(false);
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
   const navigateToPage = (page, { scrollToTop = true } = {}) => {
     setPg(page);
     setMn(false);
@@ -1870,6 +2597,7 @@ export default function App() {
   };
   const goTextile = (type) => { navigateToPage("textile_" + type); };
   const oc = () => { navigateToPage("calc"); };
+  const goConstructor = () => { navigateToPage("constructor"); };
 
   const handleContactSubmit = (event) => {
     event.preventDefault();
@@ -1890,6 +2618,7 @@ export default function App() {
     }
   };
 
+  if (pg === "constructor") return <ConstructorPage onBack={() => navigateToPage("main")} />;
   if (pg === "calc") return <CalcPage onBack={() => navigateToPage("main")} />;
   if (pg === "portfolio") return (
     <Suspense fallback={<div style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "#08080c", color: "#f0eef5", fontFamily: "'Outfit',sans-serif" }}>Загрузка портфолио…</div>}>
@@ -1903,15 +2632,15 @@ export default function App() {
       <style>{STYLES}</style>
 
       {/* NAV */}
-      <nav className="nb" style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 100, background: sy > 50 ? "rgba(8,8,12,.85)" : "transparent", borderBottom: sy > 50 ? "1px solid rgba(255,255,255,.05)" : "none", transition: "all .4s", padding: "0 5%" }}>
+      <nav className="nb" style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 100, background: sy > 50 ? "rgba(8,8,12,.85)" : "rgba(8,8,12,0)", boxShadow: sy > 50 ? "inset 0 -1px 0 rgba(255,255,255,.05)" : "inset 0 -1px 0 rgba(255,255,255,0)", transition: "background-color .35s ease, box-shadow .35s ease", padding: "0 5%", willChange: "background-color, box-shadow" }}>
         <div style={{ maxWidth: 1320, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", height: 72 }}>
           <div className="nav-left">
             <button type="button" onClick={() => go("Главная")} style={{ background: "none", border: "none", color: "inherit", padding: 0, font: "inherit", cursor: "pointer" }} aria-label="На главную">
               <LogoMini />
             </button>
-            <button onClick={oc} className="nav-calc-btn hidden md:flex" style={{ background: "linear-gradient(135deg,#e84393,#6c5ce7)", border: "none", color: "#fff", padding: "8px 20px", borderRadius: 50, fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "'Outfit',sans-serif" }}>Оптовый калькулятор</button>
+            <button onClick={oc} className="nav-calc-btn nav-desktop-calc" style={{ background: "linear-gradient(135deg,#e84393,#6c5ce7)", border: "none", color: "#fff", padding: "8px 20px", borderRadius: 50, fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "'Outfit',sans-serif" }}>Оптовый калькулятор</button>
           </div>
-          <div style={{ display: "flex", gap: 28, alignItems: "center" }} className="hidden md:flex nav-main">
+          <div style={{ gap: 28, alignItems: "center" }} className="nav-main nav-desktop-main">
             {NAV.map(n => n === "Текстиль" ? (
               <div
                 key={n}
@@ -1979,71 +2708,118 @@ export default function App() {
               </div>
             </div>
           </div>
-          <button type="button" onClick={() => setMn(!mn)} style={{ cursor: "pointer", display: "none", flexDirection: "column", gap: 5, padding: 8, background: "none", border: "none", color: "inherit" }} className="flex! md:hidden!" aria-label="Открыть меню">
-            <span style={{ width: 24, height: 2, background: "#e84393", transition: "all .3s", transform: mn ? "rotate(45deg) translateY(7px)" : "none" }} />
-            <span style={{ width: 24, height: 2, background: "#e84393", transition: "all .3s", opacity: mn ? 0 : 1 }} />
-            <span style={{ width: 24, height: 2, background: "#e84393", transition: "all .3s", transform: mn ? "rotate(-45deg) translateY(-7px)" : "none" }} />
+          <button type="button" onClick={() => setMn(!mn)} className="mobile-nav-trigger" aria-label={mn ? "Закрыть меню" : "Открыть меню"}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+              <path d="M4 7h16" />
+              <path d="M4 12h16" />
+              <path d="M4 17h16" />
+            </svg>
           </button>
         </div>
-        {mn && <div style={{ background: "rgba(8,8,12,.95)", padding: "20px 5%", display: "flex", flexDirection: "column", gap: 16 }}>
-          {NAV.map(n => n === "Текстиль" ? (
-            <div key={n}>
-              <span style={{ fontSize: 16, fontWeight: 400, letterSpacing: 2, color: "rgba(240,238,245,.5)" }}>Текстиль</span>
-              <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 10, paddingLeft: 16 }}>
-                {TEXTILE_MENU.map(([key, label]) => (
-                  <button type="button" key={key} onClick={() => goTextile(key)} style={{ cursor: "pointer", fontSize: 15, fontWeight: 300, letterSpacing: 1, color: pg === "textile_" + key ? "#e84393" : "rgba(240,238,245,.6)", background: "none", border: "none", padding: 0, fontFamily: "inherit", textAlign: "left" }}>{label}</button>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <button type="button" key={n} onClick={() => go(n)} style={{ cursor: "pointer", fontSize: 16, fontWeight: 300, letterSpacing: 2, color: ac === n ? "#e84393" : "rgba(240,238,245,.6)", background: "none", border: "none", padding: 0, fontFamily: "inherit" }}>{n}</button>
-          ))}
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <a href="tel:+79500003464" style={{ fontSize: 16, fontWeight: 500, letterSpacing: 1, color: "#f0eef5", textDecoration: "none" }}>+7 (950) 000-34-64</a>
-            <a href="mailto:future178@yandex.ru" style={{ fontSize: 14, fontWeight: 300, letterSpacing: 0.6, color: "rgba(240,238,245,.62)", textDecoration: "none" }}>future178@yandex.ru</a>
-            <div style={{ display: "flex", gap: 10 }}>
-              <a href="https://t.me/FUTURE_178" target="_blank" rel="noopener noreferrer" aria-label="Telegram" style={{ width: 42, height: 42, borderRadius: "50%", display: "inline-flex", alignItems: "center", justifyContent: "center", textDecoration: "none", background: "linear-gradient(135deg,#0088cc,#6c5ce7)" }}>
-                <TG />
-              </a>
-              <a href="https://wa.me/79500003464" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp" style={{ width: 42, height: 42, borderRadius: "50%", display: "inline-flex", alignItems: "center", justifyContent: "center", textDecoration: "none", background: "linear-gradient(135deg,#25D366,#128C7E)" }}>
-                <WA />
-              </a>
-            </div>
-          </div>
-          <button type="button" onClick={() => { setMn(false); oc(); }} style={{ cursor: "pointer", fontSize: 16, fontWeight: 500, letterSpacing: 2, color: "#e84393", background: "none", border: "none", padding: 0, fontFamily: "inherit" }}>Оптовый калькулятор</button>
-        </div>}
       </nav>
 
+      {mn && (
+        <div className="mobile-nav-overlay" onClick={() => setMn(false)}>
+          <div className="mobile-nav-sheet" onClick={(event) => event.stopPropagation()}>
+            <div className="mobile-nav-head">
+              <div>
+                <div className="mobile-nav-eyebrow">Навигация</div>
+                <div className="mobile-nav-title">Разделы сайта</div>
+                <div className="mobile-nav-subtitle">Собрал все основные действия в одном выезжающем меню, чтобы на телефоне ничего не нужно было свайпать по горизонтали.</div>
+              </div>
+              <button type="button" className="mobile-nav-close" onClick={() => setMn(false)} aria-label="Закрыть меню">×</button>
+            </div>
+
+            <div className="mobile-nav-group">
+              <div className="mobile-nav-section-title">Основное</div>
+              {NAV.filter((item) => item !== "Текстиль").map((item) => {
+                const isActive = ac === item || (item === "Главная" && pg === "main") || (item === "Портфолио" && pg === "portfolio");
+                return (
+                  <button
+                    type="button"
+                    key={item}
+                    onClick={() => go(item)}
+                    className={`mobile-nav-link ${isActive ? "mobile-nav-link-active" : ""}`}
+                  >
+                    <span>{item}</span>
+                    <span style={{ color: isActive ? "#fff" : "rgba(240,238,245,.32)" }}>+</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="mobile-nav-group">
+              <div className="mobile-nav-section-title">Текстиль</div>
+              <div className="mobile-nav-submenu">
+                {TEXTILE_MENU.map(([key, label]) => {
+                  const isActive = pg === `textile_${key}`;
+                  return (
+                    <button
+                      type="button"
+                      key={key}
+                      onClick={() => goTextile(key)}
+                      className={`mobile-nav-link ${isActive ? "mobile-nav-link-active" : ""}`}
+                    >
+                      <span>{label}</span>
+                      <span style={{ color: isActive ? "#fff" : "rgba(240,238,245,.32)" }}>+</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="mobile-nav-actions">
+              <button type="button" onClick={() => { setMn(false); goConstructor(); }} className="bo mobile-nav-action">Конструктор футболок</button>
+              <button type="button" onClick={() => { setMn(false); oc(); }} className="bp mobile-nav-action">Оптовый калькулятор</button>
+            </div>
+
+            <div className="mobile-nav-meta">
+              <a href="tel:+79500003464" style={{ fontSize: 18, fontWeight: 500, letterSpacing: 0.6, color: "#f0eef5" }}>+7 (950) 000-34-64</a>
+              <a href="mailto:future178@yandex.ru" style={{ fontSize: 14, fontWeight: 300, letterSpacing: 0.4, color: "rgba(240,238,245,.6)" }}>future178@yandex.ru</a>
+              <div className="mobile-nav-socials">
+                <a href="https://t.me/FUTURE_178" target="_blank" rel="noopener noreferrer" aria-label="Telegram" style={{ background: "linear-gradient(135deg,#0088cc,#6c5ce7)" }}>
+                  <TG />
+                </a>
+                <a href="https://wa.me/79500003464" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp" style={{ background: "linear-gradient(135deg,#25D366,#128C7E)" }}>
+                  <WA />
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* HERO */}
-      <section id="hero" style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", padding: "120px 5% 80px", position: "relative", overflow: "hidden" }}>
+      <section id="hero" className="hero-shell" style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", padding: "120px 5% 80px", position: "relative", overflow: "hidden" }}>
         <div style={{ position: "absolute", width: 500, height: 500, borderRadius: "50%", background: "radial-gradient(circle,rgba(232,67,147,.12) 0%,transparent 70%)", top: -100, left: -150, animation: "float 8s ease-in-out infinite", pointerEvents: "none" }} />
         <div style={{ position: "absolute", width: 400, height: 400, borderRadius: "50%", background: "radial-gradient(circle,rgba(108,92,231,.1) 0%,transparent 70%)", bottom: -50, right: -100, animation: "float 10s ease-in-out infinite 2s", pointerEvents: "none" }} />
         <A><LogoFull /></A>
-        <A delay={.15}><h1 style={{ fontSize: "clamp(28px,5vw,56px)", fontWeight: 200, letterSpacing: 2, marginTop: 24, lineHeight: 1.3 }}>DTF-печать <span style={{ background: "linear-gradient(135deg,#e84393,#6c5ce7)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", fontWeight: 500 }}>нового поколения</span></h1></A>
-        <A delay={.3}><p style={{ fontSize: "clamp(15px,2vw,18px)", fontWeight: 300, color: "rgba(240,238,245,.5)", maxWidth: 560, margin: "20px auto 0", lineHeight: 1.7 }}>Собственное современное производство в Санкт-Петербурге. Яркие, стойкие принты на любых тканях — от 1 штуки до крупных тиражей.</p></A>
+        <A delay={.15}><h1 className="hero-title" style={{ fontSize: "clamp(28px,5vw,56px)", fontWeight: 200, letterSpacing: 2, marginTop: 24, lineHeight: 1.3 }}>DTF-печать <span style={{ background: "linear-gradient(135deg,#e84393,#6c5ce7)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", fontWeight: 500 }}>нового поколения</span></h1></A>
+        <A delay={.3}><p className="hero-subtitle" style={{ fontSize: "clamp(15px,2vw,18px)", fontWeight: 300, color: "rgba(240,238,245,.5)", maxWidth: 560, margin: "20px auto 0", lineHeight: 1.7 }}>Собственное современное производство в Санкт-Петербурге. Яркие, стойкие принты на любых тканях — от 1 штуки до крупных тиражей.</p></A>
 
-        <A delay={.4}><div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 20, background: "rgba(255,255,255,.04)", padding: "8px 20px", borderRadius: 50, border: "1px solid rgba(255,255,255,.06)" }}><Stars /><span style={{ fontSize: 14, fontWeight: 500 }}>5.0</span><span style={{ fontSize: 13, fontWeight: 300, color: "rgba(240,238,245,.4)" }}>• 63 оценки</span></div></A>
-        <A delay={.5} className="flex gap-4 mt-10 flex-wrap justify-center">
-          <button className="bp" onClick={() => go("Контакты")}>Оставить заявку</button>
-          <button className="bcalc" onClick={oc}><CalcIcon /> Оптовый калькулятор</button>
-          <a className="btg" href="https://t.me/FUTURE_178" target="_blank" rel="noopener noreferrer"><TG /> Быстрый ответ</a>
+        <A delay={.4}><div className="hero-rating" style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 20, background: "rgba(255,255,255,.04)", padding: "8px 20px", borderRadius: 50, border: "1px solid rgba(255,255,255,.06)" }}><Stars /><span style={{ fontSize: 14, fontWeight: 500 }}>5.0</span><span style={{ fontSize: 13, fontWeight: 300, color: "rgba(240,238,245,.4)" }}>• 63 оценки</span></div></A>
+        <A delay={.5} className="flex gap-4 mt-10 flex-wrap justify-center hero-actions">
+          <button className="bp hero-primary" onClick={() => go("Контакты")}>Оставить заявку</button>
+          <button className="bo hero-secondary" onClick={goConstructor}>Конструктор футболок</button>
+          <button className="bcalc hero-tertiary" onClick={oc}><CalcIcon /> Оптовый калькулятор</button>
+          <a className="btg hero-support" href="https://t.me/FUTURE_178" target="_blank" rel="noopener noreferrer"><TG /> Быстрый ответ</a>
         </A>
-        <A delay={.65} className="flex gap-12 mt-20 flex-wrap justify-center">
-          {[["3 000+", "Заказов"], ["от 1 шт", "Печатаем"], ["от 30мин", "Срочно"]].map(([v, l]) => <div key={l} style={{ textAlign: "center" }}><div style={{ fontSize: "clamp(24px,3.5vw,36px)", fontWeight: 600, background: "linear-gradient(135deg,#e84393,#6c5ce7)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{v}</div><div style={{ fontSize: 12, fontWeight: 300, color: "rgba(240,238,245,.4)", letterSpacing: 1, marginTop: 4 }}>{l}</div></div>)}
+        <A delay={.65} className="flex gap-12 mt-20 flex-wrap justify-center hero-stats">
+          {[["3 000+", "Заказов"], ["от 1 шт", "Печатаем"], ["от 30мин", "Срочно"]].map(([v, l]) => <div key={l} className="hero-stat" style={{ textAlign: "center" }}><div style={{ fontSize: "clamp(24px,3.5vw,36px)", fontWeight: 600, background: "linear-gradient(135deg,#e84393,#6c5ce7)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{v}</div><div style={{ fontSize: 12, fontWeight: 300, color: "rgba(240,238,245,.4)", letterSpacing: 1, marginTop: 4 }}>{l}</div></div>)}
         </A>
       </section>
 
 
       {/* PRICING */}
-      <section id="pricing" style={{ padding: "100px 5%" }}>
+      <section id="pricing" className="section-shell" style={{ padding: "100px 5%" }}>
         <div style={{ maxWidth: 900, margin: "0 auto" }}>
           <A className="text-center mb-12"><span style={{ fontSize: 12, fontWeight: 500, letterSpacing: 4, color: "#e84393", textTransform: "uppercase" }}>Стоимость</span><h2 style={{ fontSize: "clamp(28px,4vw,44px)", fontWeight: 200, marginTop: 12 }}>Наши <span style={{ fontWeight: 600 }}>цены</span></h2></A>
-          <A delay={.1}><div style={{ display: "flex", justifyContent: "center", gap: 8, marginBottom: 40 }}>
+          <A delay={.1}><div className="scroll-tabs" style={{ display: "flex", justifyContent: "center", gap: 8, marginBottom: 40 }}>
             <button className={`tb ${pt === "format" ? "ta" : "ti"}`} onClick={() => setPt("format")}>DTF печать с переносом</button>
             <button className={`tb ${pt === "meter" ? "ta" : "ti"}`} onClick={() => setPt("meter")}>Погонные метры</button>
           </div></A>
           {pt === "format" && <A delay={.15}>
-            <div className="cg" style={{ padding: 8, overflow: "hidden" }}><table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <div className="cg pricing-table desktop-pricing-table" style={{ padding: 8, overflow: "hidden" }}><table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead><tr style={{ background: "linear-gradient(135deg,rgba(232,67,147,.15),rgba(108,92,231,.1))" }}>
                 <th style={{ padding: "16px 24px", textAlign: "left", fontSize: 13, fontWeight: 500, letterSpacing: 1.5, color: "rgba(240,238,245,.7)", textTransform: "uppercase" }}>Формат</th>
                 <th style={{ padding: "16px 24px", textAlign: "center", fontSize: 13, fontWeight: 500, letterSpacing: 1.5, color: "rgba(240,238,245,.7)", textTransform: "uppercase" }}>Цена</th>
@@ -2051,20 +2827,55 @@ export default function App() {
               </tr></thead>
               <tbody>{DP.map((p, i) => <tr key={i} style={{ borderTop: "1px solid rgba(255,255,255,.04)" }} onMouseEnter={e => e.currentTarget.style.background = "rgba(232,67,147,.04)"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
                 <td style={{ padding: "16px 24px", fontSize: 15 }}>{p.f}</td>
-                <td style={{ padding: "16px 24px", textAlign: "center", fontSize: 18, fontWeight: 600, background: "linear-gradient(135deg,#e84393,#6c5ce7)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{p.p} ₽</td>
+                <td style={{ padding: "16px 24px", textAlign: "center", fontSize: 18, fontWeight: 600, background: "linear-gradient(135deg,#e84393,#6c5ce7)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{p.p} ₽<div className="mobile-pricing-note">{p.n ? `при заказе ${p.n}` : "без условия"}</div></td>
                 <td style={{ padding: "16px 24px", textAlign: "right", fontSize: 13, fontWeight: 300, color: "rgba(240,238,245,.4)" }}>{p.n ? `при заказе ${p.n}` : "—"}</td>
               </tr>)}</tbody>
             </table></div>
-            <div style={{ marginTop: 24, display: "flex", flexDirection: "column", gap: 10, padding: "0 8px" }}>
-              {["Тестовый образец — 600 ₽ (A6–A3)", "Цены за принт + прижим", "Отдельный перенос — 100 ₽/шт", "Мин. стоимость — 500 ₽"].map((n, i) => <div key={i} style={{ display: "flex", gap: 10, fontSize: 13, fontWeight: 300, color: "rgba(240,238,245,.4)" }}><span style={{ color: "#e84393", fontSize: 10, marginTop: 2 }}>●</span>{n}</div>)}
+            <div className="mobile-pricing-list">
+              {DP.map((p) => (
+                <div key={p.f} className="mobile-pricing-row">
+                  <div className="mobile-pricing-meta">
+                    <div style={{ fontSize: 14, fontWeight: 500, color: "#f0eef5", lineHeight: 1.35 }}>{p.f}</div>
+                  </div>
+                  <div className="mobile-pricing-price">
+                    <div style={{ fontSize: 19, fontWeight: 700, background: "linear-gradient(135deg,#e84393,#6c5ce7)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{p.p} ₽</div>
+                    {p.n ? <div className="mobile-pricing-note">{`при заказе ${p.n}`}</div> : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div style={{ marginTop: 20, display: "flex", flexDirection: "column", gap: 8, padding: "0 4px" }}>
+              {PRICING_NOTES.map((note) => (
+                <div
+                  key={note.text}
+                  style={note.highlight
+                    ? { display: "flex", gap: 10, alignItems: "flex-start", padding: "10px 12px", borderRadius: 12, background: "rgba(232,67,147,.08)", border: "1px solid rgba(232,67,147,.18)", color: "#f0eef5", fontSize: 13, fontWeight: 500 }
+                    : { display: "flex", gap: 10, fontSize: 12, fontWeight: 300, color: "rgba(240,238,245,.4)" }}
+                >
+                  <span style={{ color: note.highlight ? "#fff" : "#e84393", fontSize: note.highlight ? 12 : 10, marginTop: 2 }}>●</span>
+                  <span>{note.text}</span>
+                </div>
+              ))}
             </div>
             <div style={{ textAlign: "center", marginTop: 28 }}><button className="bcalc" onClick={oc}><CalcIcon />Рассчитать оптовый заказ</button></div>
           </A>}
           {pt === "meter" && <A delay={.15}>
-            <div className="cg" style={{ padding: 8, overflow: "hidden" }}><table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <div className="cg pricing-table desktop-pricing-table" style={{ padding: 8, overflow: "hidden" }}><table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead><tr style={{ background: "linear-gradient(135deg,rgba(108,92,231,.15),rgba(232,67,147,.1))" }}>{MP.map((m, i) => <th key={i} style={{ padding: "16px 12px", textAlign: "center", fontSize: 14, fontWeight: 500, color: "rgba(240,238,245,.7)" }}>{m.r}</th>)}</tr></thead>
               <tbody><tr style={{ borderTop: "1px solid rgba(255,255,255,.04)" }}>{MP.map((m, i) => <td key={i} style={{ padding: "20px 12px", textAlign: "center", fontSize: 18, fontWeight: 600, background: "linear-gradient(135deg,#e84393,#6c5ce7)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{m.p}</td>)}</tr></tbody>
             </table></div>
+            <div className="mobile-pricing-list">
+              {MP.map((m) => (
+                <div key={m.r} className="mobile-pricing-row">
+                  <div className="mobile-pricing-meta">
+                    <div style={{ fontSize: 14, fontWeight: 500, color: "#f0eef5", lineHeight: 1.35 }}>{m.r}</div>
+                  </div>
+                  <div className="mobile-pricing-price">
+                    <div style={{ fontSize: 19, fontWeight: 700, background: "linear-gradient(135deg,#e84393,#6c5ce7)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{m.p}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
             <div style={{ marginTop: 20, fontSize: 13, fontWeight: 300, color: "rgba(240,238,245,.4)", padding: "0 8px", display: "flex", gap: 10 }}><span style={{ color: "#6c5ce7", fontSize: 10 }}>●</span>Ширина — 58 см. Без переноса.</div>
             <div style={{ textAlign: "center", marginTop: 28 }}><button className="bcalc" onClick={oc}><CalcIcon />Рассчитать оптовый заказ</button></div>
           </A>}
@@ -2072,14 +2883,14 @@ export default function App() {
       </section>
 
       {/* OUR T-SHIRTS */}
-      <section style={{ padding: "100px 5%" }}>
+      <section className="section-shell" style={{ padding: "100px 5%" }}>
         <div style={{ maxWidth: 1240, margin: "0 auto" }}>
           <A className="text-center mb-16">
             <span style={{ fontSize: 12, fontWeight: 500, letterSpacing: 4, color: "#6c5ce7", textTransform: "uppercase" }}>Собственное производство</span>
             <h2 style={{ fontSize: "clamp(28px,4vw,44px)", fontWeight: 200, marginTop: 12 }}>Наши <span style={{ fontWeight: 600 }}>футболки</span></h2>
             <p style={{ color: "rgba(240,238,245,.4)", fontWeight: 300, marginTop: 10, fontSize: 15, maxWidth: 600, margin: "10px auto 0" }}>Создаём напрямую на фабрике по собственным лекалам. От кроя и посадки до выбора ткани — всё продумано до мелочей.</p>
           </A>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(380px,1fr))", gap: 24 }}>
+          <div className="main-tshirt-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(380px,1fr))", gap: 24 }}>
             {TEXTILE_DATA.tshirts.items.map((item, i) => (
               <A key={i} delay={i * 0.1}>
                 <MainTshirtCard item={item} onOpen={() => navigateToPage("textile_tshirts")} />
@@ -2087,31 +2898,36 @@ export default function App() {
             ))}
           </div>
           <A delay={0.3} className="text-center mt-10">
-            <button className="bcalc" onClick={() => navigateToPage("textile_tshirts")}>
-              Весь каталог текстиля →
-            </button>
+            <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
+              <button className="bcalc" onClick={() => navigateToPage("textile_tshirts")}>
+                Весь каталог текстиля →
+              </button>
+              <button className="bo" onClick={goConstructor}>
+                Открыть конструктор
+              </button>
+            </div>
           </A>
         </div>
       </section>
 
       {/* REVIEWS */}
-      <section id="reviews" style={{ padding: "100px 5%" }}>
+      <section id="reviews" className="section-shell" style={{ padding: "100px 5%" }}>
         <div style={{ maxWidth: 1000, margin: "0 auto" }}>
           <A className="text-center mb-16"><span style={{ fontSize: 12, fontWeight: 500, letterSpacing: 4, color: "#6c5ce7", textTransform: "uppercase" }}>Нам доверяют</span><h2 style={{ fontSize: "clamp(28px,4vw,44px)", fontWeight: 200, marginTop: 12 }}>Отзывы <span style={{ fontWeight: 600 }}>клиентов</span></h2><div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 12 }}><Stars /><span style={{ fontSize: 15, fontWeight: 500 }}>5.0</span><span style={{ fontSize: 14, fontWeight: 300, color: "rgba(240,238,245,.4)" }}>Яндекс Карты</span></div></A>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 24 }}>
-            {RV.map((r, i) => <A key={i} delay={i * .1}><div className="cg" style={{ padding: 32, height: "100%", display: "flex", flexDirection: "column" }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}><div><div style={{ fontSize: 16, fontWeight: 500 }}>{r.name}</div><div style={{ fontSize: 12, fontWeight: 300, color: "rgba(240,238,245,.3)", marginTop: 2 }}>{r.date}</div></div><Stars /></div><p style={{ fontSize: 14, fontWeight: 300, color: "rgba(240,238,245,.55)", lineHeight: 1.7, flex: 1 }}>«{r.text}»</p></div></A>)}
+          <div className="reviews-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 24 }}>
+            {RV.map((r, i) => <A key={i} delay={i * .1}><div className="cg review-card" style={{ padding: 32, height: "100%", display: "flex", flexDirection: "column" }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}><div><div style={{ fontSize: 16, fontWeight: 500 }}>{r.name}</div><div style={{ fontSize: 12, fontWeight: 300, color: "rgba(240,238,245,.3)", marginTop: 2 }}>{r.date}</div></div><Stars /></div><p style={{ fontSize: 14, fontWeight: 300, color: "rgba(240,238,245,.55)", lineHeight: 1.7, flex: 1 }}>«{r.text}»</p></div></A>)}
           </div>
           <A delay={.35} className="text-center mt-8"><a href="https://yandex.ru/maps/org/future_studio/220314499581/reviews/" target="_blank" rel="noopener noreferrer" style={{ color: "#e84393", fontSize: 14, textDecoration: "none", borderBottom: "1px solid rgba(232,67,147,.3)", paddingBottom: 2 }}>Все 63 отзыва →</a></A>
         </div>
       </section>
 
       {/* CONTACT */}
-      <section id="contact" style={{ padding: "100px 5% 60px" }}>
+      <section id="contact" className="section-shell" style={{ padding: "100px 5% 60px" }}>
         <div style={{ maxWidth: 900, margin: "0 auto" }}>
           <A className="text-center mb-12"><span style={{ fontSize: 12, fontWeight: 500, letterSpacing: 4, color: "#6c5ce7", textTransform: "uppercase" }}>Свяжитесь с нами</span><h2 style={{ fontSize: "clamp(28px,4vw,44px)", fontWeight: 200, marginTop: 12 }}>Оставить <span style={{ fontWeight: 600 }}>заявку</span></h2></A>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))", gap: 32 }}>
+          <div className="contact-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))", gap: 32 }}>
             <A delay={.1}>
-                <form className="cg" style={{ padding: "36px 32px" }} onSubmit={handleContactSubmit}>
+                <form className="cg contact-card" style={{ padding: "36px 32px" }} onSubmit={handleContactSubmit}>
                   <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                     <input className="inf" placeholder="Ваше имя" value={fm.n} onChange={e => setFm({ ...fm, n: e.target.value })} required />
                     <input className="inf" placeholder="Телефон" value={fm.p} onChange={e => setFm({ ...fm, p: e.target.value })} required />
@@ -2124,15 +2940,22 @@ export default function App() {
                 </form>
             </A>
             <A delay={.2}><div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-              <div className="cg" style={{ padding: 24, overflow: "hidden" }}><div style={{ fontSize: 11, fontWeight: 500, letterSpacing: 2, color: "#e84393", textTransform: "uppercase", marginBottom: 12 }}>Адрес</div><div style={{ fontSize: 16 }}>Санкт-Петербург</div><div style={{ fontSize: 14, fontWeight: 300, color: "rgba(240,238,245,.6)" }}>пр. Авиаконструкторов, 5к2, эт. 2</div><div style={{ fontSize: 12, fontWeight: 300, color: "rgba(240,238,245,.35)", marginTop: 6, display: "flex", alignItems: "center", gap: 6 }}><svg width="16" height="16" viewBox="0 0 100 100"><circle cx="50" cy="50" r="46" fill="none" stroke="#6c5ce7" strokeWidth="10"/><path d="M22 65 C22 35, 35 25, 50 58 C65 25, 78 35, 78 65" fill="none" stroke="#6c5ce7" strokeWidth="10" strokeLinecap="round" strokeLinejoin="round"/></svg>Комендантский проспект</div><div style={{ marginTop: 14, borderRadius: 12, overflow: "hidden", border: "1px solid rgba(255,255,255,.06)" }}><iframe src="https://yandex.ru/map-widget/v1/?pt=30.246977,60.011073,pm2rdm&z=16&l=map" width="100%" height="180" frameBorder="0" style={{ display: "block", filter: "invert(0.9) hue-rotate(180deg) brightness(1.1) contrast(0.9)" }} allowFullScreen /></div></div>
-              <div className="cg" style={{ padding: 24 }}><div style={{ fontSize: 11, fontWeight: 500, letterSpacing: 2, color: "#e84393", textTransform: "uppercase", marginBottom: 12 }}>Телефон</div><a href="tel:+79500003464" style={{ fontSize: 20, fontWeight: 500, color: "#f0eef5", textDecoration: "none" }}>+7 (950) 000-34-64</a></div>
-              <a href="https://t.me/FUTURE_178" target="_blank" rel="noopener noreferrer" className="cg" style={{ padding: 24, textDecoration: "none", color: "#f0eef5", display: "flex", alignItems: "center", gap: 14 }}><div style={{ width: 44, height: 44, borderRadius: "50%", background: "linear-gradient(135deg,#0088cc,#6c5ce7)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><TG /></div><div><div style={{ fontSize: 15, fontWeight: 500 }}>Telegram</div><div style={{ fontSize: 13, fontWeight: 300, color: "rgba(240,238,245,.5)" }}>@FUTURE_178</div></div></a>
-              <a href="mailto:future178@yandex.ru" className="cg" style={{ padding: 24, textDecoration: "none", color: "#f0eef5", display: "flex", alignItems: "center", gap: 14 }}><div style={{ width: 44, height: 44, borderRadius: "50%", background: "linear-gradient(135deg,#e84393,#6c5ce7)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 4L12 13 2 4"/></svg></div><div><div style={{ fontSize: 15, fontWeight: 500 }}>Почта</div><div style={{ fontSize: 13, fontWeight: 300, color: "rgba(240,238,245,.5)" }}>future178@yandex.ru</div></div></a>
+              <div className="cg contact-card" style={{ padding: 24, overflow: "hidden" }}><div style={{ fontSize: 11, fontWeight: 500, letterSpacing: 2, color: "#e84393", textTransform: "uppercase", marginBottom: 12 }}>Адрес</div><div style={{ fontSize: 16 }}>Санкт-Петербург</div><div style={{ fontSize: 14, fontWeight: 300, color: "rgba(240,238,245,.6)" }}>пр. Авиаконструкторов, 5к2, эт. 2</div><div style={{ fontSize: 12, fontWeight: 300, color: "rgba(240,238,245,.35)", marginTop: 6, display: "flex", alignItems: "center", gap: 6 }}><svg width="16" height="16" viewBox="0 0 100 100"><circle cx="50" cy="50" r="46" fill="none" stroke="#6c5ce7" strokeWidth="10"/><path d="M22 65 C22 35, 35 25, 50 58 C65 25, 78 35, 78 65" fill="none" stroke="#6c5ce7" strokeWidth="10" strokeLinecap="round" strokeLinejoin="round"/></svg>Комендантский проспект</div><div style={{ marginTop: 14, borderRadius: 12, overflow: "hidden", border: "1px solid rgba(255,255,255,.06)" }}><iframe src="https://yandex.ru/map-widget/v1/?pt=30.246977,60.011073,pm2rdm&z=16&l=map" width="100%" height="180" frameBorder="0" style={{ display: "block", filter: "invert(0.9) hue-rotate(180deg) brightness(1.1) contrast(0.9)" }} allowFullScreen /></div></div>
+              <div className="cg contact-card" style={{ padding: 24 }}><div style={{ fontSize: 11, fontWeight: 500, letterSpacing: 2, color: "#e84393", textTransform: "uppercase", marginBottom: 12 }}>Телефон</div><a href="tel:+79500003464" style={{ fontSize: 20, fontWeight: 500, color: "#f0eef5", textDecoration: "none" }}>+7 (950) 000-34-64</a></div>
+              <a href="https://t.me/FUTURE_178" target="_blank" rel="noopener noreferrer" className="cg contact-card" style={{ padding: 24, textDecoration: "none", color: "#f0eef5", display: "flex", alignItems: "center", gap: 14 }}><div style={{ width: 44, height: 44, borderRadius: "50%", background: "linear-gradient(135deg,#0088cc,#6c5ce7)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><TG /></div><div><div style={{ fontSize: 15, fontWeight: 500 }}>Telegram</div><div style={{ fontSize: 13, fontWeight: 300, color: "rgba(240,238,245,.5)" }}>@FUTURE_178</div></div></a>
+              <a href="mailto:future178@yandex.ru" className="cg contact-card" style={{ padding: 24, textDecoration: "none", color: "#f0eef5", display: "flex", alignItems: "center", gap: 14 }}><div style={{ width: 44, height: 44, borderRadius: "50%", background: "linear-gradient(135deg,#e84393,#6c5ce7)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 4L12 13 2 4"/></svg></div><div><div style={{ fontSize: 15, fontWeight: 500 }}>Почта</div><div style={{ fontSize: 13, fontWeight: 300, color: "rgba(240,238,245,.5)" }}>future178@yandex.ru</div></div></a>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>{["Оплата картой", "СБП", "Безнал", "Наличными"].map(f => <span key={f} style={{ background: "rgba(255,255,255,.04)", border: "1px solid rgba(255,255,255,.06)", padding: "6px 14px", borderRadius: 20, fontSize: 12, fontWeight: 300, color: "rgba(240,238,245,.5)" }}>{f}</span>)}</div>
             </div></A>
           </div>
         </div>
       </section>
+
+      <div className="mobile-only mobile-quick-actions">
+        <a href="tel:+79500003464">Позвонить</a>
+        <a href="https://t.me/FUTURE_178" target="_blank" rel="noopener noreferrer" className="mobile-quick-accent">Telegram</a>
+        <button type="button" onClick={oc} className="mobile-quick-primary">Расчёт</button>
+      </div>
+      <div className="mobile-bottom-spacer" />
 
       <footer style={{ borderTop: "1px solid rgba(255,255,255,.05)", padding: "32px 5%", textAlign: "center" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 12 }}>

@@ -1,4 +1,10 @@
 import { lazy, Suspense, useState, useEffect, useRef } from "react";
+import ConstructorOrderPanel from "./components/constructor/ConstructorOrderPanel.jsx";
+import ConstructorPreviewPanel from "./components/constructor/ConstructorPreviewPanel.jsx";
+import ConstructorSidebarPanel from "./components/constructor/ConstructorSidebarPanel.jsx";
+import ConstructorTabsNav from "./components/constructor/ConstructorTabsNav.jsx";
+import { buildConstructorProducts, buildConstructorTelegramLink, CONSTRUCTOR_TABS, createConstructorPresetPrints, readFileAsDataUrl, readImageSize } from "./components/constructor/constructorConfig.js";
+import useConstructorState from "./hooks/useConstructorState.js";
 
 const PortfolioPage = lazy(() => import("./portfolio/PortfolioCatalogPage.jsx"));
 
@@ -418,12 +424,10 @@ input[type=number]{-moz-appearance:textfield}
   .hero-stat{display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:flex-start!important;min-width:0!important}
   .hero-stat-value{white-space:nowrap!important;line-height:1.05!important}
   .hero-stat-label{display:flex!important;align-items:flex-start!important;justify-content:center!important;min-height:32px!important;line-height:1.35!important;text-align:center!important}
-  .textile-card-grid,.main-tshirt-grid,.reviews-grid,.contact-grid,.size-guide-grid,.constructor-shell,.constructor-two-grid{grid-template-columns:1fr!important}
+  .textile-card-grid,.main-tshirt-grid,.reviews-grid,.contact-grid,.size-guide-grid,.constructor-shell{grid-template-columns:1fr!important}
   .constructor-preview{position:relative!important;top:auto!important}
-  .constructor-meta-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
-  .constructor-order-actions>*{flex:1 1 100%!important}
-  .constructor-basket-row,.textile-order-line{flex-direction:column!important;align-items:flex-start!important}
-  .constructor-basket-summary,.textile-order-summary{flex-direction:column!important;align-items:stretch!important}
+  .textile-order-line{flex-direction:column!important;align-items:flex-start!important}
+  .textile-order-summary{flex-direction:column!important;align-items:stretch!important}
   .textile-order-cards{justify-content:stretch!important;width:100%!important}
   .textile-order-cards>*{flex:1 1 100%!important;min-width:0!important}
   .gallery-thumb-grid{flex-wrap:nowrap!important;overflow-x:auto!important;padding-bottom:4px!important}
@@ -453,7 +457,7 @@ input[type=number]{-moz-appearance:textfield}
   .main-showcase-swatch{width:clamp(16px,4.2vw,20px)!important;height:clamp(16px,4.2vw,20px)!important}
   .main-showcase-preview{width:100%!important}
   .main-card,.product-card,.review-card,.contact-card,.calc-panel,.constructor-panel{padding:22px!important}
-  .main-card-header,.product-card-header,.constructor-top,.constructor-basket-summary{flex-direction:column!important;align-items:flex-start!important}
+  .main-card-header,.product-card-header{flex-direction:column!important;align-items:flex-start!important}
   .price-pill{align-self:flex-start!important}
   .hero-title{font-size:clamp(32px,9vw,46px)!important;letter-spacing:1px!important;line-height:1.16!important;margin-top:18px!important}
   .hero-subtitle{font-size:14px!important;margin-top:16px!important}
@@ -461,7 +465,6 @@ input[type=number]{-moz-appearance:textfield}
   .hero-support{display:none!important}
   .hero-stats{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:12px!important}
   .calc-item-grid{grid-template-columns:1fr!important}
-  .constructor-meta-grid{grid-template-columns:1fr!important}
   .qty-inline{width:100%!important;justify-content:space-between!important}
   .mobile-quick-actions{left:12px;right:12px;bottom:12px;gap:8px}
 }
@@ -562,41 +565,7 @@ const TSHIRT_SIZE_GUIDE_SECTIONS = [
   { title: "Оверсайз футболки", rows: TSHIRT_SIZE_GUIDE },
   { title: "Базовые футболки", rows: TSHIRT_SIZE_GUIDE },
 ];
-const CONSTRUCTOR_PRODUCTS = [
-  {
-    key: "basic",
-    name: "Базовая футболка",
-    model: "classic",
-    price: 650,
-    description: "Классический крой для повседневых и корпоративных тиражей.",
-    colors: ["Чёрный", "Белый"],
-    sizes: TSHIRT_SIZE_OPTIONS,
-    printAreas: {
-      front: { left: 50, top: 48, width: 28, height: 31 },
-      back: { left: 50, top: 44, width: 30, height: 34 },
-    },
-  },
-  {
-    key: "oversize",
-    name: "Футболка оверсайз",
-    model: "oversize",
-    price: 800,
-    description: "Свободный силуэт для ярких принтов и мерча с объёмной посадкой.",
-    colors: ["Чёрный", "Белый"],
-    sizes: TSHIRT_SIZE_OPTIONS,
-    printAreas: {
-      front: { left: 50, top: 47, width: 30, height: 33 },
-      back: { left: 50, top: 43, width: 32, height: 36 },
-    },
-  },
-];
-const CONSTRUCTOR_TABS = [
-  ["textile", "Текстиль"],
-  ["upload", "Загрузить"],
-  ["text", "Текст"],
-  ["prints", "Принты"],
-  ["order", "В заказ"],
-];
+const CONSTRUCTOR_PRODUCTS = buildConstructorProducts({ tshirtItems: TEXTILE_DATA.tshirts.items, getTshirtSizes, parseColorOptions, parsePriceValue, normalizeVariantLabel });
 const COLOR_SWATCHES = {
   "чёрный": { background: "#111111", border: "rgba(255,255,255,.2)", labelColor: "#f0eef5" },
   "черный": { background: "#111111", border: "rgba(255,255,255,.2)", labelColor: "#f0eef5" },
@@ -784,7 +753,7 @@ function loadImageCandidate(sources) {
   });
 }
 
-function buildTshirtMockupSvg({ model, colorName, view }) {
+function buildTshirtMockupSvg({ model, colorName, view, showViewLabel = true, showHeader = true }) {
   const colorKey = normalizeColorName(colorName) || "черный";
   const palette = resolveTshirtGalleryColor(colorKey);
   const gradientId = `${model}-${colorKey}-${view}-gradient`;
@@ -849,11 +818,8 @@ function buildTshirtMockupSvg({ model, colorName, view }) {
         </g>
       `}
 
-      <g opacity=".82">
-        <text x="94" y="124" fill="#6c5ce7" font-size="34" font-family="Outfit, Arial, sans-serif" font-weight="600">FUTURE STUDIO</text>
-        <text x="94" y="180" fill="rgba(240,238,245,.52)" font-size="20" font-family="Outfit, Arial, sans-serif">${isOversize ? "Оверсайз" : "Классика"} • ${colorName}</text>
-      </g>
-      <text x="94" y="1380" fill="${palette.text}" opacity=".82" font-size="26" font-family="Outfit, Arial, sans-serif">${TSHIRT_GALLERY_FALLBACK_VIEWS.find((slide) => slide.key === view)?.label || "Предпросмотр"}</text>
+      ${showHeader ? `<g opacity=".82"><text x="94" y="124" fill="#6c5ce7" font-size="34" font-family="Outfit, Arial, sans-serif" font-weight="600">FUTURE STUDIO</text><text x="94" y="180" fill="rgba(240,238,245,.52)" font-size="20" font-family="Outfit, Arial, sans-serif">${isOversize ? "Оверсайз" : "Классика"} • ${colorName}</text></g>` : ""}
+      ${showViewLabel ? `<text x="94" y="1380" fill="${palette.text}" opacity=".82" font-size="26" font-family="Outfit, Arial, sans-serif">${TSHIRT_GALLERY_FALLBACK_VIEWS.find((slide) => slide.key === view)?.label || "Предпросмотр"}</text>` : ""}
     </svg>
   `;
 }
@@ -977,118 +943,13 @@ function buildTelegramBasketLink(lines) {
   return `https://t.me/FUTURE_178?text=${encodeURIComponent(message)}`;
 }
 
-function buildConstructorPresetSvg(kind) {
-  const presets = {
-    future: `
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" fill="none">
-        <rect width="600" height="600" rx="120" fill="url(#bg)" />
-        <defs>
-          <linearGradient id="bg" x1="80" y1="60" x2="520" y2="540" gradientUnits="userSpaceOnUse">
-            <stop stop-color="#e84393" />
-            <stop offset="1" stop-color="#6c5ce7" />
-          </linearGradient>
-        </defs>
-        <text x="300" y="330" text-anchor="middle" fill="white" font-size="132" font-family="Outfit, Arial, sans-serif" font-weight="700">FS</text>
-      </svg>
-    `,
-    lightning: `
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" fill="none">
-        <rect width="600" height="600" rx="120" fill="#151517" />
-        <path d="M334 56 148 332h116l-40 212 228-316H332l2-172Z" fill="url(#bolt)"/>
-        <defs>
-          <linearGradient id="bolt" x1="140" y1="60" x2="442" y2="540" gradientUnits="userSpaceOnUse">
-            <stop stop-color="#f9ed69" />
-            <stop offset="1" stop-color="#f08a5d" />
-          </linearGradient>
-        </defs>
-      </svg>
-    `,
-    smile: `
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" fill="none">
-        <circle cx="300" cy="300" r="250" fill="url(#face)" />
-        <circle cx="220" cy="250" r="28" fill="#151517" />
-        <circle cx="380" cy="250" r="28" fill="#151517" />
-        <path d="M194 336c28 64 92 104 164 104 72 0 136-40 164-104" stroke="#151517" stroke-width="26" stroke-linecap="round"/>
-        <defs>
-          <linearGradient id="face" x1="90" y1="90" x2="512" y2="512" gradientUnits="userSpaceOnUse">
-            <stop stop-color="#f9ed69" />
-            <stop offset="1" stop-color="#f08a5d" />
-          </linearGradient>
-        </defs>
-      </svg>
-    `,
-    circle: `
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" fill="none">
-        <circle cx="300" cy="300" r="250" fill="url(#ring)" />
-        <circle cx="300" cy="300" r="154" fill="#0b0b10" />
-        <text x="300" y="280" text-anchor="middle" fill="white" font-size="54" font-family="Outfit, Arial, sans-serif" font-weight="500">FUTURE</text>
-        <text x="300" y="346" text-anchor="middle" fill="#e84393" font-size="74" font-family="Outfit, Arial, sans-serif" font-weight="700">DTF</text>
-        <defs>
-          <linearGradient id="ring" x1="90" y1="70" x2="510" y2="530" gradientUnits="userSpaceOnUse">
-            <stop stop-color="#6c5ce7" />
-            <stop offset="1" stop-color="#e84393" />
-          </linearGradient>
-        </defs>
-      </svg>
-    `,
-  };
-
-  return svgToDataUri(presets[kind] || presets.future);
-}
-
-const CONSTRUCTOR_PRESET_PRINTS = [
-  { key: "future", label: "Future Badge", src: buildConstructorPresetSvg("future") },
-  { key: "lightning", label: "Lightning", src: buildConstructorPresetSvg("lightning") },
-  { key: "smile", label: "Smile", src: buildConstructorPresetSvg("smile") },
-  { key: "circle", label: "Future DTF", src: buildConstructorPresetSvg("circle") },
-];
-
-function buildConstructorTelegramLink(lines) {
-  const message = [
-    "Здравствуйте! Хочу оформить заказ через конструктор футболок.",
-    "",
-    ...lines.map((line, index) => {
-      const details = [
-        `${index + 1}. ${line.productName}`,
-        `цвет ${line.color}`,
-        `размер ${line.size}`,
-        `сторона ${line.side === "front" ? "спереди" : "сзади"}`,
-        `кол-во ${line.qty} шт`,
-        line.uploadName ? `макет ${line.uploadName}` : null,
-        line.text ? `текст «${line.text}»` : null,
-        line.presetLabel ? `принт ${line.presetLabel}` : null,
-        `предварительно ${line.total.toLocaleString("ru-RU")} ₽`,
-      ].filter(Boolean);
-      return details.join(", ");
-    }),
-  ].join("\n");
-
-  return `https://t.me/FUTURE_178?text=${encodeURIComponent(message)}`;
-}
-
-function readFileAsDataUrl(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
-function readImageSize(src) {
-  return new Promise((resolve, reject) => {
-    const image = new Image();
-    image.onload = () => resolve({ width: image.naturalWidth, height: image.naturalHeight });
-    image.onerror = reject;
-    image.src = src;
-  });
-}
-
 function parsePriceValue(price) {
   if (!price) return 0;
   const digits = String(price).replace(/[^\d]/g, "");
   return digits ? Number(digits) : 0;
 }
+
+const CONSTRUCTOR_PRESET_PRINTS = createConstructorPresetPrints(svgToDataUri);
 
 function SelectorTitle({ children }) {
   return <div style={{ fontSize: 11, fontWeight: 500, color: "rgba(240,238,245,.38)", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 10 }}>{children}</div>;
@@ -2120,7 +1981,8 @@ function CalcPage({ onBack }) {
   const print = getPrintCost(metersRound);
   const apply = withApply ? getApplyCost(totalQty) : { rate: 0, cost: 0 };
   const standardTotal = print.cost + apply.cost;
-  const total = isSmallOrder ? formatTotal : standardTotal;
+  const printTotal = isSmallOrder ? formatTotal : standardTotal;
+  const total = printTotal;
 
   const svgW = 370;
   const pad = 24;
@@ -2141,6 +2003,13 @@ function CalcPage({ onBack }) {
     const frameId = window.requestAnimationFrame(scrollToBottom);
     return () => window.cancelAnimationFrame(frameId);
   }, [layoutOpen, lengthCm]);
+
+  const calcOrderLink = `https://t.me/FUTURE_178?text=${encodeURIComponent([
+    "Здравствуйте! Хочу рассчитать заказ DTF-печати.",
+    totalQty > 0 ? `Количество принтов: ${totalQty} шт` : null,
+    `Печать: ${printTotal.toLocaleString("ru-RU")} ₽`,
+    `Итого: ${total.toLocaleString("ru-RU")} ₽`,
+  ].filter(Boolean).join("\n"))}`;
 
   return (
     <div style={{ fontFamily: "'Outfit',sans-serif", background: "#08080c", color: "#f0eef5", minHeight: "100vh" }}>
@@ -2328,7 +2197,7 @@ function CalcPage({ onBack }) {
                   {(!isSmallOrder && meters > 0 && meters < 1) ? (
                     <div style={{ width: "100%", textAlign: "center", marginTop: 18, padding: "14px 36px", borderRadius: 50, background: "rgba(255,255,255,.04)", color: "rgba(240,238,245,.25)", fontSize: 16, fontWeight: 500, fontFamily: "'Outfit',sans-serif", cursor: "not-allowed" }}>Минимум 1 п/м для заказа</div>
                   ) : (
-                    <a href="https://t.me/FUTURE_178" target="_blank" rel="noopener noreferrer" className="btg" style={{ width: "100%", justifyContent: "center", marginTop: 18, display: "flex" }}><TG /> Оформить заказ</a>
+                    <a href={calcOrderLink} target="_blank" rel="noopener noreferrer" className="btg" style={{ width: "100%", justifyContent: "center", marginTop: 18, display: "flex" }}><TG /> Оформить заказ</a>
                   )}
                 </>
               )}
@@ -2371,190 +2240,67 @@ function CalcPage({ onBack }) {
 }
 
 function ConstructorPage({ onBack }) {
-  const [activeTab, setActiveTab] = useState("textile");
-  const [productKey, setProductKey] = useState("oversize");
-  const [side, setSide] = useState("front");
-  const [color, setColor] = useState("Чёрный");
-  const [size, setSize] = useState("");
-  const [qty, setQty] = useState(1);
-  const [uploadDesign, setUploadDesign] = useState(null);
-  const [uploadScale, setUploadScale] = useState(78);
-  const [uploadPosition, setUploadPosition] = useState({ x: 50, y: 50 });
-  const [isDraggingUpload, setIsDraggingUpload] = useState(false);
-  const [textValue, setTextValue] = useState("");
-  const [textSize, setTextSize] = useState(36);
-  const [textColor, setTextColor] = useState("#ffffff");
-  const [textWeight, setTextWeight] = useState(700);
-  const [textUppercase, setTextUppercase] = useState(true);
-  const [presetKey, setPresetKey] = useState("");
-  const [presetScale, setPresetScale] = useState(52);
-  const [basket, setBasket] = useState([]);
-  const printAreaRef = useRef(null);
-
-  const product = CONSTRUCTOR_PRODUCTS.find((item) => item.key === productKey) || CONSTRUCTOR_PRODUCTS[0];
-  const printArea = product.printAreas[side];
-  const previewSrc = svgToDataUri(buildTshirtMockupSvg({ model: product.model, colorName: color, view: side }));
-  const selectedPreset = CONSTRUCTOR_PRESET_PRINTS.find((item) => item.key === presetKey) || null;
-  const hasDecoration = Boolean(uploadDesign || textValue.trim() || selectedPreset);
-  const canAddToBasket = Boolean(size && hasDecoration && qty >= 1);
-  const currentTotal = product.price * qty;
-  const currentOrderLine = {
-    productName: product.name,
+  const {
+    activeTab,
+    setActiveTab,
+    productKey,
+    side,
+    setSide,
     color,
     size,
+    setSize,
     qty,
-    side,
-    uploadName: uploadDesign?.name || "",
-    text: textValue.trim(),
-    presetLabel: selectedPreset?.label || "",
-    total: currentTotal,
-  };
-
-  const getUploadMetrics = (scaleValue = uploadScale) => {
-    if (!printAreaRef.current || !uploadDesign?.width || !uploadDesign?.height) return null;
-
-    const { width: areaWidth, height: areaHeight } = printAreaRef.current.getBoundingClientRect();
-    if (!areaWidth || !areaHeight) return null;
-
-    const aspectRatio = uploadDesign.width / uploadDesign.height;
-    const preferredWidth = areaWidth * (scaleValue / 100);
-    const width = Math.min(preferredWidth, areaHeight * aspectRatio, areaWidth);
-    const height = aspectRatio ? width / aspectRatio : areaHeight;
-
-    return { areaWidth, areaHeight, width, height };
-  };
-
-  const clampUploadPosition = (position, metrics = getUploadMetrics()) => {
-    const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
-    if (!metrics) {
-      return { x: clamp(position.x, 0, 100), y: clamp(position.y, 0, 100) };
-    }
-
-    const minX = (metrics.width / 2 / metrics.areaWidth) * 100;
-    const maxX = 100 - minX;
-    const minY = (metrics.height / 2 / metrics.areaHeight) * 100;
-    const maxY = 100 - minY;
-
-    return {
-      x: minX > maxX ? 50 : clamp(position.x, minX, maxX),
-      y: minY > maxY ? 50 : clamp(position.y, minY, maxY),
-    };
-  };
-
-  const resolveUploadPositionFromPointer = (clientX, clientY) => {
-    if (!printAreaRef.current) return uploadPosition;
-    const rect = printAreaRef.current.getBoundingClientRect();
-    const nextPosition = {
-      x: ((clientX - rect.left) / rect.width) * 100,
-      y: ((clientY - rect.top) / rect.height) * 100,
-    };
-    return clampUploadPosition(nextPosition);
-  };
-
-  const handleProductChange = (nextProductKey) => {
-    const nextProduct = CONSTRUCTOR_PRODUCTS.find((item) => item.key === nextProductKey);
-    if (!nextProduct) return;
-    setProductKey(nextProductKey);
-    setSize("");
-    if (!nextProduct.colors.includes(color)) {
-      setColor(nextProduct.colors[0]);
-    }
-  };
-
-  const handleColorChange = (nextColor) => {
-    const resolvedColor = nextColor || product.colors[0];
-    const previousAutoTextColor = color === "Белый" ? "#111111" : "#ffffff";
-    setColor(resolvedColor);
-    if (textColor === previousAutoTextColor) {
-      setTextColor(resolvedColor === "Белый" ? "#111111" : "#ffffff");
-    }
-  };
-
-  const handleUploadChange = async (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    const src = await readFileAsDataUrl(file);
-    const dimensions = await readImageSize(src);
-    setUploadDesign({ name: file.name, src, ...dimensions });
-    setUploadPosition({ x: 50, y: 50 });
-    setActiveTab("upload");
-  };
-
-  const handleUploadScaleChange = (event) => {
-    const nextScale = Number(event.target.value);
-    setUploadScale(nextScale);
-    setUploadPosition((current) => clampUploadPosition(current, getUploadMetrics(nextScale)));
-  };
-
-  const handleUploadRemove = () => {
-    setUploadDesign(null);
-    setUploadPosition({ x: 50, y: 50 });
-    setIsDraggingUpload(false);
-  };
-
-  const handleUploadPointerDown = (event) => {
-    if (!uploadDesign || !printAreaRef.current) return;
-
-    event.preventDefault();
-
-    const pointerId = event.pointerId;
-    const node = event.currentTarget;
-    const updatePosition = (clientX, clientY) => {
-      const nextPosition = resolveUploadPositionFromPointer(clientX, clientY);
-      setUploadPosition((current) => (
-        current.x === nextPosition.x && current.y === nextPosition.y ? current : nextPosition
-      ));
-    };
-
-    setIsDraggingUpload(true);
-    node.setPointerCapture?.(pointerId);
-    updatePosition(event.clientX, event.clientY);
-
-    const handlePointerMove = (moveEvent) => {
-      if (moveEvent.pointerId !== pointerId) return;
-      moveEvent.preventDefault();
-      updatePosition(moveEvent.clientX, moveEvent.clientY);
-    };
-
-    const stopDragging = (endEvent) => {
-      if (endEvent.pointerId !== pointerId) return;
-      setIsDraggingUpload(false);
-      node.releasePointerCapture?.(pointerId);
-      window.removeEventListener("pointermove", handlePointerMove);
-      window.removeEventListener("pointerup", stopDragging);
-      window.removeEventListener("pointercancel", stopDragging);
-    };
-
-    window.addEventListener("pointermove", handlePointerMove);
-    window.addEventListener("pointerup", stopDragging);
-    window.addEventListener("pointercancel", stopDragging);
-  };
-
-  const addCurrentToBasket = () => {
-    if (!canAddToBasket) return;
-    setBasket((current) => [
-      ...current,
-      {
-        ...currentOrderLine,
-        id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      },
-    ]);
-    setActiveTab("order");
-  };
-
-  const removeBasketItem = (id) => {
-    setBasket((current) => current.filter((item) => item.id !== id));
-  };
-
-  const telegramLink = buildConstructorTelegramLink(basket.length ? basket : [currentOrderLine]);
-  const basketTotal = (basket.length ? basket : [currentOrderLine]).reduce((sum, item) => sum + item.total, 0);
-  const overlayText = textUppercase ? textValue.toUpperCase() : textValue;
+    setQty,
+    uploadDesign,
+    uploadScale,
+    uploadPosition,
+    isDraggingUpload,
+    textValue,
+    setTextValue,
+    textSize,
+    setTextSize,
+    textColor,
+    setTextColor,
+    textWeight,
+    setTextWeight,
+    textUppercase,
+    setTextUppercase,
+    presetKey,
+    setPresetKey,
+    presetScale,
+    setPresetScale,
+    printAreaRef,
+    product,
+    printArea,
+    previewSrc,
+    selectedPreset,
+    canSubmitOrder,
+    currentTotal,
+    orderMeta,
+    orderDecorItems,
+    telegramLink,
+    overlayText,
+    handleProductChange,
+    handleColorChange,
+    handleUploadChange,
+    handleUploadScaleChange,
+    handleUploadRemove,
+    handleUploadPointerDown,
+    centerUploadPosition,
+  } = useConstructorState({
+    products: CONSTRUCTOR_PRODUCTS,
+    presetPrints: CONSTRUCTOR_PRESET_PRINTS,
+    buildPreviewSrc: ({ product: currentProduct, color: currentColor, side: currentSide }) => svgToDataUri(buildTshirtMockupSvg({ model: currentProduct.model, colorName: currentColor, view: currentSide, showViewLabel: false, showHeader: false })),
+    buildTelegramLink: buildConstructorTelegramLink,
+    readFileAsDataUrl,
+    readImageSize,
+  });
 
   return (
     <div style={{ fontFamily: "'Outfit',sans-serif", background: "#08080c", color: "#f0eef5", minHeight: "100vh" }}>
       <style>{STYLES}</style>
 
-      <div className="page-shell" style={{ maxWidth: 1320, margin: "0 auto", padding: "28px 5% 56px" }}>
+      <div className="page-shell" style={{ maxWidth: 1320, margin: "0 auto", padding: "28px 0 56px" }}>
         <button type="button" onClick={onBack} style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 12, background: "none", border: "none", color: "inherit", padding: 0, font: "inherit" }}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#e84393" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
           <LogoMini />
@@ -2566,128 +2312,19 @@ function ConstructorPage({ onBack }) {
             Конструктор <span style={{ fontWeight: 600, background: "linear-gradient(135deg,#e84393,#6c5ce7)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>футболок</span>
           </h1>
           <p style={{ color: "rgba(240,238,245,.45)", fontWeight: 300, fontSize: 15, marginTop: 10, lineHeight: 1.75 }}>
-            Отдельный экран для быстрого подбора базовой или оверсайз футболки, выбора стороны печати, загрузки макета, добавления текста и отправки заказа менеджеру.
+            На этой странице собрана вся информация по футболкам: модели, плотности, материалы, цвета, цены и настройка макета перед отправкой заказа менеджеру.
           </p>
         </div>
 
-        <div className="constructor-shell" style={{ display: "grid", gridTemplateColumns: "1.05fr .95fr", gap: 26, alignItems: "start" }}>
-          <div className="cs constructor-preview constructor-panel" style={{ padding: 24, border: "1px solid rgba(255,255,255,.06)", position: "sticky", top: 28 }}>
-            <div className="constructor-top" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap", marginBottom: 18 }}>
-              <div>
-                <div style={{ fontSize: 11, fontWeight: 500, letterSpacing: 1.8, color: "rgba(240,238,245,.4)", textTransform: "uppercase", marginBottom: 6 }}>Предпросмотр</div>
-                <div style={{ fontSize: 24, fontWeight: 600 }}>{product.name}</div>
-                <div style={{ fontSize: 14, color: "rgba(240,238,245,.45)", marginTop: 8 }}>{product.description}</div>
-              </div>
-              <div style={{ padding: "10px 14px", borderRadius: 16, background: "linear-gradient(135deg,rgba(232,67,147,.14),rgba(108,92,231,.14))", border: "1px solid rgba(232,67,147,.12)" }}>
-                <div style={{ fontSize: 11, letterSpacing: 1.5, textTransform: "uppercase", color: "rgba(240,238,245,.38)", marginBottom: 6 }}>Предварительно</div>
-                <div style={{ fontSize: 28, fontWeight: 700, background: "linear-gradient(135deg,#f08ac0,#9c8bff)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{currentTotal.toLocaleString("ru-RU")} ₽</div>
-              </div>
-            </div>
-
-            <div style={{ borderRadius: 28, overflow: "hidden", border: "1px solid rgba(255,255,255,.06)", background: "rgba(255,255,255,.02)", position: "relative" }}>
-              <img src={previewSrc} alt={`${product.name} — ${color}`} draggable={false} style={{ width: "100%", display: "block", aspectRatio: "1 / 1.08", objectFit: "cover", userSelect: "none", WebkitUserDrag: "none" }} />
-              <div ref={printAreaRef} style={{ position: "absolute", left: `${printArea.left}%`, top: `${printArea.top}%`, width: `${printArea.width}%`, height: `${printArea.height}%`, transform: "translate(-50%, -50%)", display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
-                {selectedPreset ? <img src={selectedPreset.src} alt={selectedPreset.label} draggable={false} style={{ position: "absolute", width: `${presetScale}%`, maxWidth: "100%", maxHeight: "100%", objectFit: "contain", filter: "drop-shadow(0 10px 20px rgba(0,0,0,.25))" }} /> : null}
-                {uploadDesign ? <div role="presentation" onPointerDown={handleUploadPointerDown} style={{ position: "absolute", left: `${uploadPosition.x}%`, top: `${uploadPosition.y}%`, transform: "translate(-50%, -50%)", width: `${uploadScale}%`, maxWidth: "100%", maxHeight: "100%", display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "auto", cursor: isDraggingUpload ? "grabbing" : "grab", touchAction: "none" }}><img src={uploadDesign.src} alt={uploadDesign.name} draggable={false} style={{ width: "100%", maxWidth: "100%", maxHeight: "100%", objectFit: "contain", display: "block", filter: "drop-shadow(0 12px 24px rgba(0,0,0,.24))", userSelect: "none", WebkitUserDrag: "none" }} /></div> : null}
-                {overlayText ? <div style={{ position: "absolute", bottom: "8%", maxWidth: "100%", padding: "0 6%", textAlign: "center", fontSize: `${textSize}px`, lineHeight: 1.05, fontWeight: textWeight, color: textColor, letterSpacing: 1, textShadow: color === "Белый" ? "0 2px 14px rgba(0,0,0,.16)" : "0 2px 14px rgba(0,0,0,.32)" }}>{overlayText}</div> : null}
-              </div>
-              <div style={{ position: "absolute", left: 16, top: 16, padding: "7px 11px", borderRadius: 999, background: "rgba(8,8,12,.72)", border: "1px solid rgba(255,255,255,.08)", fontSize: 12, fontWeight: 500, color: "#f0eef5", backdropFilter: "blur(10px)" }}>{side === "front" ? "Спереди" : "Сзади"}</div>
-            </div>
-
-            <div className="constructor-meta-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 10, marginTop: 14 }}>
-              {[["Модель", product.name.replace("футболка", "").trim()], ["Цвет", color], ["Размер", size || "—"], ["Кол-во", `${qty} шт`]].map(([label, value]) => (
-                <div key={label} style={{ padding: "12px 14px", borderRadius: 14, background: "rgba(255,255,255,.03)", border: "1px solid rgba(255,255,255,.05)" }}>
-                  <div style={{ fontSize: 11, letterSpacing: 1.4, textTransform: "uppercase", color: "rgba(240,238,245,.36)", marginBottom: 6 }}>{label}</div>
-                  <div style={{ fontSize: 14, fontWeight: 500 }}>{value}</div>
-                </div>
-              ))}
-            </div>
+        <div className="constructor-shell" style={{ display: "grid", gridTemplateColumns: "minmax(260px,20vw) minmax(0,1fr) minmax(260px,20vw)", gap: 24, alignItems: "start", width: "100%", padding: "0 18px", boxSizing: "border-box" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12, justifySelf: "start", width: "100%", minWidth: 0 }}>
+            <ConstructorTabsNav tabs={CONSTRUCTOR_TABS} activeTab={activeTab} onTabChange={setActiveTab} />
+            <ConstructorSidebarPanel activeTab={activeTab} products={CONSTRUCTOR_PRODUCTS} product={product} productKey={productKey} onProductChange={handleProductChange} size={size} onSizeChange={setSize} qty={qty} onQtyChange={setQty} color={color} onColorChange={handleColorChange} resolveColorSwatch={resolveColorSwatch} handleUploadChange={handleUploadChange} uploadDesign={uploadDesign} handleUploadRemove={handleUploadRemove} uploadScale={uploadScale} handleUploadScaleChange={handleUploadScaleChange} centerUploadPosition={centerUploadPosition} textValue={textValue} onTextValueChange={setTextValue} textSize={textSize} onTextSizeChange={setTextSize} textWeight={textWeight} onTextWeightChange={setTextWeight} textColor={textColor} onTextColorChange={setTextColor} textUppercase={textUppercase} onTextUppercaseChange={setTextUppercase} presetPrints={CONSTRUCTOR_PRESET_PRINTS} presetKey={presetKey} onPresetKeyChange={setPresetKey} selectedPreset={selectedPreset} presetScale={presetScale} onPresetScaleChange={setPresetScale} />
           </div>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-            <div className="cs constructor-panel" style={{ padding: 12, border: "1px solid rgba(255,255,255,.06)" }}>
-              <div className="scroll-tabs" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {CONSTRUCTOR_TABS.map(([key, label]) => {
-                  const active = activeTab === key;
-                  return <button key={key} type="button" onClick={() => setActiveTab(key)} className={`tb ${active ? "ta" : "ti"}`} style={{ padding: "10px 18px" }}>{label}</button>;
-                })}
-              </div>
-            </div>
+          <ConstructorPreviewPanel side={side} onSideChange={setSide} previewSrc={previewSrc} productName={product.name} color={color} printAreaRef={printAreaRef} printArea={printArea} selectedPreset={selectedPreset} presetScale={presetScale} uploadDesign={uploadDesign} handleUploadPointerDown={handleUploadPointerDown} uploadPosition={uploadPosition} uploadScale={uploadScale} isDraggingUpload={isDraggingUpload} overlayText={overlayText} textSize={textSize} textWeight={textWeight} textColor={textColor} />
 
-            {activeTab === "textile" ? (
-              <div className="cs constructor-panel" style={{ padding: 24, border: "1px solid rgba(255,255,255,.06)", display: "flex", flexDirection: "column", gap: 14 }}>
-                <SelectorTitle>Текстиль</SelectorTitle>
-                <FieldRow label="Модель" minHeight={112}>
-                  <div className="constructor-two-grid" style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 10 }}>
-                    {CONSTRUCTOR_PRODUCTS.map((item) => {
-                      const active = item.key === productKey;
-                      return <button key={item.key} type="button" onClick={() => handleProductChange(item.key)} style={{ textAlign: "left", padding: 16, borderRadius: 16, border: active ? "1px solid rgba(232,67,147,.3)" : "1px solid rgba(255,255,255,.06)", background: active ? "linear-gradient(135deg,rgba(232,67,147,.14),rgba(108,92,231,.14))" : "rgba(255,255,255,.03)", cursor: "pointer", fontFamily: "inherit" }}><div style={{ fontSize: 16, fontWeight: 600, color: "#f0eef5" }}>{item.name}</div><div style={{ fontSize: 13, color: "rgba(240,238,245,.45)", marginTop: 6 }}>{item.description}</div><div style={{ fontSize: 15, fontWeight: 600, color: "#e84393", marginTop: 10 }}>{item.price.toLocaleString("ru-RU")} ₽</div></button>;
-                    })}
-                  </div>
-                </FieldRow>
-                <FieldRow label="Сторона">
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    {[["front", "Спереди"], ["back", "Спина"]].map(([key, label]) => <button key={label} type="button" onClick={() => setSide(key)} className={`tb ${side === key ? "ta" : "ti"}`} style={{ padding: "9px 16px" }}>{label}</button>)}
-                  </div>
-                </FieldRow>
-                <ColorSelector options={product.colors} value={color} onChange={handleColorChange} />
-                <SizeSelector options={product.sizes} value={size} onChange={setSize} />
-                <QtySelector value={qty} onChange={setQty} />
-              </div>
-            ) : null}
-
-            {activeTab === "upload" ? (
-              <div className="cs constructor-panel" style={{ padding: 24, border: "1px solid rgba(255,255,255,.06)", display: "flex", flexDirection: "column", gap: 14 }}>
-                <SelectorTitle>Загрузить макет</SelectorTitle>
-                <label style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, minHeight: 180, borderRadius: 20, border: "1.5px dashed rgba(255,255,255,.12)", background: "rgba(255,255,255,.02)", cursor: "pointer", textAlign: "center", padding: 20 }}>
-                  <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={handleUploadChange} style={{ display: "none" }} />
-                  <div style={{ fontSize: 18, fontWeight: 500 }}>Перетащите файл или выберите изображение</div>
-                  <div style={{ fontSize: 13, color: "rgba(240,238,245,.45)", maxWidth: 380 }}>Подойдут PNG, JPG, WEBP или SVG. Загруженный макет сразу появится на превью футболки.</div>
-                </label>
-                {uploadDesign ? <><FieldRow label="Файл"><div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}><span style={{ fontSize: 14, color: "rgba(240,238,245,.75)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{uploadDesign.name}</span><button type="button" onClick={handleUploadRemove} className="bo" style={{ padding: "8px 14px", fontSize: 13 }}>Удалить</button></div></FieldRow><FieldRow label="Масштаб"><div style={{ display: "flex", alignItems: "center", gap: 14 }}><input type="range" min="35" max="100" value={uploadScale} onChange={handleUploadScaleChange} style={{ width: "100%" }} /><span style={{ minWidth: 52, textAlign: "right", fontSize: 13, color: "rgba(240,238,245,.6)" }}>{uploadScale}%</span></div></FieldRow><FieldRow label="Позиция"><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}><span style={{ fontSize: 13, color: "rgba(240,238,245,.48)" }}>Перетаскивайте изображение мышкой прямо на превью.</span><button type="button" onClick={() => setUploadPosition({ x: 50, y: 50 })} className="bo" style={{ padding: "8px 14px", fontSize: 13 }}>По центру</button></div></FieldRow></> : null}
-              </div>
-            ) : null}
-
-            {activeTab === "text" ? (
-              <div className="cs constructor-panel" style={{ padding: 24, border: "1px solid rgba(255,255,255,.06)", display: "flex", flexDirection: "column", gap: 14 }}>
-                <SelectorTitle>Текст</SelectorTitle>
-                <textarea className="inf" rows={4} placeholder="Например: FUTURE TEAM" value={textValue} onChange={(event) => setTextValue(event.target.value)} style={{ resize: "vertical", minHeight: 118 }} />
-                <FieldRow label="Размер"><div style={{ display: "flex", alignItems: "center", gap: 14 }}><input type="range" min="18" max="72" value={textSize} onChange={(event) => setTextSize(Number(event.target.value))} style={{ width: "100%" }} /><span style={{ minWidth: 52, textAlign: "right", fontSize: 13, color: "rgba(240,238,245,.6)" }}>{textSize}px</span></div></FieldRow>
-                <FieldRow label="Насыщенность"><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{[400, 500, 700, 800].map((weight) => <button key={weight} type="button" onClick={() => setTextWeight(weight)} className={`tb ${textWeight === weight ? "ta" : "ti"}`} style={{ padding: "9px 14px" }}>{weight}</button>)}</div></FieldRow>
-                <FieldRow label="Цвет"><div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>{[["#ffffff", "Белый"], ["#111111", "Чёрный"], ["#e84393", "Розовый"], ["#6c5ce7", "Фиолетовый"]].map(([hex, label]) => <button key={hex} type="button" onClick={() => setTextColor(hex)} style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "7px 10px 7px 7px", borderRadius: 999, border: textColor === hex ? "1px solid rgba(232,67,147,.35)" : "1px solid rgba(255,255,255,.08)", background: textColor === hex ? "rgba(255,255,255,.08)" : "rgba(255,255,255,.03)", cursor: "pointer", fontFamily: "inherit" }}><span style={{ width: 24, height: 24, borderRadius: "50%", background: hex, border: "1px solid rgba(255,255,255,.18)" }} /><span style={{ fontSize: 13, color: "rgba(240,238,245,.7)" }}>{label}</span></button>)}</div></FieldRow>
-                <label style={{ display: "inline-flex", alignItems: "center", gap: 10, fontSize: 14, color: "rgba(240,238,245,.65)", cursor: "pointer" }}><input type="checkbox" checked={textUppercase} onChange={(event) => setTextUppercase(event.target.checked)} />Автоматически переводить текст в верхний регистр</label>
-              </div>
-            ) : null}
-
-            {activeTab === "prints" ? (
-              <div className="cs constructor-panel" style={{ padding: 24, border: "1px solid rgba(255,255,255,.06)", display: "flex", flexDirection: "column", gap: 14 }}>
-                <SelectorTitle>Быстрые принты</SelectorTitle>
-                <div className="constructor-two-grid" style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 12 }}>
-                  {CONSTRUCTOR_PRESET_PRINTS.map((item) => {
-                    const active = presetKey === item.key;
-                    return <button key={item.key} type="button" onClick={() => setPresetKey(active ? "" : item.key)} style={{ padding: 12, borderRadius: 18, border: active ? "1px solid rgba(232,67,147,.3)" : "1px solid rgba(255,255,255,.06)", background: active ? "linear-gradient(135deg,rgba(232,67,147,.14),rgba(108,92,231,.14))" : "rgba(255,255,255,.03)", cursor: "pointer", fontFamily: "inherit" }}><img src={item.src} alt={item.label} draggable={false} style={{ width: "100%", aspectRatio: "1 / 1", borderRadius: 14, objectFit: "cover", display: "block" }} /><div style={{ fontSize: 14, fontWeight: 500, color: "#f0eef5", marginTop: 10 }}>{item.label}</div></button>;
-                  })}
-                </div>
-                {selectedPreset ? <FieldRow label="Масштаб"><div style={{ display: "flex", alignItems: "center", gap: 14 }}><input type="range" min="24" max="80" value={presetScale} onChange={(event) => setPresetScale(Number(event.target.value))} style={{ width: "100%" }} /><span style={{ minWidth: 52, textAlign: "right", fontSize: 13, color: "rgba(240,238,245,.6)" }}>{presetScale}%</span></div></FieldRow> : null}
-              </div>
-            ) : null}
-
-            {activeTab === "order" ? (
-              <div className="cs constructor-panel" style={{ padding: 24, border: "1px solid rgba(255,255,255,.06)", display: "flex", flexDirection: "column", gap: 14 }}>
-                <SelectorTitle>В заказ</SelectorTitle>
-                <div className="constructor-two-grid" style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 12 }}>
-                  <div style={{ padding: 16, borderRadius: 16, background: "rgba(255,255,255,.03)", border: "1px solid rgba(255,255,255,.05)" }}><div style={{ fontSize: 11, letterSpacing: 1.4, textTransform: "uppercase", color: "rgba(240,238,245,.36)", marginBottom: 6 }}>Текущая конфигурация</div><div style={{ fontSize: 18, fontWeight: 600 }}>{product.name}</div><div style={{ fontSize: 14, color: "rgba(240,238,245,.5)", marginTop: 8, lineHeight: 1.65 }}>Цвет: {color}<br />Сторона: {side === "front" ? "спереди" : "сзади"}<br />Размер: {size || "не выбран"}<br />Кол-во: {qty} шт</div></div>
-                  <div style={{ padding: 16, borderRadius: 16, background: "rgba(255,255,255,.03)", border: "1px solid rgba(255,255,255,.05)" }}><div style={{ fontSize: 11, letterSpacing: 1.4, textTransform: "uppercase", color: "rgba(240,238,245,.36)", marginBottom: 6 }}>Макет</div><div style={{ fontSize: 14, color: "rgba(240,238,245,.72)", lineHeight: 1.7 }}>{uploadDesign ? `Файл: ${uploadDesign.name}` : "Файл не загружен"}<br />{textValue.trim() ? `Текст: ${textValue.trim()}` : "Текст не добавлен"}<br />{selectedPreset ? `Принт: ${selectedPreset.label}` : "Пресет не выбран"}</div></div>
-                </div>
-                <div className="constructor-order-actions" style={{ display: "flex", gap: 12, flexWrap: "wrap" }}><button type="button" onClick={addCurrentToBasket} disabled={!canAddToBasket} className="btg" style={{ flex: 1, justifyContent: "center", opacity: canAddToBasket ? 1 : 0.45, cursor: canAddToBasket ? "pointer" : "not-allowed", filter: canAddToBasket ? "none" : "grayscale(.15)" }}>+ Добавить конфигурацию</button><a href={telegramLink} target="_blank" rel="noopener noreferrer" className="bo" style={{ flex: 1, textAlign: "center", textDecoration: "none", padding: "14px 22px" }}>Отправить в Telegram</a></div>
-                <div style={{ fontSize: 12, color: "rgba(240,238,245,.42)", lineHeight: 1.6 }}>Для добавления конфигурации выберите размер и добавьте хотя бы один элемент: файл, текст или быстрый принт.</div>
-                <div className="cs constructor-panel" style={{ padding: 18, border: "1px solid rgba(255,255,255,.06)", background: "rgba(255,255,255,.02)" }}>
-                  <div className="constructor-basket-summary" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: basket.length ? 12 : 0 }}><div><div style={{ fontSize: 18, fontWeight: 600 }}>Ваш список</div><div style={{ fontSize: 13, color: "rgba(240,238,245,.42)", marginTop: 4 }}>Можно собрать несколько разных футболок перед отправкой.</div></div><div style={{ fontSize: 24, fontWeight: 700, background: "linear-gradient(135deg,#f08ac0,#9c8bff)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{basketTotal.toLocaleString("ru-RU")} ₽</div></div>
-                  {basket.length ? basket.map((item) => <div key={item.id} className="constructor-basket-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 14, padding: "12px 0", borderTop: "1px solid rgba(255,255,255,.06)" }}><div style={{ fontSize: 14, lineHeight: 1.7 }}><div style={{ fontWeight: 600 }}>{item.productName}</div><div style={{ color: "rgba(240,238,245,.5)" }}>{item.color} • {item.size} • {item.qty} шт • {item.side === "front" ? "спереди" : "сзади"}</div><div style={{ color: "rgba(240,238,245,.42)" }}>{[item.uploadName, item.text ? `текст: ${item.text}` : null, item.presetLabel].filter(Boolean).join(" • ") || "без дополнительных элементов"}</div></div><div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}><div style={{ fontSize: 16, fontWeight: 600 }}>{item.total.toLocaleString("ru-RU")} ₽</div><button type="button" onClick={() => removeBasketItem(item.id)} className="bo" style={{ padding: "8px 12px", fontSize: 13 }}>Удалить</button></div></div>) : <div style={{ fontSize: 14, color: "rgba(240,238,245,.42)", marginTop: 12 }}>Пока нет сохранённых конфигураций. Соберите футболку и нажмите «Добавить конфигурацию».</div>}
-                </div>
-              </div>
-            ) : null}
-          </div>
+          <ConstructorOrderPanel currentTotal={currentTotal} orderMeta={orderMeta} orderDecorItems={orderDecorItems} canSubmitOrder={canSubmitOrder} telegramLink={telegramLink} />
         </div>
       </div>
     </div>

@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { CONSTRUCTOR_TEXT_FONTS, CONSTRUCTOR_TEXT_GRADIENTS, CONSTRUCTOR_TEXT_SOLID_COLORS, getConstructorTextGradient } from "./constructorConfig.js";
+import { CONSTRUCTOR_TEXT_FONTS } from "./constructorConfig.js";
 
 const FONT_GROUP_LABELS = {
   sans: "Базовые",
@@ -220,7 +220,6 @@ export default function ConstructorSidebarPanel({
   activeLayerId,
   activeUploadLayer,
   activeTextLayer,
-  activeTextToolPanel,
   activePresetLayer,
   onLayerSelect,
   onAddTextLayer,
@@ -236,17 +235,24 @@ export default function ConstructorSidebarPanel({
   uploadScale,
   handleUploadScaleChange,
   centerActiveLayerPosition,
-  textFillMode,
+  textValue,
+  onTextValueChange,
+  textSize,
+  onTextSizeChange,
+  textWeight,
+  onTextWeightChange,
   textColor,
   onTextColorChange,
-  textGradientKey,
-  onTextGradientKeyChange,
   textFontKey,
   onTextFontKeyChange,
+  textBoxWidth,
+  onTextBoxWidthChange,
   textLineHeight,
   onTextLineHeightChange,
   textLetterSpacing,
   onTextLetterSpacingChange,
+  textAlign,
+  onTextAlignChange,
   textStrokeWidth,
   onTextStrokeWidthChange,
   textStrokeColor,
@@ -273,7 +279,6 @@ export default function ConstructorSidebarPanel({
   const fontOptionRefs = useRef({});
   const [fontSearch, setFontSearch] = useState("");
   const [keyboardFontKey, setKeyboardFontKey] = useState(null);
-  const currentTextToolPanel = activeTextToolPanel || "font";
   const fontSearchVariants = buildFontSearchVariants(fontSearch);
   const orderedTextLayers = [...layers].filter((layer) => layer.type === "text").reverse();
   const filteredTextFonts = CONSTRUCTOR_TEXT_FONTS.map((font) => {
@@ -348,14 +353,6 @@ export default function ConstructorSidebarPanel({
         handleFontSelect(nextFont.key);
       }
     }
-  };
-
-  const normalizeHexColor = (value) => {
-    const normalizedValue = String(value || "").trim();
-    if (!normalizedValue) return null;
-
-    const withHash = normalizedValue.startsWith("#") ? normalizedValue : `#${normalizedValue}`;
-    return /^#[0-9a-fA-F]{6}$/.test(withHash) ? withHash.toLowerCase() : null;
   };
 
   if (activeTab === "textile") {
@@ -678,290 +675,236 @@ export default function ConstructorSidebarPanel({
         ) : null}
         {activeTextLayer ? (
           <>
-            {currentTextToolPanel === "font" ? (
-              <SidebarFieldRow label="Шрифт" minHeight={96}>
-                <div style={{ display: "grid", gap: 10 }}>
-                  <div style={{ display: "grid", gridTemplateColumns: fontSearch ? "minmax(0, 1fr) auto" : "minmax(0, 1fr)", gap: 8, alignItems: "center" }}>
-                    <input
-                      className="inf"
-                      type="search"
-                      placeholder="Поиск шрифта"
-                      value={fontSearch}
-                      onChange={(event) => setFontSearch(event.target.value)}
-                      onKeyDown={handleFontSearchKeyDown}
-                      role="combobox"
-                      aria-autocomplete="list"
-                      aria-expanded={filteredTextFonts.length > 0}
-                      aria-controls={fontListId}
-                      aria-activedescendant={keyboardVisibleFonts.find((font) => font.key === currentKeyboardFontKey)?.optionId}
-                      style={{ minHeight: 42, fontSize: 14 }}
-                    />
-                    {fontSearch ? (
-                      <button
-                        type="button"
-                        onClick={() => setFontSearch("")}
-                        style={{ minHeight: 42, padding: "0 12px", borderRadius: 12, border: "1px solid rgba(255,255,255,.08)", background: "rgba(255,255,255,.03)", color: "rgba(240,238,245,.72)", cursor: "pointer", fontSize: 13, fontFamily: "inherit" }}
-                      >
-                        Очистить
-                      </button>
+            <textarea
+              className="inf"
+              rows={4}
+              placeholder="Например: FUTURE TEAM"
+              value={textValue}
+              onChange={(event) => onTextValueChange(event.target.value)}
+              style={{ resize: "vertical", minHeight: 118, fontSize: 14 }}
+            />
+
+            <SidebarFieldRow label="Шрифт" minHeight={96}>
+              <div style={{ display: "grid", gap: 10 }}>
+                <div style={{ display: "grid", gridTemplateColumns: fontSearch ? "minmax(0, 1fr) auto" : "minmax(0, 1fr)", gap: 8, alignItems: "center" }}>
+                  <input
+                    className="inf"
+                    type="search"
+                    placeholder="Поиск шрифта"
+                    value={fontSearch}
+                    onChange={(event) => setFontSearch(event.target.value)}
+                    onKeyDown={handleFontSearchKeyDown}
+                    role="combobox"
+                    aria-autocomplete="list"
+                    aria-expanded={filteredTextFonts.length > 0}
+                    aria-controls={fontListId}
+                    aria-activedescendant={keyboardVisibleFonts.find((font) => font.key === currentKeyboardFontKey)?.optionId}
+                    style={{ minHeight: 42, fontSize: 14 }}
+                  />
+                  {fontSearch ? (
+                    <button
+                      type="button"
+                      onClick={() => setFontSearch("")}
+                      style={{ minHeight: 42, padding: "0 12px", borderRadius: 12, border: "1px solid rgba(255,255,255,.08)", background: "rgba(255,255,255,.03)", color: "rgba(240,238,245,.72)", cursor: "pointer", fontSize: 13, fontFamily: "inherit" }}
+                    >
+                      Очистить
+                    </button>
+                  ) : null}
+                </div>
+
+                {filteredTextFonts.length ? (
+                  <div id={fontListId} role="listbox" aria-label="Список шрифтов" style={{ display: "grid", gap: 10, maxHeight: 340, overflowY: "auto", paddingRight: 4 }}>
+                    {activeTextFont ? (
+                      <div style={{ display: "grid", gap: 6 }}>
+                        <div style={{ fontSize: 11, lineHeight: 1.2, letterSpacing: ".08em", textTransform: "uppercase", color: "rgba(240,238,245,.38)" }}>
+                          Выбранный шрифт
+                        </div>
+                        <FontOptionButton
+                          font={activeTextFont}
+                          active
+                          keyboardActive={currentKeyboardFontKey === activeTextFont.key}
+                          highlightQuery={activeTextFont.labelMatchQuery || ""}
+                          optionRef={(node) => {
+                            fontOptionRefs.current[activeTextFont.key] = node;
+                          }}
+                          onFocus={() => setKeyboardFontKey(activeTextFont.key)}
+                          onMouseEnter={() => setKeyboardFontKey(activeTextFont.key)}
+                          onClick={() => handleFontSelect(activeTextFont.key)}
+                        />
+                      </div>
                     ) : null}
+
+                    {groupedTextFontEntries.map(([groupKey, fonts]) => (
+                      <div key={groupKey} style={{ display: "grid", gap: 6 }}>
+                        <div style={{ fontSize: 11, lineHeight: 1.2, letterSpacing: ".08em", textTransform: "uppercase", color: "rgba(240,238,245,.38)" }}>
+                          {FONT_GROUP_LABELS[groupKey] || groupKey}
+                        </div>
+                        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 8 }}>
+                          {fonts.map((font) => (
+                            <FontOptionButton
+                              key={font.key}
+                              font={font}
+                              active={textFontKey === font.key}
+                              keyboardActive={currentKeyboardFontKey === font.key}
+                              highlightQuery={font.labelMatchQuery || ""}
+                              optionRef={(node) => {
+                                fontOptionRefs.current[font.key] = node;
+                              }}
+                              onFocus={() => setKeyboardFontKey(font.key)}
+                              onMouseEnter={() => setKeyboardFontKey(font.key)}
+                              onClick={() => handleFontSelect(font.key)}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    ))}
                   </div>
+                ) : (
+                  <div style={{ padding: "10px 12px", borderRadius: 14, border: "1px solid rgba(255,255,255,.08)", background: "rgba(255,255,255,.03)", fontSize: 13, lineHeight: 1.5, color: "rgba(240,238,245,.46)" }}>
+                    По запросу ничего не найдено. Уточните название шрифта.
+                  </div>
+                )}
 
-                  {filteredTextFonts.length ? (
-                    <div id={fontListId} role="listbox" aria-label="Список шрифтов" style={{ display: "grid", gap: 10, maxHeight: 340, overflowY: "auto", paddingRight: 4 }}>
-                      {activeTextFont ? (
-                        <div style={{ display: "grid", gap: 6 }}>
-                          <div style={{ fontSize: 11, lineHeight: 1.2, letterSpacing: ".08em", textTransform: "uppercase", color: "rgba(240,238,245,.38)" }}>
-                            Выбранный шрифт
-                          </div>
-                          <FontOptionButton
-                            font={activeTextFont}
-                            active
-                            keyboardActive={currentKeyboardFontKey === activeTextFont.key}
-                            highlightQuery={activeTextFont.labelMatchQuery || ""}
-                            optionRef={(node) => {
-                              fontOptionRefs.current[activeTextFont.key] = node;
-                            }}
-                            onFocus={() => setKeyboardFontKey(activeTextFont.key)}
-                            onMouseEnter={() => setKeyboardFontKey(activeTextFont.key)}
-                            onClick={() => handleFontSelect(activeTextFont.key)}
-                          />
-                        </div>
-                      ) : null}
+                <div style={{ fontSize: 12, lineHeight: 1.5, color: "rgba(240,238,245,.42)" }}>
+                  Поиск понимает ошибочную раскладку, а по найденным шрифтам можно ходить стрелками и выбирать Enter.
+                </div>
+              </div>
+            </SidebarFieldRow>
 
-                      {groupedTextFontEntries.map(([groupKey, fonts]) => (
-                        <div key={groupKey} style={{ display: "grid", gap: 6 }}>
-                          <div style={{ fontSize: 11, lineHeight: 1.2, letterSpacing: ".08em", textTransform: "uppercase", color: "rgba(240,238,245,.38)" }}>
-                            {FONT_GROUP_LABELS[groupKey] || groupKey}
-                          </div>
-                          <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 8 }}>
-                            {fonts.map((font) => (
-                              <FontOptionButton
-                                key={font.key}
-                                font={font}
-                                active={textFontKey === font.key}
-                                keyboardActive={currentKeyboardFontKey === font.key}
-                                highlightQuery={font.labelMatchQuery || ""}
-                                optionRef={(node) => {
-                                  fontOptionRefs.current[font.key] = node;
-                                }}
-                                onFocus={() => setKeyboardFontKey(font.key)}
-                                onMouseEnter={() => setKeyboardFontKey(font.key)}
-                                onClick={() => handleFontSelect(font.key)}
-                              />
-                            ))}
-                          </div>
-                        </div>
+            <SidebarFieldRow label="Ширина текстового блока">
+              <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                <input type="range" min="20" max="100" value={textBoxWidth} onChange={(event) => onTextBoxWidthChange(Number(event.target.value))} style={{ width: "100%" }} />
+                <span style={{ minWidth: 52, textAlign: "right", fontSize: 13, color: "rgba(240,238,245,.6)" }}>{textBoxWidth}%</span>
+              </div>
+              <div style={{ marginTop: 8, fontSize: 12, lineHeight: 1.5, color: "rgba(240,238,245,.42)" }}>
+                Перенос применяется автоматически по ширине блока, ручные Enter тоже сохраняются.
+              </div>
+            </SidebarFieldRow>
+
+            <SidebarFieldRow label="Размер текста">
+              <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                <input type="range" min="18" max="96" value={textSize} onChange={(event) => onTextSizeChange(Number(event.target.value))} style={{ width: "100%" }} />
+                <span style={{ minWidth: 52, textAlign: "right", fontSize: 13, color: "rgba(240,238,245,.6)" }}>{textSize}px</span>
+              </div>
+            </SidebarFieldRow>
+
+            <SidebarFieldRow label="Межстрочный интервал">
+              <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                <input type="range" min="0.85" max="1.8" step="0.05" value={textLineHeight} onChange={(event) => onTextLineHeightChange(Number(event.target.value))} style={{ width: "100%" }} />
+                <span style={{ minWidth: 52, textAlign: "right", fontSize: 13, color: "rgba(240,238,245,.6)" }}>{textLineHeight}</span>
+              </div>
+            </SidebarFieldRow>
+
+            <SidebarFieldRow label="Межбуквенный интервал">
+              <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                <input type="range" min="-1" max="12" step="0.5" value={textLetterSpacing} onChange={(event) => onTextLetterSpacingChange(Number(event.target.value))} style={{ width: "100%" }} />
+                <span style={{ minWidth: 52, textAlign: "right", fontSize: 13, color: "rgba(240,238,245,.6)" }}>{textLetterSpacing}px</span>
+              </div>
+            </SidebarFieldRow>
+
+            <SidebarFieldRow label="Выравнивание">
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {[["left", "Слева"], ["center", "Центр"], ["right", "Справа"]].map(([alignKey, label]) => (
+                  <button key={alignKey} type="button" onClick={() => onTextAlignChange(alignKey)} className={`tb ${textAlign === alignKey ? "ta" : "ti"}`} style={{ padding: "9px 14px" }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </SidebarFieldRow>
+
+            <SidebarFieldRow label="Обводка">
+              <div style={{ display: "grid", gap: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                  <input type="range" min="0" max="6" step="0.5" value={textStrokeWidth} onChange={(event) => onTextStrokeWidthChange(Number(event.target.value))} style={{ width: "100%" }} />
+                  <span style={{ minWidth: 52, textAlign: "right", fontSize: 13, color: "rgba(240,238,245,.6)" }}>{textStrokeWidth}px</span>
+                </div>
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  {[["#111111", "Чёрный"], ["#ffffff", "Белый"], ["#e84393", "Розовый"], ["#6c5ce7", "Фиолетовый"]].map(([hex, label]) => (
+                    <button key={hex} type="button" onClick={() => onTextStrokeColorChange(hex)} style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "7px 10px 7px 7px", borderRadius: 999, border: textStrokeColor === hex ? "1px solid rgba(232,67,147,.35)" : "1px solid rgba(255,255,255,.08)", background: textStrokeColor === hex ? "rgba(255,255,255,.08)" : "rgba(255,255,255,.03)", cursor: "pointer", fontFamily: "inherit" }}>
+                      <span style={{ width: 24, height: 24, borderRadius: "50%", background: hex, border: "1px solid rgba(255,255,255,.18)" }} />
+                      <span style={{ fontSize: 13, color: "rgba(240,238,245,.7)" }}>{label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </SidebarFieldRow>
+
+            <SidebarFieldRow label="Тень">
+              <div style={{ display: "grid", gap: 10 }}>
+                <label style={{ display: "inline-flex", alignItems: "center", gap: 10, fontSize: 14, color: "rgba(240,238,245,.65)", cursor: "pointer" }}>
+                  <input type="checkbox" checked={textShadowEnabled} onChange={(event) => onTextShadowEnabledChange(event.target.checked)} />Включить тень
+                </label>
+                {textShadowEnabled ? (
+                  <>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      {[["hard", "Жёсткая"], ["soft", "Мягкая"]].map(([shadowKey, label]) => (
+                        <button key={shadowKey} type="button" onClick={() => onTextShadowModeChange(shadowKey)} className={`tb ${textShadowMode === shadowKey ? "ta" : "ti"}`} style={{ padding: "9px 14px" }}>
+                          {label}
+                        </button>
                       ))}
                     </div>
-                  ) : (
-                    <div style={{ padding: "10px 12px", borderRadius: 14, border: "1px solid rgba(255,255,255,.08)", background: "rgba(255,255,255,.03)", fontSize: 13, lineHeight: 1.5, color: "rgba(240,238,245,.46)" }}>
-                      По запросу ничего не найдено. Уточните название шрифта.
-                    </div>
-                  )}
-
-                  <div style={{ fontSize: 12, lineHeight: 1.5, color: "rgba(240,238,245,.42)" }}>
-                    Поиск понимает ошибочную раскладку, а по найденным шрифтам можно ходить стрелками и выбирать Enter.
-                  </div>
-                  <div style={{ fontSize: 12, lineHeight: 1.5, color: "rgba(240,238,245,.42)" }}>
-                    Новый текстовый слой сразу появляется на превью. Чтобы изменить текст, редактируйте сам слой прямо на футболке.
-                  </div>
-                </div>
-              </SidebarFieldRow>
-            ) : null}
-
-            {currentTextToolPanel === "color" ? (
-              <SidebarFieldRow label="Цвет" minHeight={164}>
-                <div style={{ display: "grid", gap: 16 }}>
-                  <div style={{ display: "grid", gap: 10 }}>
-                    <div style={{ fontSize: 11, lineHeight: 1.2, letterSpacing: ".08em", textTransform: "uppercase", color: "rgba(240,238,245,.38)" }}>
-                      Свободный выбор
-                    </div>
-                    <div style={{ display: "grid", gridTemplateColumns: "auto minmax(0,1fr)", gap: 12, alignItems: "center" }}>
-                      <label style={{ width: 48, height: 48, borderRadius: 999, border: "1px solid rgba(255,255,255,.1)", background: textFillMode === "gradient" ? getConstructorTextGradient(textGradientKey).css : textColor, display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer", overflow: "hidden", boxShadow: "inset 0 1px 0 rgba(255,255,255,.16)" }}>
-                        <input type="color" value={normalizeHexColor(textColor) || "#ffffff"} onChange={(event) => onTextColorChange(event.target.value)} style={{ opacity: 0, width: 0, height: 0, position: "absolute" }} />
-                        <span style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,.92)", textShadow: "0 1px 8px rgba(0,0,0,.24)" }}>HEX</span>
-                      </label>
-                      <input
-                        key={`${activeTextLayer?.id || "text"}-${textColor || "#ffffff"}`}
-                        className="inf"
-                        type="text"
-                        inputMode="text"
-                        placeholder="#ffffff"
-                        defaultValue={textColor || "#ffffff"}
-                        onChange={(event) => {
-                          const normalizedHex = normalizeHexColor(event.target.value);
-                          if (normalizedHex) onTextColorChange(normalizedHex);
-                        }}
-                        onBlur={(event) => {
-                          const normalizedHex = normalizeHexColor(event.target.value);
-                          if (normalizedHex) {
-                            event.target.value = normalizedHex;
-                            onTextColorChange(normalizedHex);
-                            return;
-                          }
-
-                          event.target.value = textColor || "#ffffff";
-                        }}
-                        style={{ minHeight: 46, fontSize: 14, textTransform: "lowercase" }}
-                      />
-                    </div>
                     <div style={{ fontSize: 12, lineHeight: 1.5, color: "rgba(240,238,245,.42)" }}>
-                      Нажмите на круг, чтобы открыть палитру, или введите HEX-код вручную.
-                    </div>
-                  </div>
-
-                  <div style={{ display: "grid", gap: 10 }}>
-                    <div style={{ fontSize: 11, lineHeight: 1.2, letterSpacing: ".08em", textTransform: "uppercase", color: "rgba(240,238,245,.38)" }}>
-                      Сплошные цвета
-                    </div>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(118px, 1fr))", gap: 8 }}>
-                      {CONSTRUCTOR_TEXT_SOLID_COLORS.map(([hex, label]) => {
-                        const active = textFillMode === "solid" && textColor === hex;
-
-                        return (
-                          <button
-                            key={hex}
-                            type="button"
-                            onClick={() => onTextColorChange(hex)}
-                            style={{ display: "inline-flex", alignItems: "center", gap: 8, minWidth: 0, padding: "9px 10px", borderRadius: 14, border: active ? "1px solid rgba(232,67,147,.28)" : "1px solid rgba(255,255,255,.08)", background: active ? "linear-gradient(135deg,rgba(232,67,147,.12),rgba(108,92,231,.12))" : "rgba(255,255,255,.03)", cursor: "pointer", fontFamily: "inherit" }}
-                          >
-                            <span style={{ width: 18, height: 18, borderRadius: 999, flexShrink: 0, background: hex, border: "1px solid rgba(255,255,255,.16)" }} />
-                            <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13, color: "rgba(240,238,245,.76)" }}>{label}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <div style={{ display: "grid", gap: 10 }}>
-                    <div style={{ fontSize: 11, lineHeight: 1.2, letterSpacing: ".08em", textTransform: "uppercase", color: "rgba(240,238,245,.38)" }}>
-                      Градиенты по умолчанию
-                    </div>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(152px, 1fr))", gap: 8 }}>
-                      {CONSTRUCTOR_TEXT_GRADIENTS.map((gradient) => {
-                        const active = textFillMode === "gradient" && textGradientKey === gradient.key;
-
-                        return (
-                          <button
-                            key={gradient.key}
-                            type="button"
-                            onClick={() => onTextGradientKeyChange(gradient.key)}
-                            style={{ display: "grid", gap: 8, minWidth: 0, padding: 10, borderRadius: 14, border: active ? "1px solid rgba(232,67,147,.28)" : "1px solid rgba(255,255,255,.08)", background: active ? "linear-gradient(135deg,rgba(232,67,147,.12),rgba(108,92,231,.12))" : "rgba(255,255,255,.03)", cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}
-                          >
-                            <span style={{ display: "block", width: "100%", height: 30, borderRadius: 10, background: gradient.css, border: "1px solid rgba(255,255,255,.16)" }} />
-                            <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13, color: "rgba(240,238,245,.76)" }}>{gradient.label}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              </SidebarFieldRow>
-            ) : null}
-
-            {currentTextToolPanel === "intervals" ? (
-              <SidebarFieldRow label="Интервалы" minHeight={132}>
-                <div style={{ display: "grid", gap: 14 }}>
-                  <div style={{ display: "grid", gap: 8 }}>
-                    <div style={{ fontSize: 12, lineHeight: 1.4, color: "rgba(240,238,245,.42)", textTransform: "uppercase", letterSpacing: 1.1 }}>Межстрочный интервал</div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                      <input type="range" min="0.85" max="1.8" step="0.05" value={textLineHeight} onChange={(event) => onTextLineHeightChange(Number(event.target.value))} style={{ width: "100%" }} />
-                      <span style={{ minWidth: 52, textAlign: "right", fontSize: 13, color: "rgba(240,238,245,.6)" }}>{textLineHeight}</span>
-                    </div>
-                  </div>
-                  <div style={{ display: "grid", gap: 8 }}>
-                    <div style={{ fontSize: 12, lineHeight: 1.4, color: "rgba(240,238,245,.42)", textTransform: "uppercase", letterSpacing: 1.1 }}>Межбуквенный интервал</div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                      <input type="range" min="-1" max="12" step="0.5" value={textLetterSpacing} onChange={(event) => onTextLetterSpacingChange(Number(event.target.value))} style={{ width: "100%" }} />
-                      <span style={{ minWidth: 52, textAlign: "right", fontSize: 13, color: "rgba(240,238,245,.6)" }}>{textLetterSpacing}px</span>
-                    </div>
-                  </div>
-                </div>
-              </SidebarFieldRow>
-            ) : null}
-
-            {currentTextToolPanel === "effects" ? (
-              <>
-                <SidebarFieldRow label="Обводка">
-                  <div style={{ display: "grid", gap: 10 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                      <input type="range" min="0" max="6" step="0.5" value={textStrokeWidth} onChange={(event) => onTextStrokeWidthChange(Number(event.target.value))} style={{ width: "100%" }} />
-                      <span style={{ minWidth: 52, textAlign: "right", fontSize: 13, color: "rgba(240,238,245,.6)" }}>{textStrokeWidth}px</span>
+                      {textShadowMode === "hard" ? "Жёсткая тень даёт плотную 100% заливку с чётким краем без размытия." : "Мягкая тень остаётся с blur и более плавным краем."}
                     </div>
                     <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                       {[["#111111", "Чёрный"], ["#ffffff", "Белый"], ["#e84393", "Розовый"], ["#6c5ce7", "Фиолетовый"]].map(([hex, label]) => (
-                        <button key={hex} type="button" onClick={() => onTextStrokeColorChange(hex)} style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "7px 10px 7px 7px", borderRadius: 999, border: textStrokeColor === hex ? "1px solid rgba(232,67,147,.35)" : "1px solid rgba(255,255,255,.08)", background: textStrokeColor === hex ? "rgba(255,255,255,.08)" : "rgba(255,255,255,.03)", cursor: "pointer", fontFamily: "inherit" }}>
+                        <button key={hex} type="button" onClick={() => onTextShadowColorChange(hex)} style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "7px 10px 7px 7px", borderRadius: 999, border: textShadowColor === hex ? "1px solid rgba(232,67,147,.35)" : "1px solid rgba(255,255,255,.08)", background: textShadowColor === hex ? "rgba(255,255,255,.08)" : "rgba(255,255,255,.03)", cursor: "pointer", fontFamily: "inherit" }}>
                           <span style={{ width: 24, height: 24, borderRadius: "50%", background: hex, border: "1px solid rgba(255,255,255,.18)" }} />
                           <span style={{ fontSize: 13, color: "rgba(240,238,245,.7)" }}>{label}</span>
                         </button>
                       ))}
                     </div>
-                  </div>
-                </SidebarFieldRow>
-
-                <SidebarFieldRow label="Тень">
-                  <div style={{ display: "grid", gap: 10 }}>
-                    <label style={{ display: "inline-flex", alignItems: "center", gap: 10, fontSize: 14, color: "rgba(240,238,245,.65)", cursor: "pointer" }}>
-                      <input type="checkbox" checked={textShadowEnabled} onChange={(event) => onTextShadowEnabledChange(event.target.checked)} />Включить тень
-                    </label>
-                    {textShadowEnabled ? (
-                      <>
-                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                          {[["hard", "Жёсткая"], ["soft", "Мягкая"]].map(([shadowKey, label]) => (
-                            <button key={shadowKey} type="button" onClick={() => onTextShadowModeChange(shadowKey)} className={`tb ${textShadowMode === shadowKey ? "ta" : "ti"}`} style={{ padding: "9px 14px" }}>
-                              {label}
-                            </button>
-                          ))}
-                        </div>
-                        <div style={{ fontSize: 12, lineHeight: 1.5, color: "rgba(240,238,245,.42)" }}>
-                          {textShadowMode === "hard" ? "Жёсткая тень даёт плотную 100% заливку с чётким краем без размытия." : "Мягкая тень остаётся с blur и более плавным краем."}
-                        </div>
-                        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                          {[["#111111", "Чёрный"], ["#ffffff", "Белый"], ["#e84393", "Розовый"], ["#6c5ce7", "Фиолетовый"]].map(([hex, label]) => (
-                            <button key={hex} type="button" onClick={() => onTextShadowColorChange(hex)} style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "7px 10px 7px 7px", borderRadius: 999, border: textShadowColor === hex ? "1px solid rgba(232,67,147,.35)" : "1px solid rgba(255,255,255,.08)", background: textShadowColor === hex ? "rgba(255,255,255,.08)" : "rgba(255,255,255,.03)", cursor: "pointer", fontFamily: "inherit" }}>
-                              <span style={{ width: 24, height: 24, borderRadius: "50%", background: hex, border: "1px solid rgba(255,255,255,.18)" }} />
-                              <span style={{ fontSize: 13, color: "rgba(240,238,245,.7)" }}>{label}</span>
-                            </button>
-                          ))}
-                        </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                          <span style={{ width: 22, fontSize: 13, color: "rgba(240,238,245,.48)" }}>X</span>
-                          <input type="range" min="-24" max="24" step="1" value={textShadowOffsetX} onChange={(event) => onTextShadowOffsetXChange(Number(event.target.value))} style={{ width: "100%" }} />
-                          <span style={{ minWidth: 52, textAlign: "right", fontSize: 13, color: "rgba(240,238,245,.6)" }}>{textShadowOffsetX}px</span>
-                        </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                          <span style={{ width: 22, fontSize: 13, color: "rgba(240,238,245,.48)" }}>Y</span>
-                          <input type="range" min="-24" max="24" step="1" value={textShadowOffsetY} onChange={(event) => onTextShadowOffsetYChange(Number(event.target.value))} style={{ width: "100%" }} />
-                          <span style={{ minWidth: 52, textAlign: "right", fontSize: 13, color: "rgba(240,238,245,.6)" }}>{textShadowOffsetY}px</span>
-                        </div>
-                        {textShadowMode === "soft" ? (
-                          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                            <span style={{ width: 22, fontSize: 13, color: "rgba(240,238,245,.48)" }}>B</span>
-                            <input type="range" min="0" max="32" step="1" value={textShadowBlur} onChange={(event) => onTextShadowBlurChange(Number(event.target.value))} style={{ width: "100%" }} />
-                            <span style={{ minWidth: 52, textAlign: "right", fontSize: 13, color: "rgba(240,238,245,.6)" }}>{textShadowBlur}px</span>
-                          </div>
-                        ) : null}
-                      </>
-                    ) : (
-                      <div style={{ fontSize: 12, lineHeight: 1.5, color: "rgba(240,238,245,.42)" }}>
-                        Прозрачность тени не настраивается. Для плотной заливки выберите жёсткую тень.
+                    <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                      <span style={{ width: 22, fontSize: 13, color: "rgba(240,238,245,.48)" }}>X</span>
+                      <input type="range" min="-24" max="24" step="1" value={textShadowOffsetX} onChange={(event) => onTextShadowOffsetXChange(Number(event.target.value))} style={{ width: "100%" }} />
+                      <span style={{ minWidth: 52, textAlign: "right", fontSize: 13, color: "rgba(240,238,245,.6)" }}>{textShadowOffsetX}px</span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                      <span style={{ width: 22, fontSize: 13, color: "rgba(240,238,245,.48)" }}>Y</span>
+                      <input type="range" min="-24" max="24" step="1" value={textShadowOffsetY} onChange={(event) => onTextShadowOffsetYChange(Number(event.target.value))} style={{ width: "100%" }} />
+                      <span style={{ minWidth: 52, textAlign: "right", fontSize: 13, color: "rgba(240,238,245,.6)" }}>{textShadowOffsetY}px</span>
+                    </div>
+                    {textShadowMode === "soft" ? (
+                      <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                        <span style={{ width: 22, fontSize: 13, color: "rgba(240,238,245,.48)" }}>B</span>
+                        <input type="range" min="0" max="32" step="1" value={textShadowBlur} onChange={(event) => onTextShadowBlurChange(Number(event.target.value))} style={{ width: "100%" }} />
+                        <span style={{ minWidth: 52, textAlign: "right", fontSize: 13, color: "rgba(240,238,245,.6)" }}>{textShadowBlur}px</span>
                       </div>
-                    )}
+                    ) : null}
+                  </>
+                ) : (
+                  <div style={{ fontSize: 12, lineHeight: 1.5, color: "rgba(240,238,245,.42)" }}>
+                    Прозрачность тени не настраивается. Для плотной заливки выберите жёсткую тень.
                   </div>
-                </SidebarFieldRow>
-              </>
-            ) : null}
+                )}
+              </div>
+            </SidebarFieldRow>
+
+            <SidebarFieldRow label="Насыщенность">
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {[400, 500, 700, 800].map((weight) => (
+                  <button key={weight} type="button" onClick={() => onTextWeightChange(weight)} className={`tb ${textWeight === weight ? "ta" : "ti"}`} style={{ padding: "9px 14px" }}>
+                    {weight}
+                  </button>
+                ))}
+              </div>
+            </SidebarFieldRow>
+
+            <SidebarFieldRow label="Цвет текста">
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                {[["#ffffff", "Белый"], ["#111111", "Чёрный"], ["#e84393", "Розовый"], ["#6c5ce7", "Фиолетовый"]].map(([hex, label]) => (
+                  <button key={hex} type="button" onClick={() => onTextColorChange(hex)} style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "7px 10px 7px 7px", borderRadius: 999, border: textColor === hex ? "1px solid rgba(232,67,147,.35)" : "1px solid rgba(255,255,255,.08)", background: textColor === hex ? "rgba(255,255,255,.08)" : "rgba(255,255,255,.03)", cursor: "pointer", fontFamily: "inherit" }}>
+                    <span style={{ width: 24, height: 24, borderRadius: "50%", background: hex, border: "1px solid rgba(255,255,255,.18)" }} />
+                    <span style={{ fontSize: 13, color: "rgba(240,238,245,.7)" }}>{label}</span>
+                  </button>
+                ))}
+              </div>
+            </SidebarFieldRow>
 
             <ActionButton onClick={centerActiveLayerPosition}>Поставить текст по центру базовой позиции</ActionButton>
           </>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: 16, borderRadius: 18, border: "1px solid rgba(255,255,255,.08)", background: "rgba(255,255,255,.02)" }}>
-            <div style={{ fontSize: 16, fontWeight: 600 }}>Нет активного текстового слоя</div>
-            <div style={{ fontSize: 14, lineHeight: 1.6, color: "rgba(240,238,245,.45)" }}>
-              Создайте новый текстовый слой или выберите уже существующий во вкладке «Слои».
-            </div>
-          </div>
+          <EmptyLayerState title="Нет активного текстового слоя" description="Создайте новый текстовый слой или выберите уже существующий во вкладке «Слои»." actionLabel="Добавить текстовый слой" onAction={onAddTextLayer} />
         )}
       </div>
     );

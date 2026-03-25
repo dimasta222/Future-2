@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 
 const DEFAULT_TEXT_SHADOW = {
   light: "0 2px 14px rgba(0,0,0,.16)",
@@ -16,32 +16,11 @@ export default function ConstructorPreviewPanel({
   layers,
   activeLayerId,
   draggingLayerId,
-  editingTextLayerId,
   onLayerPointerDown,
-  onActiveTextValueChange,
   onActiveTextBoxWidthChange,
-  onEditingTextLayerChange,
   getPresetByKey,
-  getTextGradientByKey,
 }) {
   const [resizingLayerId, setResizingLayerId] = useState(null);
-  const editableTextLayerRefs = useRef({});
-
-  useEffect(() => {
-    if (!editingTextLayerId) return;
-
-    const node = editableTextLayerRefs.current[editingTextLayerId];
-    if (!node) return;
-
-    node.focus();
-
-    const selection = window.getSelection();
-    const range = document.createRange();
-    range.selectNodeContents(node);
-    range.collapse(false);
-    selection?.removeAllRanges();
-    selection?.addRange(range);
-  }, [editingTextLayerId]);
 
   const handleTextBoxResizePointerDown = (layer, event) => {
     if (layer.locked || layer.id !== activeLayerId || !printAreaRef.current) return;
@@ -134,15 +113,11 @@ export default function ConstructorPreviewPanel({
             }
 
             const overlayText = layer.value;
-            const editing = layer.id === editingTextLayerId;
-            const hasVisibleText = overlayText.trim().length > 0;
-            const showEmptyTextPlaceholder = active && !hasVisibleText;
-            if (!hasVisibleText && !active && !editing) return null;
+            if (!overlayText.trim()) return null;
 
             const showTextBoxGuides = active;
             const showResizeHandle = showTextBoxGuides && !layer.locked;
             const resizing = resizingLayerId === layer.id;
-            const allowTextEditing = active && editing && !layer.locked;
             const textGuideShadow = showTextBoxGuides
               ? `${frameStyle}, inset 0 0 0 1px rgba(255,255,255,.24)`
               : frameStyle;
@@ -153,44 +128,17 @@ export default function ConstructorPreviewPanel({
               : color === "Белый"
                 ? DEFAULT_TEXT_SHADOW.light
                 : DEFAULT_TEXT_SHADOW.dark;
-            const activeGradient = layer.textFillMode === "gradient" ? getTextGradientByKey(layer.gradientKey) : null;
 
             return (
               <div
                 key={layer.id}
                 role="presentation"
-                onPointerDown={allowTextEditing ? undefined : (event) => onLayerPointerDown(layer.id, event)}
-                onDoubleClick={layer.locked ? undefined : (event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  onEditingTextLayerChange(layer.id);
-                }}
-                style={{ position: "absolute", left: `${layer.position.x}%`, top: `${layer.position.y}%`, transform: "translate(-50%, -50%)", width: `${layer.textBoxWidth ?? 88}%`, maxWidth: "100%", minHeight: active || editing ? `${Math.max(layer.size * (layer.lineHeight ?? 1.05), layer.size)}px` : undefined, padding: showTextBoxGuides ? "12px 10px 10px" : 0, textAlign: layer.textAlign || "center", fontSize: `${layer.size}px`, lineHeight: layer.lineHeight ?? 1.05, fontWeight: layer.weight, fontFamily: layer.fontFamily || "'Outfit', sans-serif", color: activeGradient ? "transparent" : layer.color, letterSpacing: `${layer.letterSpacing ?? 1}px`, WebkitTextStroke: (layer.strokeWidth ?? 0) > 0 ? `${layer.strokeWidth}px ${layer.strokeColor || "#111111"}` : "0 transparent", paintOrder: "stroke fill", whiteSpace: "pre-wrap", overflowWrap: "anywhere", wordBreak: "break-word", textShadow: textShadowValue, pointerEvents: "auto", cursor: allowTextEditing ? "text" : resizing ? "ew-resize" : layer.locked ? "default" : dragging ? "grabbing" : "grab", touchAction: allowTextEditing ? "auto" : "none", boxShadow: textGuideShadow, borderRadius: 10, outline: showTextBoxGuides ? "1px dashed rgba(255,255,255,.48)" : "none", outlineOffset: showTextBoxGuides ? 4 : 0, background: showTextBoxGuides ? "linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.025))" : "transparent", zIndex: index + 1 }}
+                onPointerDown={(event) => onLayerPointerDown(layer.id, event)}
+                style={{ position: "absolute", left: `${layer.position.x}%`, top: `${layer.position.y}%`, transform: "translate(-50%, -50%)", width: `${layer.textBoxWidth ?? 88}%`, maxWidth: "100%", padding: showTextBoxGuides ? "12px 10px 10px" : 0, textAlign: layer.textAlign || "center", fontSize: `${layer.size}px`, lineHeight: layer.lineHeight ?? 1.05, fontWeight: layer.weight, fontFamily: layer.fontFamily || "'Outfit', sans-serif", color: layer.color, letterSpacing: `${layer.letterSpacing ?? 1}px`, WebkitTextStroke: (layer.strokeWidth ?? 0) > 0 ? `${layer.strokeWidth}px ${layer.strokeColor || "#111111"}` : "0 transparent", paintOrder: "stroke fill", whiteSpace: "pre-wrap", overflowWrap: "anywhere", wordBreak: "break-word", textShadow: textShadowValue, pointerEvents: "auto", cursor: resizing ? "ew-resize" : layer.locked ? "default" : dragging ? "grabbing" : "grab", touchAction: "none", boxShadow: textGuideShadow, borderRadius: 10, outline: showTextBoxGuides ? "1px dashed rgba(255,255,255,.48)" : "none", outlineOffset: showTextBoxGuides ? 4 : 0, background: showTextBoxGuides ? "linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.025))" : "transparent", zIndex: index + 1 }}
               >
+                {showTextBoxGuides ? <div style={{ position: "absolute", left: 8, top: -10, padding: "3px 7px", borderRadius: 999, background: "rgba(17,17,17,.78)", border: "1px solid rgba(255,255,255,.08)", fontSize: 10, lineHeight: 1, fontWeight: 600, letterSpacing: ".08em", textTransform: "uppercase", color: "rgba(255,255,255,.82)", textShadow: "none", pointerEvents: "none" }}>{`${layer.textBoxWidth ?? 88}%`}</div> : null}
                 {showResizeHandle ? [-1, 1].map((direction) => <button key={direction} type="button" aria-label={direction < 0 ? "Уменьшить или увеличить ширину слева" : "Уменьшить или увеличить ширину справа"} onPointerDown={(event) => handleTextBoxResizePointerDown(layer, event)} style={{ position: "absolute", top: "50%", [direction < 0 ? "left" : "right"]: -16, transform: "translateY(-50%)", width: 14, height: 42, borderRadius: 999, border: "1px solid rgba(255,255,255,.24)", background: resizing ? "linear-gradient(180deg, rgba(232,67,147,.96), rgba(108,92,231,.96))" : "rgba(15,15,18,.82)", boxShadow: resizing ? "0 10px 24px rgba(232,67,147,.28)" : "0 8px 18px rgba(0,0,0,.24)", cursor: "ew-resize", pointerEvents: "auto", touchAction: "none", padding: 0 }} />) : null}
-                <div
-                  ref={(node) => {
-                    editableTextLayerRefs.current[layer.id] = node;
-                  }}
-                  contentEditable={allowTextEditing}
-                  suppressContentEditableWarning
-                  spellCheck={false}
-                  onPointerDown={allowTextEditing ? (event) => event.stopPropagation() : undefined}
-                  onFocus={allowTextEditing ? () => onEditingTextLayerChange(layer.id) : undefined}
-                  onBlur={allowTextEditing ? () => onEditingTextLayerChange(null) : undefined}
-                  onInput={allowTextEditing ? (event) => {
-                    const nextValue = event.currentTarget.innerText.replace(/\r/g, "").replace(/\n$/, "");
-                    onActiveTextValueChange(nextValue);
-                  } : undefined}
-                  style={{ minHeight: `${Math.max(layer.size * (layer.lineHeight ?? 1.05), layer.size)}px`, outline: "none", cursor: allowTextEditing ? "text" : "inherit", color: activeGradient ? "transparent" : layer.color, backgroundImage: activeGradient ? activeGradient.css : "none", WebkitBackgroundClip: activeGradient ? "text" : "border-box", backgroundClip: activeGradient ? "text" : "border-box", WebkitTextFillColor: activeGradient ? "transparent" : layer.color, caretColor: layer.color || "#f0eef5" }}
-                >
-                  {overlayText}
-                </div>
-                {showEmptyTextPlaceholder ? (
-                  <span style={{ position: "absolute", inset: showTextBoxGuides ? "12px 10px 10px" : 0, display: "flex", alignItems: "center", justifyContent: layer.textAlign === "left" ? "flex-start" : layer.textAlign === "right" ? "flex-end" : "center", color: "rgba(240,238,245,.32)", textShadow: "none", pointerEvents: "none", fontSize: "0.58em", lineHeight: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                    Введите текст
-                  </span>
-                ) : null}
+                {overlayText}
               </div>
             );
           })}

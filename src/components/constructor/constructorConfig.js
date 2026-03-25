@@ -11,10 +11,50 @@ export const CONSTRUCTOR_PRINT_AREAS = {
 
 export const CONSTRUCTOR_TABS = [
   { key: "textile", label: "Текстиль" },
+  { key: "layers", label: "Слои" },
   { key: "upload", label: "Загрузить" },
   { key: "text", label: "Текст" },
   { key: "prints", label: "Готовые принты" },
 ];
+
+export const CONSTRUCTOR_TEXT_FONTS = [
+  { key: "outfit", label: "Outfit", family: "'Outfit', sans-serif", group: "sans" },
+  { key: "inter", label: "Inter", family: "'Inter', sans-serif", group: "sans" },
+  { key: "bebas", label: "Bebas Neue", family: "'Bebas Neue', sans-serif", group: "display" },
+  { key: "unbounded", label: "Unbounded", family: "'Unbounded', sans-serif", group: "display" },
+  { key: "script", label: "Marck Script", family: "'Marck Script', cursive", group: "script" },
+  { key: "mono", label: "IBM Plex Mono", family: "'IBM Plex Mono', monospace", group: "mono" },
+];
+
+export const CONSTRUCTOR_TEXT_SOLID_COLORS = [
+  ["#ffffff", "Белый"],
+  ["#111111", "Чёрный"],
+  ["#f43f5e", "Коралловый"],
+  ["#f59e0b", "Янтарный"],
+  ["#84cc16", "Лайм"],
+  ["#14b8a6", "Тиффани"],
+  ["#0ea5e9", "Голубой"],
+  ["#6366f1", "Индиго"],
+  ["#8b5cf6", "Лавандовый"],
+  ["#ec4899", "Фуксия"],
+];
+
+export const CONSTRUCTOR_TEXT_GRADIENTS = [
+  { key: "future-pulse", label: "Future Pulse", css: "linear-gradient(135deg, #e84393 0%, #6c5ce7 100%)" },
+  { key: "sunset-run", label: "Sunset Run", css: "linear-gradient(135deg, #ff9966 0%, #ff5e62 100%)" },
+  { key: "mint-wave", label: "Mint Wave", css: "linear-gradient(135deg, #34d399 0%, #06b6d4 100%)" },
+  { key: "acid-pop", label: "Acid Pop", css: "linear-gradient(135deg, #facc15 0%, #84cc16 100%)" },
+  { key: "blue-glow", label: "Blue Glow", css: "linear-gradient(135deg, #38bdf8 0%, #2563eb 100%)" },
+  { key: "rose-gold", label: "Rose Gold", css: "linear-gradient(135deg, #f9a8d4 0%, #f59e0b 100%)" },
+];
+
+export function getConstructorTextFont(fontKey) {
+  return CONSTRUCTOR_TEXT_FONTS.find((font) => font.key === fontKey) || CONSTRUCTOR_TEXT_FONTS[0];
+}
+
+export function getConstructorTextGradient(gradientKey) {
+  return CONSTRUCTOR_TEXT_GRADIENTS.find((gradient) => gradient.key === gradientKey) || CONSTRUCTOR_TEXT_GRADIENTS[0];
+}
 
 export function buildConstructorProducts({ tshirtItems, getTshirtSizes, parseColorOptions, parsePriceValue, normalizeVariantLabel }) {
   return tshirtItems.flatMap((item) => {
@@ -131,9 +171,11 @@ export function buildConstructorTelegramLink(lines) {
         `размер ${line.size}`,
         `сторона ${line.side === "front" ? "спереди" : "сзади"}`,
         `кол-во ${line.qty} шт`,
-        line.uploadName ? `макет ${line.uploadName}` : null,
-        line.text ? `текст «${line.text}»` : null,
-        line.presetLabel ? `принт ${line.presetLabel}` : null,
+        ...(line.layerSummary?.length ? line.layerSummary : [
+          line.uploadName ? `макет ${line.uploadName}` : null,
+          line.text ? `текст «${line.text}»` : null,
+          line.presetLabel ? `принт ${line.presetLabel}` : null,
+        ].filter(Boolean)),
         `предварительно ${line.total.toLocaleString("ru-RU")} ₽`,
       ].filter(Boolean);
       return details.join(", ");

@@ -1,0 +1,137 @@
+import LogoMini from "../LogoMini.jsx";
+import ConstructorOrderPanel from "./ConstructorOrderPanel.jsx";
+import ConstructorPreviewPanel from "./ConstructorPreviewPanel.jsx";
+import ConstructorSidebarPanel from "./ConstructorSidebarPanel.jsx";
+import ConstructorTabsNav from "./ConstructorTabsNav.jsx";
+import { buildConstructorTelegramLink, CONSTRUCTOR_TABS, readFileAsDataUrl, readImageSize } from "./constructorConfig.js";
+import useConstructorState from "../../hooks/useConstructorState.js";
+import STYLES from "../../shared/appStyles.js";
+import { resolveColorSwatch } from "../../shared/textileHelpers.js";
+import { buildTshirtMockupSvg, svgToDataUri } from "../../shared/textilePreviewHelpers.js";
+
+export default function ConstructorPage({ onBack, products, presetPrints }) {
+  const {
+    activeTab,
+    setActiveTab,
+    productKey,
+    side,
+    setSide,
+    color,
+    size,
+    setSize,
+    qty,
+    setQty,
+    layers,
+    activeLayer,
+    activeLayerId,
+    activeUploadLayer,
+    activeTextLayer,
+    activePresetLayer,
+    draggingLayerId,
+    textValue,
+    setTextValue,
+    textSize,
+    setTextSize,
+    textColor,
+    setTextColor,
+    textWeight,
+    setTextWeight,
+    textFontKey,
+    setTextFontKey,
+    textBoxWidth,
+    setTextBoxWidth,
+    textLineHeight,
+    setTextLineHeight,
+    textLetterSpacing,
+    setTextLetterSpacing,
+    textAlign,
+    setTextAlign,
+    textStrokeWidth,
+    setTextStrokeWidth,
+    textStrokeColor,
+    setTextStrokeColor,
+    textShadowEnabled,
+    setTextShadowEnabled,
+    textShadowMode,
+    setTextShadowMode,
+    textShadowColor,
+    setTextShadowColor,
+    textShadowOffsetX,
+    setTextShadowOffsetX,
+    textShadowOffsetY,
+    setTextShadowOffsetY,
+    textShadowBlur,
+    setTextShadowBlur,
+    presetKey,
+    setPresetKey,
+    presetScale,
+    setPresetScale,
+    printAreaRef,
+    product,
+    printArea,
+    previewSrc,
+    canSubmitOrder,
+    currentTotal,
+    orderMeta,
+    orderDecorItems,
+    telegramLink,
+    handleProductChange,
+    handleColorChange,
+    handleUploadChange,
+    handleUploadScaleChange,
+    handleUploadRemove,
+    handleLayerPointerDown,
+    centerActiveLayerPosition,
+    addTextLayer,
+    addPresetLayer,
+    focusLayer,
+    removeLayer,
+    removeActiveLayer,
+    duplicateActiveLayer,
+    moveActiveLayer,
+    toggleLayerVisibility,
+    toggleLayerLock,
+    getPresetByKey,
+  } = useConstructorState({
+    products,
+    presetPrints,
+    buildPreviewSrc: ({ product: currentProduct, color: currentColor, side: currentSide }) => svgToDataUri(buildTshirtMockupSvg({ model: currentProduct.model, colorName: currentColor, view: currentSide, showViewLabel: false, showHeader: false })),
+    buildTelegramLink: buildConstructorTelegramLink,
+    readFileAsDataUrl,
+    readImageSize,
+  });
+
+  return (
+    <div style={{ fontFamily: "'Outfit',sans-serif", background: "#08080c", color: "#f0eef5", minHeight: "100vh" }}>
+      <style>{STYLES}</style>
+
+      <div className="page-shell" style={{ maxWidth: 1320, margin: "0 auto", padding: "28px 0 56px" }}>
+        <button type="button" onClick={onBack} style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 12, background: "none", border: "none", color: "inherit", padding: 0, font: "inherit" }}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#e84393" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
+          <LogoMini />
+        </button>
+
+        <div style={{ textAlign: "center", margin: "34px auto 28px", maxWidth: 860 }}>
+          <span style={{ fontSize: 12, fontWeight: 500, letterSpacing: 4, color: "#6c5ce7", textTransform: "uppercase" }}>Новая страница</span>
+          <h1 style={{ fontSize: "clamp(28px,4vw,46px)", fontWeight: 200, marginTop: 12 }}>
+            Конструктор <span style={{ fontWeight: 600, background: "linear-gradient(135deg,#e84393,#6c5ce7)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>футболок</span>
+          </h1>
+          <p style={{ color: "rgba(240,238,245,.45)", fontWeight: 300, fontSize: 15, marginTop: 10, lineHeight: 1.75 }}>
+            На этой странице собрана вся информация по футболкам: модели, плотности, материалы, цвета, цены и настройка макета перед отправкой заказа менеджеру.
+          </p>
+        </div>
+
+        <div className="constructor-shell" style={{ display: "grid", gridTemplateColumns: "minmax(260px,20vw) minmax(0,1fr) minmax(260px,20vw)", gap: 24, alignItems: "start", width: "100%", padding: "0 18px", boxSizing: "border-box" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12, justifySelf: "start", width: "100%", minWidth: 0 }}>
+            <ConstructorTabsNav tabs={CONSTRUCTOR_TABS} activeTab={activeTab} onTabChange={setActiveTab} />
+            <ConstructorSidebarPanel activeTab={activeTab} onTabChange={setActiveTab} products={products} product={product} productKey={productKey} onProductChange={handleProductChange} size={size} onSizeChange={setSize} qty={qty} onQtyChange={setQty} color={color} onColorChange={handleColorChange} resolveColorSwatch={resolveColorSwatch} layers={layers} activeLayer={activeLayer} activeLayerId={activeLayerId} activeUploadLayer={activeUploadLayer} activeTextLayer={activeTextLayer} activePresetLayer={activePresetLayer} onLayerSelect={focusLayer} onAddTextLayer={addTextLayer} onAddPresetLayer={addPresetLayer} onDuplicateActiveLayer={duplicateActiveLayer} onRemoveLayer={removeLayer} onRemoveActiveLayer={removeActiveLayer} onMoveLayer={moveActiveLayer} onToggleLayerVisibility={toggleLayerVisibility} onToggleLayerLock={toggleLayerLock} handleUploadChange={handleUploadChange} handleUploadRemove={handleUploadRemove} uploadScale={activeUploadLayer?.scale || 78} handleUploadScaleChange={handleUploadScaleChange} centerActiveLayerPosition={centerActiveLayerPosition} textValue={textValue} onTextValueChange={setTextValue} textSize={textSize} onTextSizeChange={setTextSize} textWeight={textWeight} onTextWeightChange={setTextWeight} textColor={textColor} onTextColorChange={setTextColor} textFontKey={textFontKey} onTextFontKeyChange={setTextFontKey} textBoxWidth={textBoxWidth} onTextBoxWidthChange={setTextBoxWidth} textLineHeight={textLineHeight} onTextLineHeightChange={setTextLineHeight} textLetterSpacing={textLetterSpacing} onTextLetterSpacingChange={setTextLetterSpacing} textAlign={textAlign} onTextAlignChange={setTextAlign} textStrokeWidth={textStrokeWidth} onTextStrokeWidthChange={setTextStrokeWidth} textStrokeColor={textStrokeColor} onTextStrokeColorChange={setTextStrokeColor} textShadowEnabled={textShadowEnabled} onTextShadowEnabledChange={setTextShadowEnabled} textShadowMode={textShadowMode} onTextShadowModeChange={setTextShadowMode} textShadowColor={textShadowColor} onTextShadowColorChange={setTextShadowColor} textShadowOffsetX={textShadowOffsetX} onTextShadowOffsetXChange={setTextShadowOffsetX} textShadowOffsetY={textShadowOffsetY} onTextShadowOffsetYChange={setTextShadowOffsetY} textShadowBlur={textShadowBlur} onTextShadowBlurChange={setTextShadowBlur} presetPrints={presetPrints} presetKey={presetKey} onPresetKeyChange={setPresetKey} presetScale={presetScale} onPresetScaleChange={setPresetScale} />
+          </div>
+
+          <ConstructorPreviewPanel side={side} onSideChange={setSide} previewSrc={previewSrc} productName={product.name} color={color} printAreaRef={printAreaRef} printArea={printArea} layers={layers} activeLayerId={activeLayerId} draggingLayerId={draggingLayerId} onLayerPointerDown={handleLayerPointerDown} onActiveTextBoxWidthChange={setTextBoxWidth} getPresetByKey={getPresetByKey} />
+
+          <ConstructorOrderPanel currentTotal={currentTotal} orderMeta={orderMeta} orderDecorItems={orderDecorItems} canSubmitOrder={canSubmitOrder} telegramLink={telegramLink} />
+        </div>
+      </div>
+    </div>
+  );
+}

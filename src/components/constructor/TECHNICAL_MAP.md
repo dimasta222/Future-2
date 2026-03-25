@@ -6,8 +6,9 @@
 
 1. Page composition
 2. State and business logic
-3. Constructor config/helpers
-4. UI blocks
+3. Shared textile helpers
+4. Constructor config/helpers
+5. UI blocks
 
 ## Файлы
 
@@ -16,24 +17,84 @@
 Назначение:
 
 - подключение страницы конструктора
-- сборка layout конструктора
-- связывание hook и UI-компонентов
+- подготовка constructor products и preset prints
+- передача constructor-данных в constructor page
 
 Constructor-related элементы:
 
 - CONSTRUCTOR_PRODUCTS
 - CONSTRUCTOR_PRESET_PRINTS
-- ConstructorPage(...)
-- buildPreviewSrc через buildTshirtMockupSvg(...)
+- импорт ConstructorPage.jsx
 
-Зависимости конструктора:
+### src/components/constructor/ConstructorPage.jsx
+
+Назначение:
+
+- page composition для конструктора
+- связывание hook и UI-компонентов
+- layout страницы конструктора
+
+Зависимости:
 
 - src/hooks/useConstructorState.js
+- src/shared/textileHelpers.js
+- src/shared/textilePreviewHelpers.js
 - src/components/constructor/constructorConfig.js
 - src/components/constructor/ConstructorTabsNav.jsx
 - src/components/constructor/ConstructorSidebarPanel.jsx
 - src/components/constructor/ConstructorPreviewPanel.jsx
 - src/components/constructor/ConstructorOrderPanel.jsx
+
+Вход:
+
+- onBack
+- products
+- presetPrints
+
+Зависимости конструктора:
+
+- src/hooks/useConstructorState.js
+- src/shared/textileHelpers.js
+- src/shared/textilePreviewHelpers.js
+- src/components/constructor/constructorConfig.js
+- src/components/constructor/ConstructorTabsNav.jsx
+- src/components/constructor/ConstructorSidebarPanel.jsx
+- src/components/constructor/ConstructorPreviewPanel.jsx
+- src/components/constructor/ConstructorOrderPanel.jsx
+
+### src/shared/textileHelpers.js
+
+Назначение:
+
+- shared textile domain helpers
+- общий слой между конструктором, текстильными карточками и превью
+
+Экспорты:
+
+- parseColorOptions(...)
+- getDefaultTshirtColor(...)
+- resolveColorSwatch(...)
+- normalizeColorName(...)
+- normalizeVariantLabel(...)
+- getTshirtSizes(...)
+- parsePriceValue(...)
+
+### src/shared/textilePreviewHelpers.js
+
+Назначение:
+
+- shared preview/gallery helper cluster for textile modules
+
+Экспорты:
+
+- svgToDataUri(...)
+- buildOrderedGalleryCandidates(...)
+- resolveHomepageTshirtPreview(...)
+- preloadHomepageTshirtPreview(...)
+- loadImageCandidate(...)
+- buildTshirtMockupSvg(...)
+- buildHomepageTshirtPlaceholderSvg(...)
+- buildTshirtFallbackSlides(...)
 
 ### src/hooks/useConstructorState.js
 
@@ -62,11 +123,20 @@ Constructor-related элементы:
 
 - product selection
 - color selection
+- layer collection state
+- active layer selection
+- layer ordering, visibility, lock state
 - size and quantity
 - upload processing
-- upload drag-and-drop
-- text overlay state
-- preset selection
+- active layer drag-and-drop
+- text layer state
+- empty initial text value for newly created text layers with preview placeholder
+- text font selection with local search, keyboard-layout tolerance, keyboard navigation, grouped sections, pinned active font, listbox-semantics and auto-scroll to active result
+- text color system with solid presets, gradient presets, native picker and HEX input
+- text box width with default auto-wrap and preview resize handles
+- text line-height, stroke and hard/soft shadow effects
+- text alignment and letter spacing
+- preset layer state
 - order summary data
 
 ### src/components/constructor/constructorConfig.js
@@ -108,6 +178,7 @@ Props:
 Секции:
 
 - textile
+- layers
 - upload
 - text
 - preset prints
@@ -116,6 +187,8 @@ Props:
 
 - presentational
 - event forwarding
+- primary CTA для создания текстового слоя, fallback-подпись «Текст N» до ввода, короткие фрагменты текста после ввода, быстрые действия скрытия/удаления text-layer и переключение активного text-layer из боковой панели
+- одна активная панель текстовых настроек под списком слоёв для режимов «Шрифт», «Цвет», «Интервалы» и «Эффекты»
 
 ### src/components/constructor/ConstructorPreviewPanel.jsx
 
@@ -128,14 +201,26 @@ Props:
 - preview image
 - side switcher
 - print area overlay
-- preset layer
-- uploaded design layer
-- text layer
+- render stack of visible layers
+- active layer highlight
+- active text box guide overlay
+- direct text editing inside the active text layer on preview
+- solid and gradient text fill rendering
+- active text box resize handles
+- text effect rendering for line-height, stroke and shadow
+- pointer bridge for layer dragging
 
 Тип ответственности:
 
 - presentational
 - pointer interaction bridge
+
+### src/components/constructor/ConstructorPage.jsx
+
+Дополнительно отвечает за:
+
+- toolbar быстрых текстовых действий над превью
+- синхронизацию toolbar с активной левой панелью текста
 
 ### src/components/constructor/ConstructorOrderPanel.jsx
 
@@ -156,17 +241,20 @@ Props:
 
 ## Поток данных
 
-1. App.jsx собирает исходные constructor dependencies
-2. App.jsx вызывает useConstructorState(...)
-3. useConstructorState(...) возвращает state, derived values, handlers
-4. App.jsx прокидывает данные в UI-компоненты
-5. UI-компоненты отправляют действия обратно через callbacks
+1. App.jsx собирает constructor products и preset prints
+2. App.jsx рендерит ConstructorPage.jsx и передает app-level зависимости
+3. ConstructorPage.jsx вызывает useConstructorState(...)
+4. useConstructorState(...) возвращает state, derived values, handlers
+5. ConstructorPage.jsx прокидывает данные в UI-компоненты
+6. UI-компоненты отправляют действия обратно через callbacks
 
 ## Границы ответственности
 
 ### Где должна жить логика
 
 - в src/hooks/useConstructorState.js
+- в src/shared/textileHelpers.js
+- в src/shared/textilePreviewHelpers.js
 - в src/components/constructor/constructorConfig.js
 
 ### Где не должна жить логика
@@ -179,6 +267,7 @@ Props:
 ### Где допустима orchestration-логика
 
 - в src/App.jsx
+- в src/components/constructor/ConstructorPage.jsx
 
 ## Зависимости по смыслу
 
@@ -189,6 +278,14 @@ Props:
 - file/image helpers
 - preview builder
 - telegram link builder
+- layer order and active layer mutations
+
+### constructor/page слой зависит от:
+
+- src/components/LogoMini.jsx
+- shared textile helpers
+- shared textile preview helpers
+- shared app styles
 
 ### UI зависит от:
 
@@ -205,6 +302,4 @@ Props:
 
 Потенциальные следующие шаги:
 
-- вынести ConstructorPage из App.jsx в отдельный page file
-- вынести shared textile helpers из App.jsx в отдельный shared module
 - при росте сложности разделить useConstructorState.js на smaller hooks

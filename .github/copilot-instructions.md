@@ -7,6 +7,8 @@
 
 ## Documentation Updates
 
+- Update constructor documentation only when the task changes the constructor itself.
+- Constructor documentation must not be updated for unrelated changes outside the constructor.
 - If you add, remove, rename, or materially change constructor functionality, you must update the constructor documentation in the same task.
 - Constructor documentation set:
   - `src/components/constructor/README.md`
@@ -20,6 +22,7 @@
   - new preset print logic
   - moved responsibilities between files
 - If a constructor change affects only one of these documents directly, still verify whether the other two also need adjustment.
+- If you create a new folder with source files, add separate local documentation for that folder with a short description and navigation map for the files inside it.
 
 ## Architecture
 

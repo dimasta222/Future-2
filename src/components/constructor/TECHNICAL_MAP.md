@@ -135,6 +135,7 @@ Constructor-related элементы:
 - text font selection with local search, keyboard-layout tolerance, keyboard navigation, grouped sections, pinned active font, listbox-semantics and auto-scroll to active result
 - text color system with solid presets, gradient presets, native picker and HEX input
 - text box width with auto-wrap inside a single working container and canva-like preview resize handles
+- smart guides/snapping state for drag and resize against print-area and other visible layers
 - text line-height, stroke and soft shadow effects
 - text alignment and letter spacing
 - preset layer state
@@ -219,11 +220,14 @@ Props:
 - active layer highlight
 - active text box guide overlay for a single working text container
 - 8 resize handles for active upload/preset/shape/text layer: for text side handles change container width and wrapping, corner handles scale the text box and font together
+- smart guides overlay for drag/resize snapping to print-area and other visible layers
 - direct text editing inside the active text layer on preview
 - solid and gradient text fill rendering
 - SVG shape-layer rendering with основной фигурой, внутренней обводкой, падающей тенью и двойным искажением через цветовые offset-копии
-- active layer resize handles with proportional corner scaling and one-axis edge stretching for non-text layers
+- active layer resize handles with proportional corner scaling and one-axis edge stretching for non-text layers, при этом corner-resize для upload/preset/shape остаётся uniform
 - для активного text-layer preview измеряет DOM-габариты текста и text-box, переводит их в сантиметры относительно physical print-area и отдаёт в sidebar
+- пустой text-layer остаётся видимым как рабочий контейнер с placeholder
+- у активного слоя есть preview-кнопка удаления
 - text effect rendering for line-height, stroke and shadow
 - pointer bridge for layer dragging
 - deselect/reset bridge for clicks on empty preview space

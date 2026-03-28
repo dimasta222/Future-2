@@ -1042,24 +1042,13 @@ export default function ConstructorSidebarPanel({
         ) : null}
         {activeTextLayer ? (
           <>
-            <SidebarFieldRow label="Размер текста в см" minHeight={84}>
-              <div style={{ display: "grid", gap: 10 }}>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 10 }}>
-                  <div style={{ padding: "10px 12px", borderRadius: 14, background: "rgba(255,255,255,.03)", border: "1px solid rgba(255,255,255,.08)" }}>
-                    <div style={{ fontSize: 11, lineHeight: 1.2, letterSpacing: ".08em", textTransform: "uppercase", color: "rgba(240,238,245,.38)", marginBottom: 6 }}>Текст</div>
-                    <div style={{ fontSize: 15, fontWeight: 600, color: "#f0eef5" }}>
-                      {activeTextMetricsCm ? `${activeTextMetricsCm.contentWidthCm} × ${activeTextMetricsCm.contentHeightCm} см` : "..."}
-                    </div>
+            <SidebarFieldRow label="Размер текста в см" minHeight={72}>
+              <div style={{ display: "grid", gap: 8 }}>
+                <div style={{ padding: "8px 10px", borderRadius: 12, background: "rgba(255,255,255,.03)", border: "1px solid rgba(255,255,255,.08)" }}>
+                  <div style={{ fontSize: 10, lineHeight: 1.2, letterSpacing: ".08em", textTransform: "uppercase", color: "rgba(240,238,245,.38)", marginBottom: 4 }}>Фактический размер текста</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#f0eef5", whiteSpace: "nowrap" }}>
+                    {activeTextMetricsCm ? `${activeTextMetricsCm.contentWidthCm} × ${activeTextMetricsCm.contentHeightCm} см` : "..."}
                   </div>
-                  <div style={{ padding: "10px 12px", borderRadius: 14, background: "rgba(255,255,255,.03)", border: "1px solid rgba(255,255,255,.08)" }}>
-                    <div style={{ fontSize: 11, lineHeight: 1.2, letterSpacing: ".08em", textTransform: "uppercase", color: "rgba(240,238,245,.38)", marginBottom: 6 }}>Контейнер</div>
-                    <div style={{ fontSize: 15, fontWeight: 600, color: "#f0eef5" }}>
-                      {activeTextMetricsCm ? `${activeTextMetricsCm.boxWidthCm} × ${activeTextMetricsCm.boxHeightCm} см` : "..."}
-                    </div>
-                  </div>
-                </div>
-                <div style={{ fontSize: 12, lineHeight: 1.5, color: "rgba(240,238,245,.42)" }}>
-                  Модель текста как в text box редактора: боковые handles меняют ширину контейнера и перенос, угловые масштабируют контейнер и размер текста как единый объект внутри физической области печати {physicalPrintAreaLabel}.
                 </div>
               </div>
             </SidebarFieldRow>

@@ -541,6 +541,7 @@ export default function ConstructorPage({ onBack, products, presetPrints }) {
     activePresetLayer,
     activeShapeLayer,
     draggingLayerId,
+    activeSnapGuides,
     editingTextLayerId,
     setTextValue,
     textSize,
@@ -714,6 +715,22 @@ export default function ConstructorPage({ onBack, products, presetPrints }) {
     selectLayer(null);
   };
 
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if ((event.key !== "Backspace" && event.key !== "Delete") || !activeLayer) return;
+      const target = event.target;
+      if (target instanceof HTMLElement) {
+        const tagName = target.tagName;
+        if (target.isContentEditable || tagName === "INPUT" || tagName === "TEXTAREA" || tagName === "SELECT") return;
+      }
+      event.preventDefault();
+      removeActiveLayer();
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [activeLayer, removeActiveLayer]);
+
   const previewTopOverlay = showTextQuickToolbar ? (
     <TextQuickToolbar
       activeTextToolPanel={activeTextToolPanel}
@@ -831,7 +848,7 @@ export default function ConstructorPage({ onBack, products, presetPrints }) {
           </div>
 
           <div style={{ minWidth: 0, position: "sticky", top: 18, alignSelf: "start" }}>
-            <ConstructorPreviewPanel side={side} onSideChange={setSide} topOverlay={previewTopOverlay} previewSrc={previewSrc} productName={product.name} color={color} printAreaRef={printAreaRef} printArea={printArea} layers={sideLayers} activeLayerId={activeLayerId} draggingLayerId={draggingLayerId} editingTextLayerId={editingTextLayerId} onLayerPointerDown={handlePreviewLayerPointerDown} onLayerEditOpen={handleLayerEditOpen} onPreviewBackgroundPointerDown={handlePreviewBackgroundPointerDown} onActiveTextValueChange={setTextValue} onEditingTextLayerChange={setEditingTextLayerId} onLayerResize={applyLayerResize} onActiveTextMetricsChange={setActiveTextMetricsCm} getPresetByKey={getPresetByKey} getShapeByKey={getShapeByKey} getTextGradientByKey={getConstructorTextGradient} />
+            <ConstructorPreviewPanel side={side} onSideChange={setSide} topOverlay={previewTopOverlay} previewSrc={previewSrc} productName={product.name} color={color} printAreaRef={printAreaRef} printArea={printArea} layers={sideLayers} activeLayerId={activeLayerId} draggingLayerId={draggingLayerId} activeSnapGuides={activeSnapGuides} editingTextLayerId={editingTextLayerId} onLayerPointerDown={handlePreviewLayerPointerDown} onLayerEditOpen={handleLayerEditOpen} onPreviewBackgroundPointerDown={handlePreviewBackgroundPointerDown} onActiveTextValueChange={setTextValue} onEditingTextLayerChange={setEditingTextLayerId} onLayerResize={applyLayerResize} onActiveTextMetricsChange={setActiveTextMetricsCm} onRemoveLayer={removeLayer} getPresetByKey={getPresetByKey} getShapeByKey={getShapeByKey} getTextGradientByKey={getConstructorTextGradient} />
           </div>
 
           <ConstructorOrderPanel currentTotal={currentTotal} orderMeta={orderMeta} canSubmitOrder={canSubmitOrder} telegramLink={telegramLink} />

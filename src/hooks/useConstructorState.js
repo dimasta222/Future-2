@@ -37,8 +37,13 @@ const DEFAULT_TEXT_LINE_HEIGHT = 1.05;
 const DEFAULT_TEXT_WEIGHT = 700;
 const MIN_TEXT_FONT_SIZE = 12;
 const MAX_TEXT_FONT_SIZE = 400;
+const SNAP_THRESHOLD_PX = 6;
 const textMeasureCanvas = typeof document !== "undefined" ? document.createElement("canvas") : null;
 const textMeasureContext = textMeasureCanvas?.getContext("2d") || null;
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
 
 function measureCanvasTextWidth(text, letterSpacing = 0) {
   if (!textMeasureContext) return 0;
@@ -102,6 +107,38 @@ function getTextBoxHeightPx({
   return Math.max(1, glyphHeightPx + Math.max(0, lines.length - 1) * lineHeightPx);
 }
 
+function getSnapGuidesPx(areaWidth, areaHeight) {
+  return {
+    vertical: [0, areaWidth / 2, areaWidth],
+    horizontal: [0, areaHeight / 2, areaHeight],
+  };
+}
+
+function snapIntervalToGuides(startPx, sizePx, guidePositions, thresholdPx = SNAP_THRESHOLD_PX) {
+  const anchors = [
+    { type: "start", value: startPx },
+    { type: "center", value: startPx + sizePx / 2 },
+    { type: "end", value: startPx + sizePx },
+  ];
+
+  let best = null;
+
+  anchors.forEach((anchor) => {
+    guidePositions.forEach((guide) => {
+      const delta = guide - anchor.value;
+      const distance = Math.abs(delta);
+      if (distance > thresholdPx) return;
+      if (!best || distance < best.distance) {
+        best = { guide, delta, distance };
+      }
+    });
+  });
+
+  return best
+    ? { startPx: startPx + best.delta, guide: best.guide }
+    : { startPx, guide: null };
+}
+
 function isTextBold(layer) {
   const font = getConstructorTextFont(layer.fontKey || DEFAULT_TEXT_FONT.key);
   if (!font.supportsBold) return false;
@@ -128,6 +165,7 @@ export default function useConstructorState({
   const [activeLayerId, setActiveLayerId] = useState(null);
   const [draggingLayerId, setDraggingLayerId] = useState(null);
   const [editingTextLayerId, setEditingTextLayerId] = useState(null);
+  const [activeSnapGuides, setActiveSnapGuides] = useState([]);
   const printAreaRef = useRef(null);
   const layerIdRef = useRef(0);
 
@@ -464,6 +502,7 @@ export default function useConstructorState({
     setSide(resolvedSide);
     setDraggingLayerId(null);
     setEditingTextLayerId(null);
+    setActiveSnapGuides([]);
 
     const nextSideLayers = layers.filter((layer) => getLayerSide(layer) === resolvedSide);
     setActiveLayerId(nextSideLayers[nextSideLayers.length - 1]?.id || null);
@@ -627,6 +666,17 @@ export default function useConstructorState({
     }));
   };
 
+  const fitUniformLayerToArea = (layer, requestedWidthCm, requestedHeightCm) => {
+    const { widthCm: maxWidthCm, heightCm: maxHeightCm } = getPhysicalPrintArea(getLayerSide(layer));
+    const safeWidth = Math.max(0.2, Number(requestedWidthCm) || layer.widthCm || 0.2);
+    const safeHeight = Math.max(0.2, Number(requestedHeightCm) || layer.heightCm || 0.2);
+    const ratio = Math.min(maxWidthCm / safeWidth, maxHeightCm / safeHeight, 1);
+    return {
+      widthCm: Number((safeWidth * ratio).toFixed(3)),
+      heightCm: Number((safeHeight * ratio).toFixed(3)),
+    };
+  };
+
   const handleUploadRemove = () => {
     if (!activeUploadLayer) return;
     removeLayerById(activeUploadLayer.id);
@@ -635,6 +685,26 @@ export default function useConstructorState({
   const centerActiveLayerPosition = () => {
     if (!activeLayer) return;
     updateLayer(activeLayer.id, { position: getLayerDefaultPosition(activeLayer.type) });
+  };
+
+  const getCombinedSnapGuidesPx = (excludeLayerId, areaWidth, areaHeight) => {
+    const guides = getSnapGuidesPx(areaWidth, areaHeight);
+
+    layers.forEach((layer) => {
+      if (!layer.visible || layer.id === excludeLayerId) return;
+      const metrics = getLayerMetrics(layer);
+      if (!metrics?.width || !metrics?.height) return;
+      const centerXPx = (layer.position.x / 100) * areaWidth;
+      const centerYPx = (layer.position.y / 100) * areaHeight;
+      const left = centerXPx - (metrics.width / 2);
+      const right = centerXPx + (metrics.width / 2);
+      const top = centerYPx - (metrics.height / 2);
+      const bottom = centerYPx + (metrics.height / 2);
+      guides.vertical.push(left, centerXPx, right);
+      guides.horizontal.push(top, centerYPx, bottom);
+    });
+
+    return guides;
   };
 
   const handleLayerPointerDown = (layerId, event) => {
@@ -659,10 +729,36 @@ export default function useConstructorState({
       const rect = printAreaRef.current.getBoundingClientRect();
       if (!rect.width || !rect.height) return;
 
+      const metrics = getLayerMetrics(targetLayer);
+      const layerWidthPx = metrics?.width ?? 0;
+      const layerHeightPx = metrics?.height ?? 0;
+      const guides = getCombinedSnapGuidesPx(layerId, rect.width, rect.height);
+
+      let nextCenterXPx = ((startPosition.x / 100) * rect.width) + (clientX - startPointer.x);
+      let nextCenterYPx = ((startPosition.y / 100) * rect.height) + (clientY - startPointer.y);
+
+      if (layerWidthPx > 0) {
+        nextCenterXPx = clamp(nextCenterXPx, layerWidthPx / 2, rect.width - layerWidthPx / 2);
+      }
+      if (layerHeightPx > 0) {
+        nextCenterYPx = clamp(nextCenterYPx, layerHeightPx / 2, rect.height - layerHeightPx / 2);
+      }
+
+      const snappedX = snapIntervalToGuides(nextCenterXPx - (layerWidthPx / 2), layerWidthPx, guides.vertical);
+      const snappedY = snapIntervalToGuides(nextCenterYPx - (layerHeightPx / 2), layerHeightPx, guides.horizontal);
+
+      const snappedCenterXPx = snappedX.startPx + (layerWidthPx / 2);
+      const snappedCenterYPx = snappedY.startPx + (layerHeightPx / 2);
+
       const nextPosition = clampLayerPosition({
-        x: startPosition.x + (((clientX - startPointer.x) / rect.width) * 100),
-        y: startPosition.y + (((clientY - startPointer.y) / rect.height) * 100),
-      }, targetLayer);
+        x: (snappedCenterXPx / rect.width) * 100,
+        y: (snappedCenterYPx / rect.height) * 100,
+      }, targetLayer, metrics);
+
+      setActiveSnapGuides([
+        ...(snappedX.guide == null ? [] : [{ orientation: "vertical", positionPercent: (snappedX.guide / rect.width) * 100 }]),
+        ...(snappedY.guide == null ? [] : [{ orientation: "horizontal", positionPercent: (snappedY.guide / rect.height) * 100 }]),
+      ]);
 
       updateLayer(layerId, (layer) => {
         if (layer.position.x === nextPosition.x && layer.position.y === nextPosition.y) return layer;
@@ -694,6 +790,7 @@ export default function useConstructorState({
       if (hasDragged) {
         setDraggingLayerId(null);
       }
+      setActiveSnapGuides([]);
       node.releasePointerCapture?.(pointerId);
       window.removeEventListener("pointermove", handlePointerMove);
       window.removeEventListener("pointerup", stopDragging);
@@ -861,8 +958,14 @@ export default function useConstructorState({
       const nextLayer = { ...layer, ...patch };
 
       if (nextLayer.type === "upload" || nextLayer.type === "preset" || nextLayer.type === "shape") {
-        nextLayer.widthCm = clampCm(nextLayer.widthCm ?? layer.widthCm ?? 1, maxWidthCm);
-        nextLayer.heightCm = clampCm(nextLayer.heightCm ?? layer.heightCm ?? 1, maxHeightCm);
+        if (nextLayer.type === "upload" && patch.widthCm != null && patch.heightCm != null) {
+          const fitted = fitUniformLayerToArea(nextLayer, nextLayer.widthCm, nextLayer.heightCm);
+          nextLayer.widthCm = fitted.widthCm;
+          nextLayer.heightCm = fitted.heightCm;
+        } else {
+          nextLayer.widthCm = clampCm(nextLayer.widthCm ?? layer.widthCm ?? 1, maxWidthCm);
+          nextLayer.heightCm = clampCm(nextLayer.heightCm ?? layer.heightCm ?? 1, maxHeightCm);
+        }
       }
 
       if (nextLayer.type === "text") {
@@ -1019,6 +1122,7 @@ export default function useConstructorState({
     activePresetLayer,
     activeShapeLayer,
     draggingLayerId,
+    activeSnapGuides,
     editingTextLayerId,
     textValue: activeTextLayer?.value || "",
     setTextValue,

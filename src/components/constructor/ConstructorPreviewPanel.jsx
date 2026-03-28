@@ -24,6 +24,35 @@ function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
+const SNAP_THRESHOLD_PX = 6;
+
+function getSnapGuidesPx(areaWidth, areaHeight) {
+  return {
+    vertical: [0, areaWidth / 2, areaWidth],
+    horizontal: [0, areaHeight / 2, areaHeight],
+  };
+}
+
+function snapValueToGuides(valuePx, guidePositions, thresholdPx = SNAP_THRESHOLD_PX) {
+  let best = null;
+  guidePositions.forEach((guide) => {
+    const distance = Math.abs(guide - valuePx);
+    if (distance > thresholdPx) return;
+    if (!best || distance < best.distance) best = { valuePx: guide, guide, distance };
+  });
+  return best ? { valuePx: best.valuePx, guide: best.guide } : { valuePx, guide: null };
+}
+
+function dedupeGuides(guides) {
+  const seen = new Set();
+  return guides.filter((guide) => {
+    const key = `${guide.orientation}:${guide.positionPercent.toFixed(3)}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function getTextDecorationLine(layer) {
   const decorationLines = [];
   if (layer.underline) decorationLines.push("underline");
@@ -59,6 +88,7 @@ export default function ConstructorPreviewPanel({
   layers,
   activeLayerId,
   draggingLayerId,
+  activeSnapGuides = [],
   editingTextLayerId,
   onLayerPointerDown,
   onLayerEditOpen,
@@ -67,15 +97,18 @@ export default function ConstructorPreviewPanel({
   onEditingTextLayerChange,
   onLayerResize,
   onActiveTextMetricsChange,
+  onRemoveLayer,
   getPresetByKey,
   getShapeByKey,
   getTextGradientByKey,
 }) {
   const [resizingLayerId, setResizingLayerId] = useState(null);
   const [activeTextFrameMetrics, setActiveTextFrameMetrics] = useState(null);
+  const [resizeSnapGuides, setResizeSnapGuides] = useState([]);
   const editableTextLayerRefs = useRef({});
   const textContentLayerRefs = useRef({});
   const textLayerRefs = useRef({});
+  const layerElementRefs = useRef({});
   const physicalWidthCm = printArea?.physicalWidthCm || 40;
   const physicalHeightCm = printArea?.physicalHeightCm || 50;
 
@@ -129,7 +162,8 @@ export default function ConstructorPreviewPanel({
       const textContentBounds = textContentNode.getBoundingClientRect();
       const boxWidthPx = Number(textLayerBounds.width.toFixed(2));
       const boxHeightPx = Number(Math.max(textContentNode.scrollHeight, textContentBounds.height, 1).toFixed(2));
-      const contentWidthPx = Number(Math.min(boxWidthPx, Math.max(textContentNode.scrollWidth, textContentBounds.width, 1)).toFixed(2));
+      const contentWidthPx = Number(Math.min(boxWidthPx, Math.max(textContentBounds.width, 1)).toFixed(2));
+      const contentHeightPx = Number(Math.max(textContentBounds.height, 1).toFixed(2));
 
       setActiveTextFrameMetrics((currentValue) => {
         const nextValue = {
@@ -137,7 +171,7 @@ export default function ConstructorPreviewPanel({
           boxWidthPx,
           boxHeightPx,
           contentWidthPx,
-          contentHeightPx: boxHeightPx,
+          contentHeightPx,
         };
 
         if (
@@ -155,7 +189,7 @@ export default function ConstructorPreviewPanel({
 
       onActiveTextMetricsChange?.({
         contentWidthCm: Number(((contentWidthPx / printAreaBounds.width) * physicalWidthCm).toFixed(1)),
-        contentHeightCm: Number(((boxHeightPx / printAreaBounds.height) * physicalHeightCm).toFixed(1)),
+        contentHeightCm: Number(((contentHeightPx / printAreaBounds.height) * physicalHeightCm).toFixed(1)),
         boxWidthCm: Number(((boxWidthPx / printAreaBounds.width) * physicalWidthCm).toFixed(1)),
         boxHeightCm: Number(((boxHeightPx / printAreaBounds.height) * physicalHeightCm).toFixed(1)),
       });
@@ -168,6 +202,67 @@ export default function ConstructorPreviewPanel({
     width: `${((layer.widthCm || 1) / physicalWidthCm) * 100}%`,
     height: `${((layer.heightCm || 1) / physicalHeightCm) * 100}%`,
   });
+
+  const getAllSnapGuidesPx = (excludeLayerId, areaBounds) => {
+    const guides = getSnapGuidesPx(areaBounds.width, areaBounds.height);
+
+    layers.forEach((layer) => {
+      if (!layer.visible || layer.id === excludeLayerId) return;
+      const node = layerElementRefs.current[layer.id];
+      if (!node) return;
+      const bounds = node.getBoundingClientRect();
+      if (!bounds.width || !bounds.height) return;
+      const left = bounds.left - areaBounds.left;
+      const top = bounds.top - areaBounds.top;
+      const right = left + bounds.width;
+      const bottom = top + bounds.height;
+      guides.vertical.push(left, (left + right) / 2, right);
+      guides.horizontal.push(top, (top + bottom) / 2, bottom);
+    });
+
+    return guides;
+  };
+
+  const renderDeleteButton = (layer) => {
+    if (!layer || layer.id !== activeLayerId || layer.locked) return null;
+
+    return (
+      <button
+        type="button"
+        data-constructor-interactive="true"
+        aria-label={`Удалить слой ${layer.name}`}
+        onPointerDown={(event) => event.stopPropagation()}
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          onRemoveLayer?.(layer.id);
+        }}
+        style={{
+          position: "absolute",
+          left: "50%",
+          top: "100%",
+          transform: "translate(-50%, 12px)",
+          width: 34,
+          height: 34,
+          padding: 0,
+          borderRadius: 999,
+          border: "1px solid rgba(232,67,147,.24)",
+          background: "linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.03)), rgba(232,67,147,.16)",
+          color: "#ffd7ea",
+          boxShadow: "0 12px 24px rgba(0,0,0,.22)",
+          cursor: "pointer",
+          fontSize: 18,
+          lineHeight: 1,
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 6,
+        }}
+      >
+        ×
+      </button>
+    );
+  };
 
   const handleLayerResizePointerDown = (layer, handle, event) => {
     if (layer.locked || layer.id !== activeLayerId || !printAreaRef.current || !onLayerResize) return;
@@ -195,6 +290,7 @@ export default function ConstructorPreviewPanel({
     const updateResize = (clientX, clientY) => {
       const deltaX = clientX - startPointer.x;
       const deltaY = clientY - startPointer.y;
+      setResizeSnapGuides([]);
       const horizontalGrowth = handle.x === 0 ? 0 : deltaX * handle.x * 2;
       const verticalGrowth = handle.y === 0 ? 0 : deltaY * handle.y * 2;
 
@@ -206,17 +302,27 @@ export default function ConstructorPreviewPanel({
         const startBoundsBottom = startBoundsTop + startRenderedHeight;
 
         if (handle.x !== 0 && handle.y === 0) {
+          const guides = getAllSnapGuidesPx(layer.id, printAreaBounds);
           let nextLeftPx = startBoundsLeft;
           let nextRightPx = startBoundsRight;
+          let snappedGuide = null;
 
           if (handle.x > 0) {
-            nextRightPx = clamp(startBoundsRight + deltaX, startBoundsLeft + minTextBoxSizePx, printAreaBounds.width);
+            const proposedRight = clamp(startBoundsRight + deltaX, startBoundsLeft + minTextBoxSizePx, printAreaBounds.width);
+            const snapped = snapValueToGuides(proposedRight, guides.vertical);
+            nextRightPx = clamp(snapped.valuePx, startBoundsLeft + minTextBoxSizePx, printAreaBounds.width);
+            snappedGuide = snapped.guide;
           } else {
-            nextLeftPx = clamp(startBoundsLeft + deltaX, 0, startBoundsRight - minTextBoxSizePx);
+            const proposedLeft = clamp(startBoundsLeft + deltaX, 0, startBoundsRight - minTextBoxSizePx);
+            const snapped = snapValueToGuides(proposedLeft, guides.vertical);
+            nextLeftPx = clamp(snapped.valuePx, 0, startBoundsRight - minTextBoxSizePx);
+            snappedGuide = snapped.guide;
           }
 
           const nextWidthPx = Math.max(minTextBoxSizePx, nextRightPx - nextLeftPx);
           const nextCenterX = (nextLeftPx + nextRightPx) / 2;
+
+          setResizeSnapGuides(snappedGuide == null ? [] : [{ orientation: "vertical", positionPercent: (snappedGuide / printAreaBounds.width) * 100 }]);
 
           onLayerResize(layer.id, {
             textBoxWidth: (nextWidthPx / printAreaBounds.width) * 100,
@@ -229,18 +335,21 @@ export default function ConstructorPreviewPanel({
         }
 
         if (isCornerHandle(handle)) {
+          const guides = getAllSnapGuidesPx(layer.id, printAreaBounds);
           const fixedCornerX = handle.x > 0 ? startBoundsLeft : startBoundsRight;
           const fixedCornerY = handle.y > 0 ? startBoundsTop : startBoundsBottom;
           const startDraggedCornerX = handle.x > 0 ? startBoundsRight : startBoundsLeft;
           const startDraggedCornerY = handle.y > 0 ? startBoundsBottom : startBoundsTop;
           const proposedDraggedCornerX = startDraggedCornerX + deltaX;
           const proposedDraggedCornerY = startDraggedCornerY + deltaY;
+          const snappedX = snapValueToGuides(proposedDraggedCornerX, guides.vertical);
+          const snappedY = snapValueToGuides(proposedDraggedCornerY, guides.horizontal);
           const draggedCornerX = handle.x > 0
-            ? clamp(proposedDraggedCornerX, fixedCornerX + minTextBoxSizePx, printAreaBounds.width)
-            : clamp(proposedDraggedCornerX, 0, fixedCornerX - minTextBoxSizePx);
+            ? clamp(snappedX.valuePx, fixedCornerX + minTextBoxSizePx, printAreaBounds.width)
+            : clamp(snappedX.valuePx, 0, fixedCornerX - minTextBoxSizePx);
           const draggedCornerY = handle.y > 0
-            ? clamp(proposedDraggedCornerY, fixedCornerY + minTextBoxSizePx, printAreaBounds.height)
-            : clamp(proposedDraggedCornerY, 0, fixedCornerY - minTextBoxSizePx);
+            ? clamp(snappedY.valuePx, fixedCornerY + minTextBoxSizePx, printAreaBounds.height)
+            : clamp(snappedY.valuePx, 0, fixedCornerY - minTextBoxSizePx);
 
           const requestedWidthPx = Math.abs(draggedCornerX - fixedCornerX);
           const requestedHeightPx = Math.abs(draggedCornerY - fixedCornerY);
@@ -288,6 +397,11 @@ export default function ConstructorPreviewPanel({
           const nextCenterX = (nextLeftPx + nextRightPx) / 2;
           const nextCenterY = (nextTopPx + nextBottomPx) / 2;
 
+          setResizeSnapGuides(dedupeGuides([
+            ...(snappedX.guide == null ? [] : [{ orientation: "vertical", positionPercent: (snappedX.guide / printAreaBounds.width) * 100 }]),
+            ...(snappedY.guide == null ? [] : [{ orientation: "horizontal", positionPercent: (snappedY.guide / printAreaBounds.height) * 100 }]),
+          ]));
+
           onLayerResize(layer.id, {
             size: (layer.size ?? 36) * uniformMultiplier,
             textBoxWidth: (nextWidthPx / printAreaBounds.width) * 100,
@@ -312,15 +426,79 @@ export default function ConstructorPreviewPanel({
       const nextHeightCm = startHeightCm + ((verticalGrowth / printAreaBounds.height) * physicalHeightCm);
 
       if (isCornerHandle(handle)) {
-        const widthMultiplier = nextWidthCm / startWidthCm;
-        const heightMultiplier = nextHeightCm / startHeightCm;
-        const uniformMultiplier = Math.abs(widthMultiplier - 1) >= Math.abs(heightMultiplier - 1)
+        const guides = getAllSnapGuidesPx(layer.id, printAreaBounds);
+        const startBoundsLeft = layerBounds.left - printAreaBounds.left;
+        const startBoundsTop = layerBounds.top - printAreaBounds.top;
+        const startBoundsRight = startBoundsLeft + startRenderedWidth;
+        const startBoundsBottom = startBoundsTop + startRenderedHeight;
+        const fixedCornerX = handle.x > 0 ? startBoundsLeft : startBoundsRight;
+        const fixedCornerY = handle.y > 0 ? startBoundsTop : startBoundsBottom;
+        const startDraggedCornerX = handle.x > 0 ? startBoundsRight : startBoundsLeft;
+        const startDraggedCornerY = handle.y > 0 ? startBoundsBottom : startBoundsTop;
+        const proposedDraggedCornerX = startDraggedCornerX + deltaX;
+        const proposedDraggedCornerY = startDraggedCornerY + deltaY;
+        const snappedX = snapValueToGuides(proposedDraggedCornerX, guides.vertical);
+        const snappedY = snapValueToGuides(proposedDraggedCornerY, guides.horizontal);
+        const draggedCornerX = handle.x > 0
+          ? clamp(snappedX.valuePx, fixedCornerX + 1, printAreaBounds.width)
+          : clamp(snappedX.valuePx, 0, fixedCornerX - 1);
+        const draggedCornerY = handle.y > 0
+          ? clamp(snappedY.valuePx, fixedCornerY + 1, printAreaBounds.height)
+          : clamp(snappedY.valuePx, 0, fixedCornerY - 1);
+
+        const requestedWidthPx = Math.abs(draggedCornerX - fixedCornerX);
+        const requestedHeightPx = Math.abs(draggedCornerY - fixedCornerY);
+        const widthMultiplier = requestedWidthPx / Math.max(1, startRenderedWidth);
+        const heightMultiplier = requestedHeightPx / Math.max(1, startRenderedHeight);
+        const requestedMultiplier = Math.abs(widthMultiplier - 1) >= Math.abs(heightMultiplier - 1)
           ? widthMultiplier
           : heightMultiplier;
+        const maxWidthPx = handle.x > 0 ? printAreaBounds.width - fixedCornerX : fixedCornerX;
+        const maxHeightPx = handle.y > 0 ? printAreaBounds.height - fixedCornerY : fixedCornerY;
+        const maxMultiplier = Math.max(0.05, Math.min(
+          maxWidthPx / Math.max(1, startRenderedWidth),
+          maxHeightPx / Math.max(1, startRenderedHeight),
+        ));
+        const uniformMultiplier = clamp(requestedMultiplier, 0.05, maxMultiplier);
+        const nextWidthPx = Math.max(1, startRenderedWidth * uniformMultiplier);
+        const nextHeightPx = Math.max(1, startRenderedHeight * uniformMultiplier);
+
+        let nextLeftPx;
+        let nextRightPx;
+        let nextTopPx;
+        let nextBottomPx;
+
+        if (handle.x > 0) {
+          nextLeftPx = fixedCornerX;
+          nextRightPx = fixedCornerX + nextWidthPx;
+        } else {
+          nextRightPx = fixedCornerX;
+          nextLeftPx = fixedCornerX - nextWidthPx;
+        }
+
+        if (handle.y > 0) {
+          nextTopPx = fixedCornerY;
+          nextBottomPx = fixedCornerY + nextHeightPx;
+        } else {
+          nextBottomPx = fixedCornerY;
+          nextTopPx = fixedCornerY - nextHeightPx;
+        }
+
+        const nextCenterX = (nextLeftPx + nextRightPx) / 2;
+        const nextCenterY = (nextTopPx + nextBottomPx) / 2;
+
+        setResizeSnapGuides(dedupeGuides([
+          ...(snappedX.guide == null ? [] : [{ orientation: "vertical", positionPercent: (snappedX.guide / printAreaBounds.width) * 100 }]),
+          ...(snappedY.guide == null ? [] : [{ orientation: "horizontal", positionPercent: (snappedY.guide / printAreaBounds.height) * 100 }]),
+        ]));
 
         onLayerResize(layer.id, {
           widthCm: startWidthCm * uniformMultiplier,
           heightCm: startHeightCm * uniformMultiplier,
+          position: {
+            x: (nextCenterX / printAreaBounds.width) * 100,
+            y: (nextCenterY / printAreaBounds.height) * 100,
+          },
         });
         return;
       }
@@ -343,6 +521,7 @@ export default function ConstructorPreviewPanel({
     const stopResizing = (endEvent) => {
       if (endEvent.pointerId !== pointerId) return;
       setResizingLayerId(null);
+      setResizeSnapGuides([]);
       node.releasePointerCapture?.(pointerId);
       window.removeEventListener("pointermove", handlePointerMove);
       window.removeEventListener("pointerup", stopResizing);
@@ -392,8 +571,11 @@ export default function ConstructorPreviewPanel({
   const handlePreviewBackgroundPointerDown = (event) => {
     const target = event.target;
     if (target instanceof Element && target.closest('[data-constructor-interactive="true"]')) return;
+    setResizeSnapGuides([]);
     onPreviewBackgroundPointerDown?.();
   };
+
+  const visibleSnapGuides = dedupeGuides([...(activeSnapGuides || []), ...resizeSnapGuides]);
 
   return (
     <div className="constructor-preview" style={{ minWidth: 0 }}>
@@ -408,6 +590,16 @@ export default function ConstructorPreviewPanel({
       <div style={{ position: "relative", minHeight: 640 }} onPointerDown={handlePreviewBackgroundPointerDown}>
         <img src={previewSrc} alt={`${productName} — ${color}`} draggable={false} style={{ width: "100%", display: "block", userSelect: "none", WebkitUserDrag: "none" }} />
         <div ref={printAreaRef} style={{ position: "absolute", left: `${printArea.left}%`, top: `${printArea.top}%`, width: `${printArea.width}%`, height: `${printArea.height}%`, transform: "translate(-50%, -50%)", display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
+          {visibleSnapGuides.map((guide, index) => (
+            <div
+              key={`snap-guide-${guide.orientation}-${index}-${guide.positionPercent.toFixed(3)}`}
+              aria-hidden="true"
+              style={guide.orientation === "vertical"
+                ? { position: "absolute", top: 0, bottom: 0, left: `${guide.positionPercent}%`, width: 1, transform: "translateX(-0.5px)", background: "linear-gradient(180deg, rgba(90,160,255,.08), rgba(90,160,255,.96), rgba(90,160,255,.08))", boxShadow: "0 0 0 1px rgba(90,160,255,.12), 0 0 12px rgba(90,160,255,.28)", pointerEvents: "none", zIndex: 50 }
+                : { position: "absolute", left: 0, right: 0, top: `${guide.positionPercent}%`, height: 1, transform: "translateY(-0.5px)", background: "linear-gradient(90deg, rgba(90,160,255,.08), rgba(90,160,255,.96), rgba(90,160,255,.08))", boxShadow: "0 0 0 1px rgba(90,160,255,.12), 0 0 12px rgba(90,160,255,.28)", pointerEvents: "none", zIndex: 50 }
+              }
+            />
+          ))}
           {layers.map((layer, index) => {
             if (!layer.visible) return null;
 
@@ -427,10 +619,12 @@ export default function ConstructorPreviewPanel({
                   role="presentation"
                   onPointerDown={(event) => onLayerPointerDown(layer.id, event)}
                   onDoubleClick={() => onLayerEditOpen(layer.id)}
+                  ref={(node) => { layerElementRefs.current[layer.id] = node; }}
                   style={{ position: "absolute", left: `${layer.position.x}%`, top: `${layer.position.y}%`, transform: "translate(-50%, -50%)", width: layerSize.width, height: layerSize.height, maxWidth: "100%", maxHeight: "100%", pointerEvents: "auto", cursor: layer.locked ? "default" : dragging ? "grabbing" : "grab", touchAction: "none", boxShadow: frameStyle, borderRadius: 14, zIndex: index + 1 }}
                 >
                   <img src={preset.src} alt={preset.label} draggable={false} style={{ width: "100%", height: "100%", maxWidth: "100%", maxHeight: "100%", objectFit: "fill", display: "block", filter: "drop-shadow(0 10px 20px rgba(0,0,0,.25))" }} />
                   {renderResizeHandles(layer)}
+                  {renderDeleteButton(layer)}
                 </div>
               );
             }
@@ -445,10 +639,12 @@ export default function ConstructorPreviewPanel({
                   role="presentation"
                   onPointerDown={(event) => onLayerPointerDown(layer.id, event)}
                   onDoubleClick={() => onLayerEditOpen(layer.id)}
+                  ref={(node) => { layerElementRefs.current[layer.id] = node; }}
                   style={{ position: "absolute", left: `${layer.position.x}%`, top: `${layer.position.y}%`, transform: "translate(-50%, -50%)", width: layerSize.width, height: layerSize.height, maxWidth: "100%", maxHeight: "100%", display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "auto", cursor: layer.locked ? "default" : dragging ? "grabbing" : "grab", touchAction: "none", boxShadow: frameStyle, borderRadius: 14, zIndex: index + 1 }}
                 >
                   <img src={layer.src} alt={layer.uploadName} draggable={false} style={{ width: "100%", height: "100%", maxWidth: "100%", maxHeight: "100%", objectFit: "fill", display: "block", filter: "drop-shadow(0 12px 24px rgba(0,0,0,.24))", userSelect: "none", WebkitUserDrag: "none" }} />
                   {renderResizeHandles(layer)}
+                  {renderDeleteButton(layer)}
                 </div>
               );
             }
@@ -500,6 +696,7 @@ export default function ConstructorPreviewPanel({
                   role="presentation"
                   onPointerDown={(event) => onLayerPointerDown(layer.id, event)}
                   onDoubleClick={() => onLayerEditOpen(layer.id)}
+                  ref={(node) => { layerElementRefs.current[layer.id] = node; }}
                   style={{ position: "absolute", left: `${layer.position.x}%`, top: `${layer.position.y}%`, transform: "translate(-50%, -50%)", width: layerSize.width, height: layerSize.height, maxWidth: "100%", maxHeight: "100%", pointerEvents: "auto", cursor: layer.locked ? "default" : dragging ? "grabbing" : "grab", touchAction: "none", boxShadow: frameStyle, borderRadius: 0, zIndex: index + 1 }}
                 >
                   <div style={{ position: "relative", width: "100%", height: "100%", maxWidth: "100%", maxHeight: "100%" }}>
@@ -515,6 +712,7 @@ export default function ConstructorPreviewPanel({
                     <img src={shapeSrc} alt={shape.label} draggable={false} style={{ position: "relative", width: "100%", height: "100%", maxWidth: "100%", maxHeight: "100%", objectFit: "fill", display: "block", userSelect: "none", WebkitUserDrag: "none" }} />
                   </div>
                   {renderResizeHandles(layer)}
+                  {renderDeleteButton(layer)}
                 </div>
               );
             }
@@ -522,10 +720,9 @@ export default function ConstructorPreviewPanel({
             const overlayText = layer.value;
             const editing = layer.id === editingTextLayerId;
             const hasVisibleText = overlayText.trim().length > 0;
-            const showEmptyTextPlaceholder = active && !hasVisibleText;
-            if (!hasVisibleText && !active && !editing) return null;
+            const showEmptyTextPlaceholder = !hasVisibleText;
 
-            const showTextBoxGuides = active;
+            const showTextBoxGuides = active || !hasVisibleText;
             const resizing = resizingLayerId === layer.id;
             const allowTextEditing = active && editing && !layer.locked;
             const textGuideShadow = showTextBoxGuides
@@ -543,7 +740,7 @@ export default function ConstructorPreviewPanel({
             const textTransform = layer.uppercase ? "uppercase" : "none";
             const fontWeight = layerFont.supportsBold ? layer.weight : (layerFont.regularWeight ?? 400);
             const fontStyle = layerFont.supportsItalic && layer.italic ? "italic" : "normal";
-            const textMinHeight = !hasVisibleText && (active || editing)
+            const textMinHeight = !hasVisibleText
               ? `${Math.max(layer.size * (layer.lineHeight ?? 1.05), layer.size)}px`
               : undefined;
             const activeTextFrame = active && hasVisibleText && activeTextFrameMetrics?.layerId === layer.id
@@ -555,9 +752,7 @@ export default function ConstructorPreviewPanel({
               <div
                 key={layer.id}
                 data-constructor-interactive="true"
-                ref={(node) => {
-                  textLayerRefs.current[layer.id] = node;
-                }}
+                ref={(node) => { layerElementRefs.current[layer.id] = node; textLayerRefs.current[layer.id] = node; }}
                 role="presentation"
                 onPointerDown={allowTextEditing ? undefined : (event) => onLayerPointerDown(layer.id, event)}
                 onDoubleClick={(event) => {
@@ -602,6 +797,7 @@ export default function ConstructorPreviewPanel({
                   </span>
                 ) : null}
                 {showTextBoxGuides ? renderResizeHandles(layer) : null}
+                {renderDeleteButton(layer)}
               </div>
             );
           })}

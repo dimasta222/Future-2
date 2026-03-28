@@ -158,7 +158,10 @@
 - src/components/constructor/ConstructorPreviewPanel.jsx
   - если нужно поменять отрисовку текстового слоя на превью
   - если нужно поменять прямое редактирование текста внутри слоя
-  - если нужно поменять text box модель текста, drag-handles, перенос внутри контейнера и canva-подобный resize текста
+  - если нужно поменять text box модель текста, drag-handles, перенос внутри контейнера, smart guides/snapping, preview delete-button и canva-подобный resize текста
+
+- src/components/constructor/ConstructorPage.jsx
+  - если нужно поменять удаление активного слоя по Backspace/Delete или состав preview props
 
 - src/components/constructor/constructorConfig.js
   - если нужно поменять список шрифтов, solid colors или gradient presets для текста

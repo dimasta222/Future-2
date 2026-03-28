@@ -35,6 +35,72 @@ const TEXT_ALIGN_LABELS = {
 
 const DEFAULT_TEXT_LINE_HEIGHT = 1.05;
 const DEFAULT_TEXT_WEIGHT = 700;
+const MIN_TEXT_FONT_SIZE = 12;
+const MAX_TEXT_FONT_SIZE = 400;
+const textMeasureCanvas = typeof document !== "undefined" ? document.createElement("canvas") : null;
+const textMeasureContext = textMeasureCanvas?.getContext("2d") || null;
+
+function measureCanvasTextWidth(text, letterSpacing = 0) {
+  if (!textMeasureContext) return 0;
+
+  const value = String(text || "");
+  if (!value.length) return 0;
+
+  return textMeasureContext.measureText(value).width + Math.max(0, value.length - 1) * letterSpacing;
+}
+
+function wrapTextToWidth(text, maxWidthPx, letterSpacing = 0) {
+  const manualLines = String(text || "").replace(/\r/g, "").split("\n");
+  const lines = [];
+  const safeMaxWidthPx = Math.max(1, maxWidthPx);
+
+  manualLines.forEach((manualLine) => {
+    if (!manualLine.length) {
+      lines.push("");
+      return;
+    }
+
+    let currentLine = "";
+
+    for (const character of manualLine) {
+      const candidate = `${currentLine}${character}`;
+      const candidateWidth = measureCanvasTextWidth(candidate, letterSpacing);
+
+      if (currentLine && candidateWidth > safeMaxWidthPx) {
+        lines.push(currentLine);
+        currentLine = character;
+        continue;
+      }
+
+      currentLine = candidate;
+    }
+
+    lines.push(currentLine);
+  });
+
+  return lines.length ? lines : [""];
+}
+
+function getTextBoxHeightPx({
+  text,
+  fontFamily,
+  fontSize,
+  fontWeight,
+  fontStyle,
+  lineHeight,
+  letterSpacing,
+  boxWidthPx,
+}) {
+  if (!textMeasureContext) return Math.max(1, fontSize * lineHeight);
+
+  textMeasureContext.font = `${fontStyle} ${fontWeight} ${fontSize}px ${fontFamily}`;
+  const lines = wrapTextToWidth(text, boxWidthPx, letterSpacing);
+  const sampleMetrics = textMeasureContext.measureText(String(text || "") || "Hg");
+  const glyphHeightPx = Math.max(1, (sampleMetrics.actualBoundingBoxAscent || fontSize * 0.72) + (sampleMetrics.actualBoundingBoxDescent || fontSize * 0.18));
+  const lineHeightPx = fontSize * lineHeight;
+
+  return Math.max(1, glyphHeightPx + Math.max(0, lines.length - 1) * lineHeightPx);
+}
 
 function isTextBold(layer) {
   const font = getConstructorTextFont(layer.fontKey || DEFAULT_TEXT_FONT.key);
@@ -436,16 +502,25 @@ export default function useConstructorState({
       const height = Math.min(areaHeight, areaHeight * (heightCm / areaHeightCm));
       return { areaWidth, areaHeight, width, height };
     }
-
     const resolvedText = String(resolvedLayer.value || "");
-    const manualLines = resolvedText.split(/\r?\n/);
     const widthPercent = Math.min(100, Math.max(20, resolvedLayer.textBoxWidth ?? 88));
     const width = Math.min(areaWidth, areaWidth * (widthPercent / 100));
-    const averageCharWidth = Math.max(1, resolvedLayer.size * 0.56 + (resolvedLayer.letterSpacing ?? 1));
-    const charsPerLine = Math.max(1, Math.floor(width / averageCharWidth));
-    const lineCount = manualLines.reduce((total, line) => total + Math.max(1, Math.ceil(line.length / charsPerLine)), 0);
-
-    const height = Math.min(areaHeight, lineCount * resolvedLayer.size * (resolvedLayer.lineHeight ?? DEFAULT_TEXT_LINE_HEIGHT));
+    const resolvedFont = getConstructorTextFont(resolvedLayer.fontKey || DEFAULT_TEXT_FONT.key);
+    const fontFamily = resolvedLayer.fontFamily || resolvedFont.family || DEFAULT_TEXT_FONT.family;
+    const fontWeight = resolvedFont.supportsBold
+      ? (resolvedLayer.weight ?? resolvedFont.regularWeight ?? DEFAULT_TEXT_WEIGHT)
+      : (resolvedFont.regularWeight ?? 400);
+    const fontStyle = resolvedFont.supportsItalic && resolvedLayer.italic ? "italic" : "normal";
+    const height = Math.min(areaHeight, getTextBoxHeightPx({
+      text: resolvedLayer.uppercase ? resolvedText.toUpperCase() : resolvedText,
+      fontFamily,
+      fontSize: resolvedLayer.size ?? 36,
+      fontWeight,
+      fontStyle,
+      lineHeight: resolvedLayer.lineHeight ?? DEFAULT_TEXT_LINE_HEIGHT,
+      letterSpacing: resolvedLayer.letterSpacing ?? 1,
+      boxWidthPx: width,
+    }));
     return { areaWidth, areaHeight, width, height };
   };
 
@@ -760,6 +835,24 @@ export default function useConstructorState({
     updateLayer(layerId, (layer) => ({ ...layer, locked: !layer.locked }));
   };
 
+  const normalizeTextLayerState = (candidateLayer, previousLayer = candidateLayer) => {
+    const nextLayer = { ...candidateLayer };
+    nextLayer.scaleX = Number(Math.min(6, Math.max(0.2, nextLayer.scaleX ?? previousLayer.scaleX ?? 1)).toFixed(3));
+    nextLayer.scaleY = Number(Math.min(6, Math.max(0.2, nextLayer.scaleY ?? previousLayer.scaleY ?? 1)).toFixed(3));
+    nextLayer.size = Math.min(MAX_TEXT_FONT_SIZE, Math.max(MIN_TEXT_FONT_SIZE, Number(nextLayer.size ?? previousLayer.size ?? 36)));
+    nextLayer.textBoxWidth = Math.min(100, Math.max(20, Number(nextLayer.textBoxWidth ?? previousLayer.textBoxWidth ?? 88)));
+    nextLayer.lineHeight = Math.min(1.8, Math.max(0.85, Number(nextLayer.lineHeight ?? previousLayer.lineHeight ?? DEFAULT_TEXT_LINE_HEIGHT)));
+    nextLayer.letterSpacing = Number(Math.min(24, Math.max(-8, Number(nextLayer.letterSpacing ?? previousLayer.letterSpacing ?? 1))).toFixed(2));
+    nextLayer.strokeWidth = Number(Math.min(6, Math.max(0, Number(nextLayer.strokeWidth ?? previousLayer.strokeWidth ?? 0))).toFixed(2));
+    nextLayer.shadowOffsetX = Number(Math.min(24, Math.max(-24, Number(nextLayer.shadowOffsetX ?? previousLayer.shadowOffsetX ?? 0))).toFixed(2));
+    nextLayer.shadowOffsetY = Number(Math.min(24, Math.max(-24, Number(nextLayer.shadowOffsetY ?? previousLayer.shadowOffsetY ?? 2))).toFixed(2));
+    nextLayer.shadowBlur = Number(Math.min(32, Math.max(0, Number(nextLayer.shadowBlur ?? previousLayer.shadowBlur ?? 14))).toFixed(2));
+    nextLayer.scaleX = 1;
+    nextLayer.scaleY = 1;
+    nextLayer.position = clampLayerPosition(nextLayer.position ?? previousLayer.position, nextLayer, getLayerMetrics(nextLayer));
+    return nextLayer;
+  };
+
   const applyLayerResize = (layerId, patch) => {
     if (!layerId || !patch) return;
 
@@ -773,18 +866,7 @@ export default function useConstructorState({
       }
 
       if (nextLayer.type === "text") {
-        nextLayer.scaleX = Number(Math.min(6, Math.max(0.2, nextLayer.scaleX ?? layer.scaleX ?? 1)).toFixed(3));
-        nextLayer.scaleY = Number(Math.min(6, Math.max(0.2, nextLayer.scaleY ?? layer.scaleY ?? 1)).toFixed(3));
-        nextLayer.size = Math.min(220, Math.max(12, Number(nextLayer.size ?? layer.size ?? 36)));
-        nextLayer.textBoxWidth = Math.min(100, Math.max(20, Number(nextLayer.textBoxWidth ?? layer.textBoxWidth ?? 88)));
-        nextLayer.lineHeight = Math.min(1.8, Math.max(0.85, Number(nextLayer.lineHeight ?? layer.lineHeight ?? DEFAULT_TEXT_LINE_HEIGHT)));
-        nextLayer.letterSpacing = Number(Math.min(24, Math.max(-8, Number(nextLayer.letterSpacing ?? layer.letterSpacing ?? 1))).toFixed(2));
-        nextLayer.strokeWidth = Number(Math.min(6, Math.max(0, Number(nextLayer.strokeWidth ?? layer.strokeWidth ?? 0))).toFixed(2));
-        nextLayer.shadowOffsetX = Number(Math.min(24, Math.max(-24, Number(nextLayer.shadowOffsetX ?? layer.shadowOffsetX ?? 0))).toFixed(2));
-        nextLayer.shadowOffsetY = Number(Math.min(24, Math.max(-24, Number(nextLayer.shadowOffsetY ?? layer.shadowOffsetY ?? 2))).toFixed(2));
-        nextLayer.shadowBlur = Number(Math.min(32, Math.max(0, Number(nextLayer.shadowBlur ?? layer.shadowBlur ?? 14))).toFixed(2));
-        nextLayer.scaleX = 1;
-        nextLayer.scaleY = 1;
+        return normalizeTextLayerState(nextLayer, layer);
       }
 
       nextLayer.position = clampLayerPosition(nextLayer.position ?? layer.position, nextLayer, getLayerMetrics(nextLayer));
@@ -795,11 +877,11 @@ export default function useConstructorState({
   const updateActiveTextLayer = (patch) => {
     if (!activeTextLayer) return;
     updateLayer(activeTextLayer.id, (layer) => {
-      if (typeof patch === "function") {
-        return patch(layer);
-      }
+      const nextLayer = typeof patch === "function"
+        ? patch(layer)
+        : { ...layer, ...patch };
 
-      return { ...layer, ...patch };
+      return normalizeTextLayerState(nextLayer, layer);
     });
   };
 
@@ -825,7 +907,7 @@ export default function useConstructorState({
     const normalizedValue = String(nextValue).replace(/\r/g, "");
     updateLayer(activeTextLayer.id, { value: normalizedValue });
   };
-  const setTextSize = (nextSize) => updateActiveTextLayer({ size: nextSize });
+  const setTextSize = (nextSize) => updateActiveTextLayer({ size: Math.min(MAX_TEXT_FONT_SIZE, Math.max(MIN_TEXT_FONT_SIZE, Number(nextSize))) });
   const setTextColor = (nextColor) => updateActiveTextLayer({ textFillMode: "solid", color: nextColor });
   const setTextGradientKey = (nextGradientKey) => {
     const nextGradient = getConstructorTextGradient(nextGradientKey);
@@ -858,7 +940,7 @@ export default function useConstructorState({
       italic: nextFont.supportsItalic ? layer.italic : false,
     }));
   };
-  const setTextBoxWidth = (nextTextBoxWidth) => updateActiveTextLayer({ textBoxWidth: Math.min(100, Math.max(20, Math.round(nextTextBoxWidth))) });
+  const setTextBoxWidth = (nextTextBoxWidth) => updateActiveTextLayer({ textBoxWidth: Math.min(100, Math.max(20, Number(nextTextBoxWidth))) });
   const setTextLineHeight = (nextLineHeight) => updateActiveTextLayer({ lineHeight: Math.min(1.8, Math.max(0.85, Number(nextLineHeight.toFixed(2)))) });
   const setTextLetterSpacing = (nextLetterSpacing) => updateActiveTextLayer({ letterSpacing: nextLetterSpacing });
   const setTextAlign = (nextTextAlign) => updateActiveTextLayer({ textAlign: nextTextAlign });
@@ -942,6 +1024,8 @@ export default function useConstructorState({
     setTextValue,
     textSize: activeTextLayer?.size || 36,
     setTextSize,
+    minTextFontSize: MIN_TEXT_FONT_SIZE,
+    maxTextFontSize: MAX_TEXT_FONT_SIZE,
     textFillMode: activeTextLayer?.textFillMode || "solid",
     textColor: activeTextLayer?.color || getDefaultTextColor(),
     setTextColor,

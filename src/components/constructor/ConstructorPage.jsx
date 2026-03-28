@@ -11,6 +11,8 @@ import { normalizeColorName } from "../../shared/textileHelpers.js";
 import { resolveColorSwatch } from "../../shared/textileHelpers.js";
 import { buildTshirtMockupSvg, svgToDataUri } from "../../shared/textilePreviewHelpers.js";
 
+const TEXT_FONT_SIZE_STEP = 1;
+
 function ToolChip({ active = false, onClick, children, disabled = false, minWidth, fullWidth = false }) {
   return (
     <button
@@ -215,6 +217,8 @@ function TextQuickToolbar({
   textGradientCss,
   textSize,
   onTextSizeChange,
+  minTextFontSize,
+  maxTextFontSize,
   textWeight,
   onTextWeightChange,
   textFontSupportsBold,
@@ -233,11 +237,30 @@ function TextQuickToolbar({
   onTextAlignChange,
   disabled = false,
 }) {
+  const [textSizeInput, setTextSizeInput] = useState(String(Math.round(textSize)));
   const boldActive = textFontSupportsBold && textWeight >= textBoldWeight;
+
+  useEffect(() => {
+    setTextSizeInput(String(Math.round(textSize)));
+  }, [textSize]);
 
   const changeTextSize = (delta) => {
     if (disabled) return;
-    onTextSizeChange(Math.min(96, Math.max(18, textSize + delta)));
+    onTextSizeChange(textSize + delta);
+  };
+
+  const commitTextSizeInput = (rawValue) => {
+    if (disabled) return;
+
+    const parsedValue = Number(rawValue);
+    if (!Number.isFinite(parsedValue)) {
+      setTextSizeInput(String(Math.round(textSize)));
+      return;
+    }
+
+    const clampedValue = Math.min(maxTextFontSize, Math.max(minTextFontSize, parsedValue));
+    setTextSizeInput(String(Math.round(clampedValue)));
+    onTextSizeChange(clampedValue);
   };
 
   const toggleBold = () => {
@@ -282,9 +305,32 @@ function TextQuickToolbar({
       </div>
 
       <div style={{ flex: "0 0 auto", display: "inline-flex", alignItems: "center", gap: 2, padding: "4px 4px", minHeight: 34, borderRadius: 12, border: "1px solid rgba(255,255,255,.08)", background: disabled ? "rgba(255,255,255,.02)" : "linear-gradient(180deg,rgba(255,255,255,.045),rgba(255,255,255,.025))", boxShadow: "inset 0 1px 0 rgba(255,255,255,.03)" }}>
-        <button type="button" onClick={() => changeTextSize(-2)} disabled={disabled} style={{ width: 22, height: 22, border: "none", borderRadius: 7, background: "rgba(255,255,255,.04)", color: disabled ? "rgba(240,238,245,.3)" : "#f0eef5", cursor: disabled ? "not-allowed" : "pointer", font: "inherit", fontSize: 15, lineHeight: 1 }}>-</button>
-        <span style={{ minWidth: 24, textAlign: "center", fontSize: 12, fontWeight: 700, color: disabled ? "rgba(240,238,245,.3)" : "#f0eef5" }}>{textSize}</span>
-        <button type="button" onClick={() => changeTextSize(2)} disabled={disabled} style={{ width: 22, height: 22, border: "none", borderRadius: 7, background: "rgba(255,255,255,.04)", color: disabled ? "rgba(240,238,245,.3)" : "#f0eef5", cursor: disabled ? "not-allowed" : "pointer", font: "inherit", fontSize: 15, lineHeight: 1 }}>+</button>
+        <button type="button" onClick={() => changeTextSize(-TEXT_FONT_SIZE_STEP)} disabled={disabled} style={{ width: 22, height: 22, border: "none", borderRadius: 7, background: "rgba(255,255,255,.04)", color: disabled ? "rgba(240,238,245,.3)" : "#f0eef5", cursor: disabled ? "not-allowed" : "pointer", font: "inherit", fontSize: 15, lineHeight: 1 }}>-</button>
+        <input
+          type="number"
+          min={minTextFontSize}
+          max={maxTextFontSize}
+          step={TEXT_FONT_SIZE_STEP}
+          value={textSizeInput}
+          disabled={disabled}
+          onChange={(event) => {
+            const nextValue = event.target.value;
+            setTextSizeInput(nextValue);
+            if (nextValue === "") return;
+            const parsedValue = Number(nextValue);
+            if (Number.isFinite(parsedValue)) {
+              onTextSizeChange(parsedValue);
+            }
+          }}
+          onBlur={(event) => commitTextSizeInput(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.currentTarget.blur();
+            }
+          }}
+          style={{ width: 54, minWidth: 54, height: 24, padding: "0 6px", borderRadius: 8, border: "1px solid rgba(255,255,255,.08)", background: "rgba(255,255,255,.04)", color: disabled ? "rgba(240,238,245,.3)" : "#f0eef5", font: "inherit", fontSize: 12, fontWeight: 700, textAlign: "center", outline: "none" }}
+        />
+        <button type="button" onClick={() => changeTextSize(TEXT_FONT_SIZE_STEP)} disabled={disabled} style={{ width: 22, height: 22, border: "none", borderRadius: 7, background: "rgba(255,255,255,.04)", color: disabled ? "rgba(240,238,245,.3)" : "#f0eef5", cursor: disabled ? "not-allowed" : "pointer", font: "inherit", fontSize: 15, lineHeight: 1 }}>+</button>
         <span style={{ width: 1, alignSelf: "stretch", background: "rgba(255,255,255,.08)", margin: "0 1px" }} />
           {[
             ["left", <AlignLeftIcon key="left-icon" />, "Слева"],
@@ -499,6 +545,8 @@ export default function ConstructorPage({ onBack, products, presetPrints }) {
     setTextValue,
     textSize,
     setTextSize,
+    minTextFontSize,
+    maxTextFontSize,
     textFillMode,
     textColor,
     setTextColor,
@@ -676,6 +724,8 @@ export default function ConstructorPage({ onBack, products, presetPrints }) {
       textGradientCss={activeTextGradient.css}
       textSize={textSize}
       onTextSizeChange={setTextSize}
+      minTextFontSize={minTextFontSize}
+      maxTextFontSize={maxTextFontSize}
       textWeight={textWeight}
       onTextWeightChange={setTextWeight}
       textFontSupportsBold={textFontSupportsBold}

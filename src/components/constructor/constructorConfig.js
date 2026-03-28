@@ -1,3 +1,10 @@
+const PUBLIC_BASE_URL = import.meta.env.BASE_URL || "/";
+
+function resolvePublicAssetPath(path) {
+  const normalizedPath = String(path || "").replace(/^\/+/, "");
+  return `${PUBLIC_BASE_URL}${normalizedPath}`;
+}
+
 export const CONSTRUCTOR_PRINT_AREAS = {
   classic: {
     front: { left: 50, top: 48, width: 28, height: 31, physicalWidthCm: 40, physicalHeightCm: 50 },
@@ -11,8 +18,8 @@ export const CONSTRUCTOR_PRINT_AREAS = {
       height: 68.2,
       physicalWidthCm: 40,
       physicalHeightCm: 50,
-      mockupSrc: "/mockups/oversize-black-front.png",
-      guideSrc: "/mockups/oversize-black-front-guide.png",
+      mockupSrc: resolvePublicAssetPath("mockups/oversize-black-front.png"),
+      guideSrc: resolvePublicAssetPath("mockups/oversize-black-front-guide.png"),
       mockupSizes: ["XS", "S"],
     },
     back: {
@@ -22,8 +29,8 @@ export const CONSTRUCTOR_PRINT_AREAS = {
       height: 69.0,
       physicalWidthCm: 40,
       physicalHeightCm: 50,
-      mockupSrc: "/mockups/oversize-black-back.png",
-      guideSrc: "/mockups/oversize-black-back-guide.png",
+      mockupSrc: resolvePublicAssetPath("mockups/oversize-black-back.png"),
+      guideSrc: resolvePublicAssetPath("mockups/oversize-black-back-guide.png"),
       mockupSizes: ["XS", "S"],
     },
   },

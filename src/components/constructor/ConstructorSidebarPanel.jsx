@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { CONSTRUCTOR_TEXT_FONTS, CONSTRUCTOR_TEXT_GRADIENTS, CONSTRUCTOR_TEXT_SOLID_COLORS, getConstructorTextGradient } from "./constructorConfig.js";
+import { buildConstructorShapeSvg, CONSTRUCTOR_SHAPE_BASIC_COLORS, CONSTRUCTOR_SHAPE_CATEGORIES, CONSTRUCTOR_SHAPES, CONSTRUCTOR_TEXT_FONTS, CONSTRUCTOR_TEXT_GRADIENTS, CONSTRUCTOR_TEXT_SOLID_COLORS, getConstructorShape, getConstructorTextGradient } from "./constructorConfig.js";
+import { svgToDataUri } from "../../shared/textilePreviewHelpers.js";
 
 const FONT_GROUP_LABELS = {
   sans: "Базовые",
@@ -73,7 +74,7 @@ function SidebarTitle({ children }) {
 function SidebarFieldRow({ label, children, minHeight = 56 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "10px 12px", background: "rgba(255,255,255,.02)", borderRadius: 14, minHeight, minWidth: 0 }}>
-      <span style={{ fontSize: 12, fontWeight: 500, color: "rgba(240,238,245,.36)", textTransform: "uppercase", letterSpacing: 1.1, lineHeight: 1.25, overflowWrap: "anywhere" }}>{label}</span>
+      <span style={{ fontSize: 12, fontWeight: 500, color: "rgba(240,238,245,.36)", textTransform: "uppercase", letterSpacing: 1.1, lineHeight: 1.25, overflowWrap: "break-word", wordBreak: "normal" }}>{label}</span>
       <div style={{ minWidth: 0 }}>{children}</div>
     </div>
   );
@@ -116,6 +117,17 @@ function getTextLayerDisplayLabel(layer, maxLength = 28) {
   return `${normalizedValue.slice(0, maxLength).trimEnd()}...`;
 }
 
+function moveArrayItem(items, fromIndex, toIndex) {
+  if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0 || fromIndex >= items.length || toIndex >= items.length) {
+    return items;
+  }
+
+  const nextItems = [...items];
+  const [movedItem] = nextItems.splice(fromIndex, 1);
+  nextItems.splice(toIndex, 0, movedItem);
+  return nextItems;
+}
+
 function VisibilityIcon({ visible }) {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -136,6 +148,97 @@ function DeleteIcon() {
       <path d="M14 11v6" />
     </svg>
   );
+}
+
+function DragHandleIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M9 5h.01" />
+      <path d="M9 12h.01" />
+      <path d="M9 19h.01" />
+      <path d="M15 5h.01" />
+      <path d="M15 12h.01" />
+      <path d="M15 19h.01" />
+    </svg>
+  );
+}
+
+function LayerIconButton({ onClick, ariaLabel, title, children, variant = "default" }) {
+  const destructive = variant === "destructive";
+
+  return (
+    <button
+      type="button"
+      onClick={(event) => {
+        event.stopPropagation();
+        onClick();
+      }}
+      aria-label={ariaLabel}
+      title={title}
+      style={{
+        width: 40,
+        height: 40,
+        padding: 0,
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        borderRadius: 12,
+        border: destructive ? "1px solid rgba(232,67,147,.22)" : "1px solid rgba(255,255,255,.08)",
+        background: destructive ? "rgba(232,67,147,.08)" : "rgba(255,255,255,.03)",
+        color: destructive ? "rgba(255,194,222,.86)" : "rgba(240,238,245,.7)",
+        cursor: "pointer",
+        fontFamily: "inherit",
+        flex: "0 0 auto",
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function LayerPreview({ layer, presetPrints }) {
+  if (layer.type === "upload") {
+    return <img src={layer.src} alt={layer.uploadName || layer.name} draggable={false} style={{ maxWidth: 58, maxHeight: 72, objectFit: "contain", display: "block", filter: layer.visible ? "none" : "grayscale(1) opacity(.6)" }} />;
+  }
+
+  if (layer.type === "preset") {
+    const preset = presetPrints.find((item) => item.key === layer.presetKey) || null;
+    return preset ? <img src={preset.src} alt={preset.label} draggable={false} style={{ maxWidth: 112, maxHeight: 72, objectFit: "contain", display: "block", filter: layer.visible ? "none" : "grayscale(1) opacity(.6)" }} /> : null;
+  }
+
+  if (layer.type === "shape") {
+    const shape = getConstructorShape(layer.shapeKey);
+
+    return (
+      <div style={{ width: "min(156px, 100%)", maxWidth: "100%", height: 64, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <ShapeOptionPreview
+          shape={shape}
+          fillMode={layer.fillMode || "solid"}
+          color={layer.color || "#ffffff"}
+          gradientKey={layer.gradientKey || "future-pulse"}
+          strokeStyle={layer.strokeStyle || "none"}
+          strokeColor={layer.strokeColor || "transparent"}
+          strokeWidth={layer.strokeWidth || 0}
+          plain
+        />
+      </div>
+    );
+  }
+
+  const previewText = getTextLayerDisplayLabel(layer, 56);
+  return (
+    <div style={{ width: "100%", padding: "6px 12px", boxSizing: "border-box", display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", fontFamily: layer.fontFamily || "inherit", fontWeight: layer.weight || 700, fontStyle: layer.italic ? "italic" : "normal", fontSize: Math.max(14, Math.min(18, (layer.size || 36) * 0.4)), lineHeight: Math.min(1.25, layer.lineHeight || 1.05), letterSpacing: `${Math.max(-0.5, Math.min(4, (layer.letterSpacing || 0) * 0.35))}px`, color: layer.visible ? (layer.color || "#ffffff") : "rgba(240,238,245,.5)", textTransform: layer.uppercase ? "uppercase" : "none", whiteSpace: "pre-wrap", overflow: "hidden", overflowWrap: "anywhere", textDecorationLine: `${layer.underline ? "underline " : ""}${layer.strikethrough ? "line-through" : ""}`.trim() || "none", WebkitTextStroke: (layer.strokeWidth || 0) > 0 ? `${Math.min(1.2, layer.strokeWidth * 0.35)}px ${layer.strokeColor || "#111111"}` : "0 transparent", textShadow: layer.shadowEnabled ? `${(layer.shadowOffsetX || 0) * 0.35}px ${(layer.shadowOffsetY || 2) * 0.35}px ${Math.max(1, (layer.shadowBlur || 14) * 0.2)}px ${layer.shadowColor || "#111111"}` : "none" }}>
+      {previewText === layer.name ? "T" : previewText}
+    </div>
+  );
+}
+
+function getLayerCardTitle(layer, presetPrints) {
+  if (layer.type === "upload") return layer.uploadName || layer.name;
+  if (layer.type === "text") return getTextLayerDisplayLabel(layer, 44);
+  if (layer.type === "preset") return presetPrints.find((item) => item.key === layer.presetKey)?.label || layer.name;
+  if (layer.type === "shape") return getConstructorShape(layer.shapeKey)?.label || layer.name;
+  return layer.name;
 }
 
 function EmptyLayerState({ title, description, actionLabel, onAction }) {
@@ -194,16 +297,150 @@ function FontOptionButton({ font, active, onClick, onFocus, onMouseEnter, highli
         minWidth: 0,
       }}
     >
-      <span style={{ display: "block", fontSize: 15, lineHeight: 1.3, fontFamily: font.family, color: "#f0eef5", whiteSpace: "normal", overflowWrap: "anywhere" }}>
+      <span style={{ display: "block", fontSize: 15, lineHeight: 1.3, fontFamily: font.family, color: "#f0eef5", whiteSpace: "normal", overflowWrap: "break-word", wordBreak: "normal" }}>
         {highlightFontLabel(font.label, highlightQuery)}
       </span>
     </button>
   );
 }
 
+function ShapeOptionPreview({ shape, fillMode = "solid", color = "#ffffff", gradientKey = "future-pulse", strokeStyle = "none", strokeColor = "transparent", strokeWidth = 0, plain = false }) {
+  const gradient = getConstructorTextGradient(gradientKey);
+  const shapeSrc = svgToDataUri(buildConstructorShapeSvg({
+    shape,
+    fillMode,
+    color,
+    gradient,
+    strokeStyle,
+    strokeColor,
+    strokeWidth,
+  }));
+
+  return <img src={shapeSrc} alt={shape.label} draggable={false} style={{ width: plain ? "auto" : "100%", height: plain ? "100%" : "auto", maxWidth: "100%", aspectRatio: plain ? "auto" : "1 / 1", borderRadius: plain ? 0 : 14, objectFit: "contain", display: "block", margin: "0 auto", background: plain ? "transparent" : "radial-gradient(circle at top, rgba(255,255,255,.08), rgba(255,255,255,.02))" }} />;
+}
+
+function CirclePalette({ colors, value, onChange }) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 10 }}>
+      {colors.map(([hex, label]) => {
+        const active = value === hex;
+
+        return (
+          <button
+            key={hex}
+            type="button"
+            onClick={() => onChange(hex)}
+            aria-label={label}
+            title={label}
+            style={{ width: "100%", aspectRatio: "1 / 1", borderRadius: 999, border: active ? "2px solid rgba(130,78,240,.96)" : "2px solid rgba(0,0,0,.06)", background: hex, boxShadow: active ? "0 0 0 3px rgba(130,78,240,.18)" : "none", cursor: "pointer" }}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+function ShapeEffectCard({ title, active = false, previewType, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{ width: "100%", padding: 10, borderRadius: 18, border: active ? "2px solid rgba(130,78,240,.96)" : "1px solid rgba(255,255,255,.08)", background: active ? "rgba(130,78,240,.08)" : "rgba(255,255,255,.03)", cursor: "pointer", fontFamily: "inherit", textAlign: "left", color: "inherit" }}
+    >
+      <div style={{ position: "relative", height: 98, borderRadius: 14, background: "rgba(255,255,255,.02)", overflow: "hidden", marginBottom: 10 }}>
+        {previewType === "drop-shadow" ? (
+          <>
+            <span style={{ position: "absolute", left: "50%", top: "50%", width: 54, height: 54, borderRadius: 16, background: "#824ef0", transform: "translate(-50%, -50%)" }} />
+            <span style={{ position: "absolute", left: "calc(50% + 12px)", top: "calc(50% + 10px)", width: 54, height: 54, borderRadius: 16, background: "#824ef0", opacity: .26, transform: "translate(-50%, -50%)" }} />
+          </>
+        ) : previewType === "distort" ? (
+          <>
+            <span style={{ position: "absolute", left: "calc(50% - 14px)", top: "calc(50% + 8px)", width: 54, height: 54, borderRadius: 16, background: "#ed5bb7", transform: "translate(-50%, -50%)" }} />
+            <span style={{ position: "absolute", left: "calc(50% + 14px)", top: "calc(50% - 8px)", width: 54, height: 54, borderRadius: 16, background: "#1cb8d8", opacity: .88, transform: "translate(-50%, -50%)" }} />
+            <span style={{ position: "absolute", left: "50%", top: "50%", width: 54, height: 54, borderRadius: 16, background: "#824ef0", transform: "translate(-50%, -50%)" }} />
+          </>
+        ) : (
+          <span style={{ position: "absolute", left: "50%", top: "50%", width: 54, height: 54, borderRadius: 16, background: "#824ef0", transform: "translate(-50%, -50%)" }} />
+        )}
+      </div>
+      <div style={{ fontSize: 14, fontWeight: 500, color: "#f0eef5" }}>{title}</div>
+    </button>
+  );
+}
+
+function ClosableShapePanelHeader({ title, onClose }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+      <SidebarTitle>{title}</SidebarTitle>
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="Закрыть панель и вернуться к набору фигур"
+        title="Закрыть"
+        style={{ width: 34, height: 34, borderRadius: 10, border: "1px solid rgba(255,255,255,.08)", background: "rgba(255,255,255,.03)", color: "#f0eef5", display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontFamily: "inherit" }}
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+          <path d="M6 6 18 18" />
+          <path d="M18 6 6 18" />
+        </svg>
+      </button>
+    </div>
+  );
+}
+
+function ShapeSelectTile({ shape, active = false, onClick, compact = false }) {
+  const plain = !compact;
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        width: compact ? 72 : "100%",
+        minWidth: compact ? 72 : 0,
+        padding: compact ? 4 : 0,
+        borderRadius: compact ? 14 : 0,
+        border: "none",
+        background: "transparent",
+        cursor: "pointer",
+        fontFamily: "inherit",
+        textAlign: "left",
+        flexShrink: 0,
+        boxShadow: !compact && active ? "0 0 0 1px rgba(232,67,147,.42)" : "none",
+      }}
+    >
+      <ShapeOptionPreview shape={shape} fillMode="solid" color="#ffffff" gradientKey="future-pulse" strokeStyle="none" strokeColor="transparent" strokeWidth={0} plain={plain} />
+    </button>
+  );
+}
+
+function ShapeCategoryStrip({ category, shapes, activeShapeKey, onShapePick, onShowAll }) {
+  return (
+    <div style={{ display: "grid", gap: 6, padding: 10, borderRadius: 14, border: "1px solid rgba(255,255,255,.08)", background: "rgba(255,255,255,.02)" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+        <div style={{ fontSize: 15, fontWeight: 600, color: "#f0eef5" }}>{category.label}</div>
+        <button type="button" onClick={onShowAll} style={{ border: "none", background: "none", color: "rgba(240,238,245,.82)", cursor: "pointer", fontFamily: "inherit", fontSize: 13, fontWeight: 600, padding: 0 }}>
+          Показать все
+        </button>
+      </div>
+
+      <div style={{ display: "flex", gap: 5, overflowX: "auto", paddingBottom: 2, scrollbarWidth: "thin" }}>
+        {shapes.map((shape) => <ShapeSelectTile key={shape.key} shape={shape} active={activeShapeKey === shape.key} onClick={() => onShapePick(shape.key)} compact />)}
+        <button type="button" onClick={onShowAll} aria-label={`Открыть категорию ${category.label}`} style={{ width: 40, minWidth: 40, borderRadius: 12, border: "1px solid rgba(255,255,255,.08)", background: "rgba(255,255,255,.03)", color: "#f0eef5", display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="m9 6 6 6-6 6" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function ConstructorSidebarPanel({
   activeTab,
   onTabChange,
+  side,
+  printArea,
   products,
   product,
   productKey,
@@ -220,11 +457,21 @@ export default function ConstructorSidebarPanel({
   activeLayerId,
   activeUploadLayer,
   activeTextLayer,
+  activeTextMetricsCm,
   activeTextToolPanel,
   activePresetLayer,
+  activeShapeLayer,
+  activeShapeToolPanel,
+  shapeCatalogMode = "add",
+  onShapeCatalogModeChange,
+  onShapeToolPanelChange,
   onLayerSelect,
+  onLayerActivate,
+  onLayerEditOpen,
+  onLayerReorder,
   onAddTextLayer,
   onAddPresetLayer,
+  onAddShapeLayer,
   onDuplicateActiveLayer,
   onRemoveLayer,
   onRemoveActiveLayer,
@@ -233,7 +480,8 @@ export default function ConstructorSidebarPanel({
   onToggleLayerLock,
   handleUploadChange,
   handleUploadRemove,
-  uploadScale,
+  uploadWidthCm,
+  uploadHeightCm,
   handleUploadScaleChange,
   centerActiveLayerPosition,
   textFillMode,
@@ -253,8 +501,6 @@ export default function ConstructorSidebarPanel({
   onTextStrokeColorChange,
   textShadowEnabled,
   onTextShadowEnabledChange,
-  textShadowMode,
-  onTextShadowModeChange,
   textShadowColor,
   onTextShadowColorChange,
   textShadowOffsetX,
@@ -266,16 +512,48 @@ export default function ConstructorSidebarPanel({
   presetPrints,
   presetKey,
   onPresetKeyChange,
-  presetScale,
-  onPresetScaleChange,
+  presetWidthCm,
+  presetHeightCm,
+  onPresetWidthCmChange,
+  shapeKey,
+  onShapeKeyChange,
+  shapeFillMode,
+  shapeColor,
+  onShapeColorChange,
+  shapeGradientKey,
+  onShapeGradientKeyChange,
+  shapeStrokeStyle,
+  shapeStrokeColor,
+  onShapeStrokeColorChange,
+  shapeEffectType,
+  onShapeEffectTypeChange,
+  shapeEffectAngle,
+  onShapeEffectAngleChange,
+  shapeEffectDistance,
+  onShapeEffectDistanceChange,
+  shapeEffectColor,
+  onShapeEffectColorChange,
+  shapeDistortionColorA,
+  onShapeDistortionColorAChange,
+  shapeDistortionColorB,
+  onShapeDistortionColorBChange,
+  shapeWidthCm,
+  shapeHeightCm,
+  onShapeWidthCmChange,
 }) {
   const fontListId = useId();
   const fontOptionRefs = useRef({});
   const [fontSearch, setFontSearch] = useState("");
   const [keyboardFontKey, setKeyboardFontKey] = useState(null);
+  const [expandedShapeCategoryKey, setExpandedShapeCategoryKey] = useState(null);
+  const [activeShapeEffectColorTarget, setActiveShapeEffectColorTarget] = useState("shadow");
+  const [draggedLayerId, setDraggedLayerId] = useState(null);
   const currentTextToolPanel = activeTextToolPanel || "font";
+  const currentShapeToolPanel = activeShapeToolPanel || "edit";
+  const physicalPrintAreaLabel = `${printArea?.physicalWidthCm || 40} × ${printArea?.physicalHeightCm || 50} см`;
   const fontSearchVariants = buildFontSearchVariants(fontSearch);
   const orderedTextLayers = [...layers].filter((layer) => layer.type === "text").reverse();
+  const orderedLayers = [...layers].reverse();
   const filteredTextFonts = CONSTRUCTOR_TEXT_FONTS.map((font) => {
     if (!fontSearchVariants.length) {
       return { ...font, labelMatchQuery: "" };
@@ -318,6 +596,18 @@ export default function ConstructorSidebarPanel({
     fontOptionRefs.current[currentKeyboardFontKey]?.scrollIntoView({ block: "nearest" });
   }, [currentKeyboardFontKey]);
 
+  const reorderDisplayedLayers = (movedLayerId, targetLayerId) => {
+    if (!movedLayerId || !targetLayerId || movedLayerId === targetLayerId) return;
+
+    const currentIds = orderedLayers.map((layer) => layer.id);
+    const fromIndex = currentIds.indexOf(movedLayerId);
+    const toIndex = currentIds.indexOf(targetLayerId);
+    if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) return;
+
+    const nextDisplayedIds = moveArrayItem(currentIds, fromIndex, toIndex);
+    onLayerReorder(nextDisplayedIds.reverse());
+  };
+
   const handleFontSelect = (fontKey) => {
     onTextFontKeyChange(fontKey);
     setFontSearch("");
@@ -358,6 +648,69 @@ export default function ConstructorSidebarPanel({
     return /^#[0-9a-fA-F]{6}$/.test(withHash) ? withHash.toLowerCase() : null;
   };
 
+  const renderFreeColorControl = ({ fieldKey, value, onChange, helperText }) => (
+    <div style={{ display: "grid", gap: 10 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "auto minmax(0,1fr)", gap: 12, alignItems: "center" }}>
+        <label style={{ width: 42, height: 42, borderRadius: 999, border: "1px solid rgba(255,255,255,.1)", background: normalizeHexColor(value) || "#ffffff", display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer", overflow: "hidden", boxShadow: "inset 0 1px 0 rgba(255,255,255,.16)" }}>
+          <input type="color" value={normalizeHexColor(value) || "#ffffff"} onChange={(event) => onChange(event.target.value)} style={{ opacity: 0, width: 0, height: 0, position: "absolute" }} />
+        </label>
+        <input
+          key={`${fieldKey}-${value || "#ffffff"}`}
+          className="inf"
+          type="text"
+          inputMode="text"
+          placeholder="#ffffff"
+          defaultValue={value || "#ffffff"}
+          onChange={(event) => {
+            const normalizedHex = normalizeHexColor(event.target.value);
+            if (normalizedHex) onChange(normalizedHex);
+          }}
+          onBlur={(event) => {
+            const normalizedHex = normalizeHexColor(event.target.value);
+            if (normalizedHex) {
+              event.target.value = normalizedHex;
+              onChange(normalizedHex);
+              return;
+            }
+
+            event.target.value = value || "#ffffff";
+          }}
+          style={{ minHeight: 42, fontSize: 14, textTransform: "lowercase" }}
+        />
+      </div>
+      {helperText ? <div style={{ fontSize: 12, lineHeight: 1.5, color: "rgba(240,238,245,.42)" }}>{helperText}</div> : null}
+    </div>
+  );
+
+  const shapeCategoryGroups = CONSTRUCTOR_SHAPE_CATEGORIES.map((category) => ({
+    ...category,
+    items: CONSTRUCTOR_SHAPES.filter((shape) => shape.category === category.key),
+  })).filter((category) => category.items.length > 0);
+  const expandedShapeCategory = currentShapeToolPanel === "edit"
+    ? shapeCategoryGroups.find((category) => category.key === expandedShapeCategoryKey) || null
+    : null;
+  const currentShapeEffectColorTarget = shapeEffectType === "distort"
+    ? (activeShapeEffectColorTarget === "distort-a" || activeShapeEffectColorTarget === "distort-b" ? activeShapeEffectColorTarget : "distort-a")
+    : "shadow";
+  const currentShapeEffectColorValue = currentShapeEffectColorTarget === "distort-a"
+    ? shapeDistortionColorA
+    : currentShapeEffectColorTarget === "distort-b"
+      ? shapeDistortionColorB
+      : shapeEffectColor;
+  const handleShapeEffectColorChange = (nextColor) => {
+    if (currentShapeEffectColorTarget === "distort-a") {
+      onShapeDistortionColorAChange(nextColor);
+      return;
+    }
+
+    if (currentShapeEffectColorTarget === "distort-b") {
+      onShapeDistortionColorBChange(nextColor);
+      return;
+    }
+
+    onShapeEffectColorChange(nextColor);
+  };
+
   if (activeTab === "textile") {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 10, minWidth: 0 }}>
@@ -369,7 +722,7 @@ export default function ConstructorSidebarPanel({
           <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr)", gap: 8 }}>
             {products.map((item) => {
               const active = item.key === productKey;
-              return <button key={item.key} type="button" onClick={() => onProductChange(item.key)} style={{ width: "100%", textAlign: "left", padding: 12, borderRadius: 14, border: active ? "1px solid rgba(232,67,147,.3)" : "1px solid rgba(255,255,255,.06)", background: active ? "linear-gradient(135deg,rgba(232,67,147,.14),rgba(108,92,231,.14))" : "rgba(255,255,255,.03)", cursor: "pointer", fontFamily: "inherit" }}><div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start" }}><div style={{ minWidth: 0 }}><div style={{ fontSize: 16, fontWeight: 600, color: "#f0eef5", overflowWrap: "anywhere" }}>{item.displayName}</div><div style={{ fontSize: 13, color: "rgba(240,238,245,.5)", marginTop: 4 }}>{item.material}</div></div><div style={{ fontSize: 14, fontWeight: 600, color: "#e84393", whiteSpace: "nowrap" }}>{item.priceLabel}</div></div></button>;
+              return <button key={item.key} type="button" onClick={() => onProductChange(item.key)} style={{ width: "100%", textAlign: "left", padding: 12, borderRadius: 14, border: active ? "1px solid rgba(232,67,147,.3)" : "1px solid rgba(255,255,255,.06)", background: active ? "linear-gradient(135deg,rgba(232,67,147,.14),rgba(108,92,231,.14))" : "rgba(255,255,255,.03)", cursor: "pointer", fontFamily: "inherit" }}><div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start" }}><div style={{ minWidth: 0 }}><div style={{ fontSize: 16, fontWeight: 600, color: "#f0eef5", overflowWrap: "break-word", wordBreak: "normal" }}>{item.displayName}</div><div style={{ fontSize: 13, color: "rgba(240,238,245,.5)", marginTop: 4 }}>{item.material}</div></div><div style={{ fontSize: 14, fontWeight: 600, color: "#e84393", whiteSpace: "nowrap" }}>{item.priceLabel}</div></div></button>;
             })}
           </div>
         </SidebarFieldRow>
@@ -480,57 +833,71 @@ export default function ConstructorSidebarPanel({
   }
 
   if (activeTab === "layers") {
-    const orderedLayers = [...layers].reverse();
-
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
         <SidebarTitle>Слои</SidebarTitle>
         <div style={{ fontSize: 13, lineHeight: 1.55, color: "rgba(240,238,245,.42)" }}>
-          Управляйте порядком, видимостью и блокировкой элементов. Верхние карточки находятся выше в превью.
-        </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <ActionButton onClick={onAddTextLayer}>+ Текст</ActionButton>
-          <ActionButton onClick={onAddPresetLayer}>+ Принт</ActionButton>
-          <ActionButton onClick={() => onTabChange("upload")}>+ Макет</ActionButton>
+          Один клик выделяет слой для перемещения в превью, двойной клик открывает его раздел.
         </div>
         {layers.length ? (
           <div style={{ display: "grid", gap: 10 }}>
             {orderedLayers.map((layer) => {
               const active = layer.id === activeLayerId;
-              const textLayerLabel = layer.type === "text" ? getTextLayerDisplayLabel(layer) : layer.name;
+              const layerTitle = getLayerCardTitle(layer, presetPrints);
 
               return (
-                <button
+                <div
                   key={layer.id}
-                  type="button"
-                  onClick={() => onLayerSelect(layer.id)}
+                  draggable
+                  onDragStart={(event) => {
+                    setDraggedLayerId(layer.id);
+                    event.dataTransfer.effectAllowed = "move";
+                    event.dataTransfer.setData("text/plain", layer.id);
+                  }}
+                  onDragEnter={(event) => {
+                    event.preventDefault();
+                    if (draggedLayerId) {
+                      reorderDisplayedLayers(draggedLayerId, layer.id);
+                    }
+                  }}
+                  onDragOver={(event) => event.preventDefault()}
+                  onDragEnd={() => setDraggedLayerId(null)}
                   style={{
-                    width: "100%",
-                    textAlign: "left",
                     padding: 14,
-                    borderRadius: 16,
+                    borderRadius: 18,
                     border: active ? "1px solid rgba(232,67,147,.32)" : "1px solid rgba(255,255,255,.08)",
-                    background: active ? "linear-gradient(135deg,rgba(232,67,147,.14),rgba(108,92,231,.14))" : "rgba(255,255,255,.03)",
+                    background: draggedLayerId === layer.id ? "linear-gradient(135deg,rgba(108,92,231,.18),rgba(232,67,147,.12))" : active ? "linear-gradient(135deg,rgba(232,67,147,.14),rgba(108,92,231,.14))" : "rgba(255,255,255,.03)",
                     color: "inherit",
-                    cursor: "pointer",
-                    fontFamily: "inherit",
+                    cursor: draggedLayerId === layer.id ? "grabbing" : "grab",
+                    minHeight: 92,
                   }}
                 >
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start" }}>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: 15, fontWeight: 600, color: "#f0eef5", overflowWrap: "anywhere" }}>
-                        {textLayerLabel}
-                      </div>
-                      <div style={{ marginTop: 4, fontSize: 12, color: "rgba(240,238,245,.46)", textTransform: "uppercase", letterSpacing: 1.1 }}>
-                        {layer.type === "upload" ? "Макет" : layer.type === "text" ? "Текст" : "Принт"}
-                      </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "28px minmax(0,1fr) auto", gap: 12, alignItems: "center" }}>
+                    <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", color: "rgba(240,238,245,.36)" }}>
+                      <DragHandleIcon />
                     </div>
-                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
-                      <span style={{ padding: "4px 8px", borderRadius: 999, background: layer.visible ? "rgba(108,92,231,.16)" : "rgba(255,255,255,.06)", fontSize: 11, color: layer.visible ? "#d9d1ff" : "rgba(240,238,245,.4)" }}>{layer.visible ? "Виден" : "Скрыт"}</span>
-                      <span style={{ padding: "4px 8px", borderRadius: 999, background: layer.locked ? "rgba(232,67,147,.16)" : "rgba(255,255,255,.06)", fontSize: 11, color: layer.locked ? "#ffc2de" : "rgba(240,238,245,.4)" }}>{layer.locked ? "Блок" : "Свободен"}</span>
+                    <button
+                      type="button"
+                      onClick={() => onLayerActivate(layer.id)}
+                      onDoubleClick={() => onLayerEditOpen(layer.id)}
+                      style={{ width: "100%", padding: 0, border: "none", background: "none", color: "inherit", textAlign: "left", cursor: "pointer", fontFamily: "inherit" }}
+                    >
+                      <div style={{ minHeight: 62, display: "flex", alignItems: "center", justifyContent: "center", minWidth: 0 }}>
+                        <div style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", minWidth: 0 }}>
+                          <LayerPreview layer={layer} presetPrints={presetPrints} />
+                        </div>
+                      </div>
+                    </button>
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: 8, justifySelf: "end", flex: "0 0 auto" }}>
+                      <LayerIconButton onClick={() => onToggleLayerVisibility(layer.id)} ariaLabel={layer.visible ? `Скрыть слой ${layerTitle}` : `Показать слой ${layerTitle}`} title={layer.visible ? "Скрыть слой" : "Показать слой"}>
+                        <VisibilityIcon visible={layer.visible} />
+                      </LayerIconButton>
+                      <LayerIconButton onClick={() => onRemoveLayer(layer.id)} ariaLabel={`Удалить слой ${layerTitle}`} title="Удалить слой" variant="destructive">
+                        <DeleteIcon />
+                      </LayerIconButton>
                     </div>
                   </div>
-                </button>
+                </div>
               );
             })}
           </div>
@@ -540,7 +907,7 @@ export default function ConstructorSidebarPanel({
         <SidebarFieldRow label="Активный слой" minHeight={120}>
           {activeLayer ? (
             <div style={{ display: "grid", gap: 10 }}>
-              <div style={{ fontSize: 15, fontWeight: 600, color: "#f0eef5" }}>{activeLayer.name}</div>
+              <div style={{ fontSize: 15, fontWeight: 600, color: "#f0eef5" }}>{getLayerCardTitle(activeLayer, presetPrints)}</div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <ActionButton onClick={() => onToggleLayerVisibility(activeLayer.id)}>{activeLayer.visible ? "Скрыть" : "Показать"}</ActionButton>
                 <ActionButton onClick={() => onToggleLayerLock(activeLayer.id)}>{activeLayer.locked ? "Разблокировать" : "Заблокировать"}</ActionButton>
@@ -572,7 +939,7 @@ export default function ConstructorSidebarPanel({
           <div style={{ fontSize: 16, fontWeight: 500 }}>Добавить новый слой-макет</div>
           <div style={{ fontSize: 14, color: "rgba(240,238,245,.45)", maxWidth: 320 }}>PNG, JPG, WEBP или SVG. Каждый загруженный файл становится отдельным слоем и появляется в центре превью.</div>
         </label>
-        {activeUploadLayer ? <><SidebarFieldRow label="Активный слой"><div style={{ display: "grid", gap: 8 }}><div style={{ fontSize: 15, fontWeight: 600 }}>{activeUploadLayer.name}</div><div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}><span style={{ fontSize: 14, color: "rgba(240,238,245,.75)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0, flex: "1 1 160px" }}>{activeUploadLayer.uploadName}</span><button type="button" onClick={handleUploadRemove} className="bo" style={{ padding: "8px 14px", fontSize: 13 }}>Удалить слой</button></div></div></SidebarFieldRow><SidebarFieldRow label="Масштаб"><div style={{ display: "flex", alignItems: "center", gap: 14 }}><input type="range" min="20" max="100" value={uploadScale} onChange={handleUploadScaleChange} style={{ width: "100%" }} /><span style={{ minWidth: 52, textAlign: "right", fontSize: 13, color: "rgba(240,238,245,.6)" }}>{uploadScale}%</span></div></SidebarFieldRow><SidebarFieldRow label="Позиция"><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}><span style={{ fontSize: 13, color: "rgba(240,238,245,.48)", overflowWrap: "anywhere" }}>Перетаскивайте слой мышкой прямо в зоне печати или верните его в центр одной кнопкой.</span><button type="button" onClick={centerActiveLayerPosition} className="bo" style={{ padding: "8px 14px", fontSize: 13 }}>По центру</button></div></SidebarFieldRow></> : <EmptyLayerState title="Нет активного слоя-макета" description="Сначала добавьте файл или выберите уже существующий слой во вкладке «Слои»." actionLabel="Открыть слои" onAction={() => onTabChange("layers")} />}
+        {activeUploadLayer ? <><SidebarFieldRow label="Активный слой"><div style={{ display: "grid", gap: 8 }}><div style={{ fontSize: 15, fontWeight: 600 }}>{activeUploadLayer.name}</div><div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}><span style={{ fontSize: 14, color: "rgba(240,238,245,.75)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0, flex: "1 1 160px" }}>{activeUploadLayer.uploadName}</span><button type="button" onClick={handleUploadRemove} className="bo" style={{ padding: "8px 14px", fontSize: 13 }}>Удалить слой</button></div></div></SidebarFieldRow><SidebarFieldRow label="Ширина печати"><div style={{ display: "grid", gap: 8 }}><div style={{ display: "flex", alignItems: "center", gap: 14 }}><input type="range" min="1" max={printArea?.physicalWidthCm || 40} step="0.1" value={uploadWidthCm} onChange={handleUploadScaleChange} style={{ width: "100%" }} /><span style={{ minWidth: 72, textAlign: "right", fontSize: 13, color: "rgba(240,238,245,.6)" }}>{uploadWidthCm.toFixed(1)} см</span></div><div style={{ fontSize: 12, color: "rgba(240,238,245,.48)" }}>Высота пересчитывается автоматически по пропорциям файла: {uploadHeightCm.toFixed(1)} см. Максимальная зона для стороны «{side === "front" ? "Спереди" : "Сзади"}» — {physicalPrintAreaLabel}.</div></div></SidebarFieldRow><SidebarFieldRow label="Позиция"><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}><span style={{ fontSize: 13, color: "rgba(240,238,245,.48)", overflowWrap: "anywhere" }}>Перетаскивайте слой мышкой прямо в зоне печати или верните его в центр одной кнопкой.</span><button type="button" onClick={centerActiveLayerPosition} className="bo" style={{ padding: "8px 14px", fontSize: 13 }}>По центру</button></div></SidebarFieldRow></> : <EmptyLayerState title="Нет активного слоя-макета" description="Сначала добавьте файл или выберите уже существующий слой во вкладке «Слои»." actionLabel="Открыть слои" onAction={() => onTabChange("layers")} />}
       </div>
     );
   }
@@ -671,13 +1038,32 @@ export default function ConstructorSidebarPanel({
                 );
               })}
             </div>
-            <div style={{ marginTop: 10, fontSize: 12, lineHeight: 1.5, color: "rgba(240,238,245,.42)" }}>
-              Если тексты перекрывают друг друга, временно скрывайте лишние слои и редактируйте нужный отдельно.
-            </div>
           </SidebarFieldRow>
         ) : null}
         {activeTextLayer ? (
           <>
+            <SidebarFieldRow label="Размер текста в см" minHeight={84}>
+              <div style={{ display: "grid", gap: 10 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 10 }}>
+                  <div style={{ padding: "10px 12px", borderRadius: 14, background: "rgba(255,255,255,.03)", border: "1px solid rgba(255,255,255,.08)" }}>
+                    <div style={{ fontSize: 11, lineHeight: 1.2, letterSpacing: ".08em", textTransform: "uppercase", color: "rgba(240,238,245,.38)", marginBottom: 6 }}>Текст</div>
+                    <div style={{ fontSize: 15, fontWeight: 600, color: "#f0eef5" }}>
+                      {activeTextMetricsCm ? `${activeTextMetricsCm.contentWidthCm} × ${activeTextMetricsCm.contentHeightCm} см` : "..."}
+                    </div>
+                  </div>
+                  <div style={{ padding: "10px 12px", borderRadius: 14, background: "rgba(255,255,255,.03)", border: "1px solid rgba(255,255,255,.08)" }}>
+                    <div style={{ fontSize: 11, lineHeight: 1.2, letterSpacing: ".08em", textTransform: "uppercase", color: "rgba(240,238,245,.38)", marginBottom: 6 }}>Контейнер</div>
+                    <div style={{ fontSize: 15, fontWeight: 600, color: "#f0eef5" }}>
+                      {activeTextMetricsCm ? `${activeTextMetricsCm.boxWidthCm} × ${activeTextMetricsCm.boxHeightCm} см` : "..."}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ fontSize: 12, lineHeight: 1.5, color: "rgba(240,238,245,.42)" }}>
+                  Модель текста как в text box редактора: боковые handles меняют ширину контейнера и перенос, угловые масштабируют контейнер и размер текста как единый объект внутри физической области печати {physicalPrintAreaLabel}.
+                </div>
+              </div>
+            </SidebarFieldRow>
+
             {currentTextToolPanel === "font" ? (
               <SidebarFieldRow label="Шрифт" minHeight={96}>
                 <div style={{ display: "grid", gap: 10 }}>
@@ -760,12 +1146,6 @@ export default function ConstructorSidebarPanel({
                     </div>
                   )}
 
-                  <div style={{ fontSize: 12, lineHeight: 1.5, color: "rgba(240,238,245,.42)" }}>
-                    Поиск понимает ошибочную раскладку, а по найденным шрифтам можно ходить стрелками и выбирать Enter.
-                  </div>
-                  <div style={{ fontSize: 12, lineHeight: 1.5, color: "rgba(240,238,245,.42)" }}>
-                    Новый текстовый слой сразу появляется на превью. Чтобы изменить текст, редактируйте сам слой прямо на футболке.
-                  </div>
                 </div>
               </SidebarFieldRow>
             ) : null}
@@ -889,14 +1269,7 @@ export default function ConstructorSidebarPanel({
                       <input type="range" min="0" max="6" step="0.5" value={textStrokeWidth} onChange={(event) => onTextStrokeWidthChange(Number(event.target.value))} style={{ width: "100%" }} />
                       <span style={{ minWidth: 52, textAlign: "right", fontSize: 13, color: "rgba(240,238,245,.6)" }}>{textStrokeWidth}px</span>
                     </div>
-                    <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                      {[["#111111", "Чёрный"], ["#ffffff", "Белый"], ["#e84393", "Розовый"], ["#6c5ce7", "Фиолетовый"]].map(([hex, label]) => (
-                        <button key={hex} type="button" onClick={() => onTextStrokeColorChange(hex)} style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "7px 10px 7px 7px", borderRadius: 999, border: textStrokeColor === hex ? "1px solid rgba(232,67,147,.35)" : "1px solid rgba(255,255,255,.08)", background: textStrokeColor === hex ? "rgba(255,255,255,.08)" : "rgba(255,255,255,.03)", cursor: "pointer", fontFamily: "inherit" }}>
-                          <span style={{ width: 24, height: 24, borderRadius: "50%", background: hex, border: "1px solid rgba(255,255,255,.18)" }} />
-                          <span style={{ fontSize: 13, color: "rgba(240,238,245,.7)" }}>{label}</span>
-                        </button>
-                      ))}
-                    </div>
+                    {renderFreeColorControl({ fieldKey: "stroke", value: textStrokeColor, onChange: onTextStrokeColorChange, helperText: "Выберите цвет обводки через палитру или введите HEX-код." })}
                   </div>
                 </SidebarFieldRow>
 
@@ -907,24 +1280,10 @@ export default function ConstructorSidebarPanel({
                     </label>
                     {textShadowEnabled ? (
                       <>
-                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                          {[["hard", "Жёсткая"], ["soft", "Мягкая"]].map(([shadowKey, label]) => (
-                            <button key={shadowKey} type="button" onClick={() => onTextShadowModeChange(shadowKey)} className={`tb ${textShadowMode === shadowKey ? "ta" : "ti"}`} style={{ padding: "9px 14px" }}>
-                              {label}
-                            </button>
-                          ))}
-                        </div>
                         <div style={{ fontSize: 12, lineHeight: 1.5, color: "rgba(240,238,245,.42)" }}>
-                          {textShadowMode === "hard" ? "Жёсткая тень даёт плотную 100% заливку с чётким краем без размытия." : "Мягкая тень остаётся с blur и более плавным краем."}
+                          Мягкая тень остаётся с blur и более плавным краем.
                         </div>
-                        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                          {[["#111111", "Чёрный"], ["#ffffff", "Белый"], ["#e84393", "Розовый"], ["#6c5ce7", "Фиолетовый"]].map(([hex, label]) => (
-                            <button key={hex} type="button" onClick={() => onTextShadowColorChange(hex)} style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "7px 10px 7px 7px", borderRadius: 999, border: textShadowColor === hex ? "1px solid rgba(232,67,147,.35)" : "1px solid rgba(255,255,255,.08)", background: textShadowColor === hex ? "rgba(255,255,255,.08)" : "rgba(255,255,255,.03)", cursor: "pointer", fontFamily: "inherit" }}>
-                              <span style={{ width: 24, height: 24, borderRadius: "50%", background: hex, border: "1px solid rgba(255,255,255,.18)" }} />
-                              <span style={{ fontSize: 13, color: "rgba(240,238,245,.7)" }}>{label}</span>
-                            </button>
-                          ))}
-                        </div>
+                        {renderFreeColorControl({ fieldKey: "shadow", value: textShadowColor, onChange: onTextShadowColorChange, helperText: "Выберите цвет тени через палитру или введите HEX-код." })}
                         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                           <span style={{ width: 22, fontSize: 13, color: "rgba(240,238,245,.48)" }}>X</span>
                           <input type="range" min="-24" max="24" step="1" value={textShadowOffsetX} onChange={(event) => onTextShadowOffsetXChange(Number(event.target.value))} style={{ width: "100%" }} />
@@ -935,17 +1294,15 @@ export default function ConstructorSidebarPanel({
                           <input type="range" min="-24" max="24" step="1" value={textShadowOffsetY} onChange={(event) => onTextShadowOffsetYChange(Number(event.target.value))} style={{ width: "100%" }} />
                           <span style={{ minWidth: 52, textAlign: "right", fontSize: 13, color: "rgba(240,238,245,.6)" }}>{textShadowOffsetY}px</span>
                         </div>
-                        {textShadowMode === "soft" ? (
-                          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                            <span style={{ width: 22, fontSize: 13, color: "rgba(240,238,245,.48)" }}>B</span>
-                            <input type="range" min="0" max="32" step="1" value={textShadowBlur} onChange={(event) => onTextShadowBlurChange(Number(event.target.value))} style={{ width: "100%" }} />
-                            <span style={{ minWidth: 52, textAlign: "right", fontSize: 13, color: "rgba(240,238,245,.6)" }}>{textShadowBlur}px</span>
-                          </div>
-                        ) : null}
+                        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                          <span style={{ width: 22, fontSize: 13, color: "rgba(240,238,245,.48)" }}>B</span>
+                          <input type="range" min="0" max="32" step="1" value={textShadowBlur} onChange={(event) => onTextShadowBlurChange(Number(event.target.value))} style={{ width: "100%" }} />
+                          <span style={{ minWidth: 52, textAlign: "right", fontSize: 13, color: "rgba(240,238,245,.6)" }}>{textShadowBlur}px</span>
+                        </div>
                       </>
                     ) : (
                       <div style={{ fontSize: 12, lineHeight: 1.5, color: "rgba(240,238,245,.42)" }}>
-                        Прозрачность тени не настраивается. Для плотной заливки выберите жёсткую тень.
+                        Включите тень, чтобы настроить цвет, смещение и blur.
                       </div>
                     )}
                   </div>
@@ -967,6 +1324,228 @@ export default function ConstructorSidebarPanel({
     );
   }
 
+  if (activeTab === "shapes") {
+    const handleShapePick = (nextShapeKey) => {
+      if (shapeCatalogMode === "replace" && activeShapeLayer) {
+        onShapeKeyChange(nextShapeKey);
+        return;
+      }
+
+      onAddShapeLayer(nextShapeKey);
+    };
+
+    const renderShapeSizeControl = () => (
+      activeShapeLayer ? (
+        <SidebarFieldRow label="Размер печати">
+          <div style={{ display: "grid", gap: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <input type="range" min="1" max={printArea?.physicalWidthCm || 40} step="0.1" value={shapeWidthCm} onChange={(event) => onShapeWidthCmChange(Number(event.target.value))} style={{ width: "100%" }} />
+              <span style={{ minWidth: 72, textAlign: "right", fontSize: 13, color: "rgba(240,238,245,.6)" }}>{shapeWidthCm.toFixed(1)} см</span>
+            </div>
+            <div style={{ fontSize: 12, color: "rgba(240,238,245,.48)" }}>Текущий размер фигуры: {shapeWidthCm.toFixed(1)} × {shapeHeightCm.toFixed(1)} см. Максимальная зона — {physicalPrintAreaLabel}.</div>
+            <ActionButton onClick={centerActiveLayerPosition}>Вернуть фигуру в центр</ActionButton>
+          </div>
+        </SidebarFieldRow>
+      ) : null
+    );
+
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
+        {currentShapeToolPanel === "edit"
+          ? <SidebarTitle>Фигуры</SidebarTitle>
+          : <ClosableShapePanelHeader title="Фигуры" onClose={() => {
+            setExpandedShapeCategoryKey(null);
+            onShapeCatalogModeChange?.("add");
+            onShapeToolPanelChange("edit");
+          }} />}
+
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <ActionButton onClick={() => {
+            onShapeCatalogModeChange?.("add");
+            onAddShapeLayer();
+          }}>Новый слой-фигура</ActionButton>
+          <ActionButton onClick={() => onTabChange("layers")}>Управление слоями</ActionButton>
+        </div>
+
+        {currentShapeToolPanel === "edit" ? (
+          <>
+            {expandedShapeCategory ? (
+              <div style={{ display: "grid", gap: 12 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <button type="button" onClick={() => setExpandedShapeCategoryKey(null)} aria-label="Вернуться к спискам фигур" style={{ width: 34, height: 34, borderRadius: 10, border: "1px solid rgba(255,255,255,.08)", background: "rgba(255,255,255,.03)", color: "#f0eef5", display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="m15 18-6-6 6-6" />
+                    </svg>
+                  </button>
+                  <div style={{ fontSize: 20, fontWeight: 600, letterSpacing: "-.02em" }}>{expandedShapeCategory.label}</div>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0,1fr))", gap: 6 }}>
+                  {expandedShapeCategory.items.map((shape) => <ShapeSelectTile key={shape.key} shape={shape} active={shapeCatalogMode === "replace" && activeShapeLayer ? shape.key === shapeKey : false} onClick={() => handleShapePick(shape.key)} />)}
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: "grid", gap: 8, maxHeight: "calc(100vh - 280px)", overflowY: "auto", paddingRight: 2 }}>
+                {shapeCategoryGroups.map((category) => <ShapeCategoryStrip key={category.key} category={category} shapes={category.items} activeShapeKey={shapeCatalogMode === "replace" && activeShapeLayer ? shapeKey : null} onShapePick={handleShapePick} onShowAll={() => setExpandedShapeCategoryKey(category.key)} />)}
+              </div>
+            )}
+
+            {renderShapeSizeControl()}
+          </>
+        ) : null}
+
+        {currentShapeToolPanel === "color" ? (
+          activeShapeLayer ? (
+            <>
+              <SidebarFieldRow label="Основной цвет" minHeight={164}>
+                <div style={{ display: "grid", gap: 16 }}>
+                  {renderFreeColorControl({ fieldKey: "shape-fill", value: shapeColor, onChange: onShapeColorChange, helperText: "Палитра или HEX для основной фигуры." })}
+                  <div style={{ display: "grid", gap: 10 }}>
+                    <div style={{ fontSize: 11, lineHeight: 1.2, letterSpacing: ".08em", textTransform: "uppercase", color: "rgba(240,238,245,.38)" }}>
+                      Основные цвета
+                    </div>
+                    <CirclePalette colors={CONSTRUCTOR_SHAPE_BASIC_COLORS} value={shapeColor} onChange={onShapeColorChange} />
+                  </div>
+                  <div style={{ display: "grid", gap: 10 }}>
+                    <div style={{ fontSize: 11, lineHeight: 1.2, letterSpacing: ".08em", textTransform: "uppercase", color: "rgba(240,238,245,.38)" }}>
+                      Градиенты
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(152px, 1fr))", gap: 8 }}>
+                      {CONSTRUCTOR_TEXT_GRADIENTS.map((gradient) => {
+                        const active = shapeFillMode === "gradient" && shapeGradientKey === gradient.key;
+
+                        return (
+                          <button
+                            key={gradient.key}
+                            type="button"
+                            onClick={() => onShapeGradientKeyChange(gradient.key)}
+                            style={{ display: "grid", gap: 8, minWidth: 0, padding: 10, borderRadius: 14, border: active ? "1px solid rgba(232,67,147,.28)" : "1px solid rgba(255,255,255,.08)", background: active ? "linear-gradient(135deg,rgba(232,67,147,.12),rgba(108,92,231,.12))" : "rgba(255,255,255,.03)", cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}
+                          >
+                            <span style={{ display: "block", width: "100%", height: 30, borderRadius: 10, background: gradient.css, border: "1px solid rgba(255,255,255,.16)" }} />
+                            <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13, color: "rgba(240,238,245,.76)" }}>{gradient.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </SidebarFieldRow>
+            </>
+          ) : (
+            <EmptyLayerState title="Нет активной фигуры" description="Выберите слой фигуры, чтобы настроить её цвет." actionLabel="Открыть выбор фигур" onAction={() => {
+              setExpandedShapeCategoryKey(null);
+              onShapeCatalogModeChange?.("add");
+              onShapeToolPanelChange("edit");
+            }} />
+          )
+        ) : null}
+
+        {currentShapeToolPanel === "stroke-color" ? (
+          activeShapeLayer ? (
+            shapeStrokeStyle !== "none" ? (
+              <SidebarFieldRow label="Цвет обводки" minHeight={164}>
+                <div style={{ display: "grid", gap: 16 }}>
+                  {renderFreeColorControl({ fieldKey: "shape-stroke", value: shapeStrokeColor, onChange: onShapeStrokeColorChange, helperText: "Палитра или HEX для внутренней обводки фигуры." })}
+                  <div style={{ display: "grid", gap: 10 }}>
+                    <div style={{ fontSize: 11, lineHeight: 1.2, letterSpacing: ".08em", textTransform: "uppercase", color: "rgba(240,238,245,.38)" }}>
+                      Основные цвета
+                    </div>
+                    <CirclePalette colors={CONSTRUCTOR_SHAPE_BASIC_COLORS} value={shapeStrokeColor} onChange={onShapeStrokeColorChange} />
+                  </div>
+                </div>
+              </SidebarFieldRow>
+            ) : (
+              <EmptyLayerState title="Обводка отключена" description="Сначала включите один из режимов обводки в toolbar, затем здесь можно будет менять её цвет." actionLabel={null} onAction={null} />
+            )
+          ) : (
+            <EmptyLayerState title="Нет активной фигуры" description="Выберите слой фигуры, чтобы настроить цвет обводки." actionLabel="Открыть выбор фигур" onAction={() => {
+              setExpandedShapeCategoryKey(null);
+              onShapeCatalogModeChange?.("add");
+              onShapeToolPanelChange("edit");
+            }} />
+          )
+        ) : null}
+
+        {currentShapeToolPanel === "effects" ? (
+          activeShapeLayer ? (
+            <>
+              <SidebarFieldRow label="Эффекты" minHeight={148}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0,1fr))", gap: 10 }}>
+                  <ShapeEffectCard title="Падающая тень" previewType="drop-shadow" active={shapeEffectType === "drop-shadow"} onClick={() => { setActiveShapeEffectColorTarget("shadow"); onShapeEffectTypeChange(shapeEffectType === "drop-shadow" ? "none" : "drop-shadow"); }} />
+                  <ShapeEffectCard title="Искажение" previewType="distort" active={shapeEffectType === "distort"} onClick={() => { setActiveShapeEffectColorTarget("distort-a"); onShapeEffectTypeChange(shapeEffectType === "distort" ? "none" : "distort"); }} />
+                </div>
+              </SidebarFieldRow>
+
+              {shapeEffectType !== "none" ? (
+                <>
+                  <SidebarFieldRow label="Направление">
+                    <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                      <input type="range" min="-180" max="180" step="1" value={shapeEffectAngle} onChange={(event) => onShapeEffectAngleChange(Number(event.target.value))} style={{ width: "100%" }} />
+                      <span style={{ minWidth: 58, textAlign: "right", fontSize: 13, color: "rgba(240,238,245,.6)" }}>{shapeEffectAngle}°</span>
+                    </div>
+                  </SidebarFieldRow>
+
+                  <SidebarFieldRow label="Смещение">
+                    <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                      <input type="range" min="0" max="40" step="1" value={shapeEffectDistance} onChange={(event) => onShapeEffectDistanceChange(Number(event.target.value))} style={{ width: "100%" }} />
+                      <span style={{ minWidth: 58, textAlign: "right", fontSize: 13, color: "rgba(240,238,245,.6)" }}>{shapeEffectDistance}</span>
+                    </div>
+                  </SidebarFieldRow>
+
+                  <SidebarFieldRow label={shapeEffectType === "drop-shadow" ? "Цвет" : "Цвета"}>
+                    <div style={{ display: "grid", gap: 14 }}>
+                      <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                        {shapeEffectType === "drop-shadow" ? (
+                          <button
+                            type="button"
+                            onClick={() => setActiveShapeEffectColorTarget("shadow")}
+                            style={{ width: 52, height: 52, borderRadius: 999, border: currentShapeEffectColorTarget === "shadow" ? "2px solid rgba(130,78,240,.96)" : "2px solid rgba(255,255,255,.08)", background: shapeEffectColor, cursor: "pointer", boxShadow: currentShapeEffectColorTarget === "shadow" ? "0 0 0 3px rgba(130,78,240,.18)" : "none" }}
+                          />
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => setActiveShapeEffectColorTarget("distort-a")}
+                              style={{ width: 52, height: 52, borderRadius: 999, border: currentShapeEffectColorTarget === "distort-a" ? "2px solid rgba(130,78,240,.96)" : "2px solid rgba(255,255,255,.08)", background: shapeDistortionColorA, cursor: "pointer", boxShadow: currentShapeEffectColorTarget === "distort-a" ? "0 0 0 3px rgba(130,78,240,.18)" : "none" }}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setActiveShapeEffectColorTarget("distort-b")}
+                              style={{ width: 52, height: 52, borderRadius: 999, border: currentShapeEffectColorTarget === "distort-b" ? "2px solid rgba(130,78,240,.96)" : "2px solid rgba(255,255,255,.08)", background: shapeDistortionColorB, cursor: "pointer", boxShadow: currentShapeEffectColorTarget === "distort-b" ? "0 0 0 3px rgba(130,78,240,.18)" : "none" }}
+                            />
+                          </>
+                        )}
+                      </div>
+
+                      {renderFreeColorControl({ fieldKey: `shape-effect-${currentShapeEffectColorTarget}`, value: currentShapeEffectColorValue, onChange: handleShapeEffectColorChange, helperText: shapeEffectType === "drop-shadow" ? "HEX или палитра для цвета падающей тени." : "HEX или палитра для выбранного цвета искажения." })}
+
+                      <div style={{ display: "grid", gap: 10 }}>
+                        <div style={{ fontSize: 11, lineHeight: 1.2, letterSpacing: ".08em", textTransform: "uppercase", color: "rgba(240,238,245,.38)" }}>
+                          Основные цвета
+                        </div>
+                        <CirclePalette colors={CONSTRUCTOR_SHAPE_BASIC_COLORS} value={currentShapeEffectColorValue} onChange={handleShapeEffectColorChange} />
+                      </div>
+                    </div>
+                  </SidebarFieldRow>
+                </>
+              ) : (
+                <div style={{ fontSize: 14, lineHeight: 1.6, color: "rgba(240,238,245,.45)", padding: "0 4px" }}>
+                  Выберите «Падающую тень» или «Искажение», чтобы настроить направление, смещение и цвет эффекта.
+                </div>
+              )}
+            </>
+          ) : (
+            <EmptyLayerState title="Нет активной фигуры" description="Выберите слой фигуры, чтобы добавить падающую тень или искажение." actionLabel="Открыть выбор фигур" onAction={() => {
+              setExpandedShapeCategoryKey(null);
+              onShapeCatalogModeChange?.("add");
+              onShapeToolPanelChange("edit");
+            }} />
+          )
+        ) : null}
+      </div>
+    );
+  }
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
       <SidebarTitle>Готовые принты</SidebarTitle>
@@ -974,7 +1553,7 @@ export default function ConstructorSidebarPanel({
         <ActionButton onClick={onAddPresetLayer}>Новый слой-принт</ActionButton>
         <ActionButton onClick={() => onTabChange("layers")}>Управление слоями</ActionButton>
       </div>
-      {activePresetLayer ? <><SidebarFieldRow label="Активный слой"><div style={{ display: "grid", gap: 6 }}><div style={{ fontSize: 15, fontWeight: 600 }}>{activePresetLayer.name}</div><div style={{ fontSize: 13, color: "rgba(240,238,245,.46)" }}>Каждый принт живёт в своём слое и может занимать собственную позицию и масштаб.</div></div></SidebarFieldRow><div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr)", gap: 12 }}>{presetPrints.map((item) => { const active = presetKey === item.key; return <button key={item.key} type="button" onClick={() => onPresetKeyChange(item.key)} style={{ width: "100%", padding: 12, borderRadius: 18, border: active ? "1px solid rgba(232,67,147,.3)" : "1px solid rgba(255,255,255,.06)", background: active ? "linear-gradient(135deg,rgba(232,67,147,.14),rgba(108,92,231,.14))" : "rgba(255,255,255,.03)", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}><img src={item.src} alt={item.label} draggable={false} style={{ width: "100%", aspectRatio: "1 / 1", borderRadius: 14, objectFit: "cover", display: "block" }} /><div style={{ fontSize: 14, fontWeight: 500, color: "#f0eef5", marginTop: 10 }}>{item.label}</div></button>; })}</div><SidebarFieldRow label="Масштаб"><div style={{ display: "flex", alignItems: "center", gap: 14 }}><input type="range" min="18" max="90" value={presetScale} onChange={(event) => onPresetScaleChange(Number(event.target.value))} style={{ width: "100%" }} /><span style={{ minWidth: 52, textAlign: "right", fontSize: 13, color: "rgba(240,238,245,.6)" }}>{presetScale}%</span></div></SidebarFieldRow><ActionButton onClick={centerActiveLayerPosition}>Вернуть принт в центр</ActionButton></> : <EmptyLayerState title="Нет активного слоя-принта" description="Создайте новый слой с готовым принтом или выберите уже существующий слой во вкладке «Слои»." actionLabel="Добавить слой-принт" onAction={onAddPresetLayer} />}
+      {activePresetLayer ? <><SidebarFieldRow label="Активный слой"><div style={{ display: "grid", gap: 6 }}><div style={{ fontSize: 15, fontWeight: 600 }}>{activePresetLayer.name}</div><div style={{ fontSize: 13, color: "rgba(240,238,245,.46)" }}>Каждый принт живёт в своём слое и может занимать собственную позицию и размер в сантиметрах.</div></div></SidebarFieldRow><div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr)", gap: 12 }}>{presetPrints.map((item) => { const active = presetKey === item.key; return <button key={item.key} type="button" onClick={() => onPresetKeyChange(item.key)} style={{ width: "100%", padding: 12, borderRadius: 18, border: active ? "1px solid rgba(232,67,147,.3)" : "1px solid rgba(255,255,255,.06)", background: active ? "linear-gradient(135deg,rgba(232,67,147,.14),rgba(108,92,231,.14))" : "rgba(255,255,255,.03)", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}><img src={item.src} alt={item.label} draggable={false} style={{ width: "100%", aspectRatio: "1 / 1", borderRadius: 14, objectFit: "cover", display: "block" }} /><div style={{ fontSize: 14, fontWeight: 500, color: "#f0eef5", marginTop: 10 }}>{item.label}</div></button>; })}</div><SidebarFieldRow label="Размер печати"><div style={{ display: "grid", gap: 8 }}><div style={{ display: "flex", alignItems: "center", gap: 14 }}><input type="range" min="1" max={printArea?.physicalWidthCm || 40} step="0.1" value={presetWidthCm} onChange={(event) => onPresetWidthCmChange(Number(event.target.value))} style={{ width: "100%" }} /><span style={{ minWidth: 72, textAlign: "right", fontSize: 13, color: "rgba(240,238,245,.6)" }}>{presetWidthCm.toFixed(1)} см</span></div><div style={{ fontSize: 12, color: "rgba(240,238,245,.48)" }}>Текущий размер принта: {presetWidthCm.toFixed(1)} × {presetHeightCm.toFixed(1)} см. Максимальная зона — {physicalPrintAreaLabel}.</div></div></SidebarFieldRow><ActionButton onClick={centerActiveLayerPosition}>Вернуть принт в центр</ActionButton></> : <EmptyLayerState title="Нет активного слоя-принта" description="Создайте новый слой с готовым принтом или выберите уже существующий слой во вкладке «Слои»." actionLabel="Добавить слой-принт" onAction={onAddPresetLayer} />}
     </div>
   );
 }

@@ -108,6 +108,18 @@ a{color:inherit}
 input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
 input[type=number]{-moz-appearance:textfield}
 @media(max-width:860px){.cg2{grid-template-columns:1fr!important}}
+@media(max-width:1180px){
+	.constructor-shell{grid-template-columns:1fr!important}
+	.constructor-preview{position:relative!important;top:auto!important}
+	.constructor-shape-toolbar{flex-wrap:wrap!important}
+	.constructor-shape-toolbar-main{flex:1 1 100%!important;min-width:0!important}
+	.constructor-shape-popover{width:100%!important}
+	.constructor-tabs-grid{grid-template-columns:1fr!important}
+	.constructor-tabs-button{min-height:44px!important}
+	.constructor-order-row{grid-template-columns:1fr!important;gap:6px!important}
+	.constructor-order-label{white-space:normal!important}
+	.constructor-order-value{text-align:left!important;overflow-wrap:break-word!important;word-break:normal!important}
+}
 @media(max-width:860px){
 	.nav-desktop-calc,.nav-desktop-main{display:none!important}
 	.section-shell{padding:80px 5%!important}
@@ -129,6 +141,10 @@ input[type=number]{-moz-appearance:textfield}
 	.hero-stat-label{display:flex!important;align-items:flex-start!important;justify-content:center!important;min-height:32px!important;line-height:1.35!important;text-align:center!important}
 	.textile-card-grid,.main-tshirt-grid,.reviews-grid,.contact-grid,.size-guide-grid,.constructor-shell{grid-template-columns:1fr!important}
 	.constructor-preview{position:relative!important;top:auto!important}
+	.constructor-shape-toolbar{flex-wrap:wrap!important}
+	.constructor-shape-toolbar-main{flex:1 1 100%!important;min-width:0!important}
+	.constructor-shape-toolbar>button,.constructor-shape-toolbar>div:not(.constructor-shape-toolbar-main){flex:1 1 calc(50% - 6px)!important;min-width:0!important}
+	.constructor-shape-popover{width:100%!important}
 	.textile-order-line{flex-direction:column!important;align-items:flex-start!important}
 	.textile-order-summary{flex-direction:column!important;align-items:stretch!important}
 	.textile-order-cards{justify-content:stretch!important;width:100%!important}

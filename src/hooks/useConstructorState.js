@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { getConstructorTextFont, getConstructorTextGradient } from "../components/constructor/constructorConfig.js";
+import { getConstructorShape, getConstructorTextFont, getConstructorTextGradient } from "../components/constructor/constructorConfig.js";
 
 const FALLBACK_PRODUCT = {
   key: "",
@@ -21,6 +21,7 @@ const LAYER_TYPE_LABELS = {
   upload: "Макет",
   text: "Текст",
   preset: "Принт",
+  shape: "Фигура",
 };
 
 const DEFAULT_TEXT_FONT = getConstructorTextFont("outfit");
@@ -33,6 +34,13 @@ const TEXT_ALIGN_LABELS = {
 };
 
 const DEFAULT_TEXT_LINE_HEIGHT = 1.05;
+const DEFAULT_TEXT_WEIGHT = 700;
+
+function isTextBold(layer) {
+  const font = getConstructorTextFont(layer.fontKey || DEFAULT_TEXT_FONT.key);
+  if (!font.supportsBold) return false;
+  return (layer.weight ?? font.regularWeight ?? DEFAULT_TEXT_WEIGHT) >= (font.boldWeight ?? DEFAULT_TEXT_WEIGHT);
+}
 
 export default function useConstructorState({
   products,
@@ -60,55 +68,87 @@ export default function useConstructorState({
   const product = products.find((item) => item.key === productKey) || initialProduct;
   const safeColors = product.colors?.length ? product.colors : ["Чёрный"];
   const resolvedColor = safeColors.includes(color) ? color : safeColors[0];
-  const printArea = product.printAreas?.[side] || product.printAreas?.front || FALLBACK_PRODUCT.printAreas.front;
-  const previewSrc = buildPreviewSrc({ product, color: resolvedColor, side });
-  const activeLayer = layers.find((layer) => layer.id === activeLayerId) || null;
-  const activeUploadLayer = activeLayer?.type === "upload" ? activeLayer : null;
-  const activeTextLayer = activeLayer?.type === "text" ? activeLayer : null;
-  const activePresetLayer = activeLayer?.type === "preset" ? activeLayer : null;
-  const meaningfulLayers = layers.filter((layer) => {
+  const getLayerSide = (layer) => (layer?.side === "back" ? "back" : "front");
+  const isMeaningfulLayer = (layer) => {
     if (layer.type === "upload") return Boolean(layer.src);
     if (layer.type === "text") return Boolean(layer.value.trim());
     if (layer.type === "preset") return Boolean(layer.presetKey);
+    if (layer.type === "shape") return Boolean(layer.shapeKey);
     return false;
-  });
+  };
+  const printArea = product.printAreas?.[side] || product.printAreas?.front || FALLBACK_PRODUCT.printAreas.front;
+  const previewSrc = buildPreviewSrc({ product, color: resolvedColor, side, size });
+  const sideLayers = layers.filter((layer) => getLayerSide(layer) === side);
+  const rawActiveLayer = layers.find((layer) => layer.id === activeLayerId) || null;
+  const activeLayer = rawActiveLayer && getLayerSide(rawActiveLayer) === side ? rawActiveLayer : null;
+  const activeUploadLayer = activeLayer?.type === "upload" ? activeLayer : null;
+  const activeTextLayer = activeLayer?.type === "text" ? activeLayer : null;
+  const activePresetLayer = activeLayer?.type === "preset" ? activeLayer : null;
+  const activeShapeLayer = activeLayer?.type === "shape" ? activeLayer : null;
+  const activeTextFont = getConstructorTextFont(activeTextLayer?.fontKey || DEFAULT_TEXT_FONT.key);
+  const meaningfulLayers = layers.filter(isMeaningfulLayer);
+  const meaningfulFrontLayers = meaningfulLayers.filter((layer) => getLayerSide(layer) === "front");
+  const meaningfulBackLayers = meaningfulLayers.filter((layer) => getLayerSide(layer) === "back");
   const hasDecoration = meaningfulLayers.length > 0;
   const canSubmitOrder = Boolean(size && hasDecoration && qty >= 1);
   const currentTotal = product.price * qty;
-  const currentOrderLine = {
+  const buildLayerSummary = (layer) => {
+    if (layer.type === "upload") {
+      return `${layer.name}: ${layer.uploadName}, размер ${layer.widthCm ?? 0} × ${layer.heightCm ?? 0} см`;
+    }
+
+    if (layer.type === "text") {
+      const textPreview = layer.value;
+      const textEffects = [];
+      if (isTextBold(layer)) textEffects.push("жирный");
+      if (layer.italic) textEffects.push("курсив");
+      if (layer.underline) textEffects.push("подчеркнутый");
+      if (layer.strikethrough) textEffects.push("зачеркнутый");
+      if (layer.uppercase) textEffects.push("прописные буквы");
+      if ((layer.lineHeight ?? DEFAULT_TEXT_LINE_HEIGHT) !== DEFAULT_TEXT_LINE_HEIGHT) textEffects.push(`межстрочный ${layer.lineHeight ?? DEFAULT_TEXT_LINE_HEIGHT}`);
+      if ((layer.strokeWidth ?? 0) > 0) textEffects.push(`обводка ${layer.strokeWidth}px`);
+      if (layer.shadowEnabled) textEffects.push(`мягкая тень ${layer.shadowOffsetX ?? 0}/${layer.shadowOffsetY ?? 2}/${layer.shadowBlur ?? 14}`);
+      return `${layer.name}: «${textPreview.trim()}», шрифт ${layer.fontLabel || DEFAULT_TEXT_FONT.label}, ширина текстового блока ${layer.textBoxWidth ?? 88}%, интервал ${layer.letterSpacing ?? 1}px, выравнивание ${TEXT_ALIGN_LABELS[layer.textAlign] || TEXT_ALIGN_LABELS.center}${textEffects.length ? `, эффекты ${textEffects.join(", ")}` : ""}`;
+    }
+
+    if (layer.type === "shape") {
+      const shape = getConstructorShape(layer.shapeKey);
+      const fillSummary = layer.fillMode === "gradient"
+        ? `градиент ${getConstructorTextGradient(layer.gradientKey).label}`
+        : `цвет ${layer.color}`;
+      const strokeSummary = layer.strokeStyle && layer.strokeStyle !== "none" ? `, обводка ${layer.strokeStyle} ${layer.strokeWidth ?? 13}px ${layer.strokeColor}` : "";
+      const effectSummary = layer.effectType === "drop-shadow"
+        ? `, тень ${layer.effectAngle ?? -45}°/${layer.effectDistance ?? 20}`
+        : layer.effectType === "distort"
+          ? `, искажение ${layer.effectAngle ?? -55}°/${layer.effectDistance ?? 9}`
+          : "";
+      return `${layer.name}: ${shape?.label || "Фигура"}, ${fillSummary}${strokeSummary}, размер ${layer.widthCm ?? 0} × ${layer.heightCm ?? 0} см${effectSummary}`;
+    }
+
+    const preset = presetPrints.find((item) => item.key === layer.presetKey);
+    return `${layer.name}: ${preset?.label || "Принт"}, размер ${layer.widthCm ?? 0} × ${layer.heightCm ?? 0} см`;
+  };
+  const currentOrderLines = [
+    { side: "front", layers: meaningfulFrontLayers },
+    { side: "back", layers: meaningfulBackLayers },
+  ].filter(({ layers: nextLayers }) => nextLayers.length > 0).map(({ side: orderSide, layers: nextLayers }) => ({
     productName: product.displayName,
     color: resolvedColor,
     size,
     qty,
-    side,
-    layerSummary: meaningfulLayers.map((layer) => {
-      if (layer.type === "upload") {
-        return `${layer.name}: ${layer.uploadName}`;
-      }
-
-      if (layer.type === "text") {
-        const textPreview = layer.value;
-        const textEffects = [];
-        if ((layer.lineHeight ?? DEFAULT_TEXT_LINE_HEIGHT) !== DEFAULT_TEXT_LINE_HEIGHT) textEffects.push(`межстрочный ${layer.lineHeight ?? DEFAULT_TEXT_LINE_HEIGHT}`);
-        if ((layer.strokeWidth ?? 0) > 0) textEffects.push(`обводка ${layer.strokeWidth}px`);
-        if (layer.shadowEnabled) textEffects.push(`${layer.shadowMode === "soft" ? "мягкая" : "жесткая"} тень ${layer.shadowOffsetX ?? 0}/${layer.shadowOffsetY ?? 2}${layer.shadowMode === "soft" ? `/${layer.shadowBlur ?? 14}` : ""}`);
-        return `${layer.name}: «${textPreview.trim()}», шрифт ${layer.fontLabel || DEFAULT_TEXT_FONT.label}, ширина текстового блока ${layer.textBoxWidth ?? 88}%, интервал ${layer.letterSpacing ?? 1}px, выравнивание ${TEXT_ALIGN_LABELS[layer.textAlign] || TEXT_ALIGN_LABELS.center}${textEffects.length ? `, эффекты ${textEffects.join(", ")}` : ""}`;
-      }
-
-      const preset = presetPrints.find((item) => item.key === layer.presetKey);
-      return `${layer.name}: ${preset?.label || "Принт"}`;
-    }),
+    side: orderSide,
+    layerSummary: nextLayers.map(buildLayerSummary),
     total: currentTotal,
-  };
+  }));
   const orderMeta = [
     ["Текстиль", product.name],
     ["Материал", product.material || "Уточняется"],
     ["Плотность", product.densityLabel || "Уточняется"],
     ["Цвет", resolvedColor],
     ["Размер", size || "Не выбран"],
-    ["Сторона", side === "front" ? "Спереди" : "Сзади"],
+    ["Слоёв спереди", `${meaningfulFrontLayers.length}`],
+    ["Слоёв сзади", `${meaningfulBackLayers.length}`],
     ["Количество", `${qty} шт`],
-    ["Слоёв", `${meaningfulLayers.length}`],
   ];
   const nextLayerId = (type) => {
     layerIdRef.current += 1;
@@ -142,6 +182,77 @@ export default function useConstructorState({
   const getDefaultTextColor = (nextColor = resolvedColor) => (nextColor === "Белый" ? "#111111" : "#ffffff");
 
   const getLayerDefaultPosition = (layerType) => (layerType === "text" ? { x: 50, y: 78 } : { x: 50, y: 50 });
+  const getPhysicalPrintArea = (targetSide = side) => {
+    const targetArea = product.printAreas?.[targetSide] || product.printAreas?.front || FALLBACK_PRODUCT.printAreas.front;
+    return {
+      widthCm: targetArea?.physicalWidthCm || 40,
+      heightCm: targetArea?.physicalHeightCm || 50,
+    };
+  };
+  const clampCm = (value, maxValue) => Number(Math.min(maxValue, Math.max(1, Number(value))).toFixed(1));
+  const getUploadAspectRatio = (layer) => {
+    if (!layer?.width || !layer?.height) return 1;
+    return layer.width / layer.height;
+  };
+  const getUploadDimensionsFromWidthCm = (layer, nextWidthCm) => {
+    const { widthCm: maxWidthCm, heightCm: maxHeightCm } = getPhysicalPrintArea(getLayerSide(layer));
+    const aspectRatio = getUploadAspectRatio(layer);
+    const clampedWidthCm = clampCm(nextWidthCm, maxWidthCm);
+    const derivedHeightCm = Number((clampedWidthCm / aspectRatio).toFixed(1));
+
+    if (derivedHeightCm <= maxHeightCm) {
+      return { widthCm: clampedWidthCm, heightCm: derivedHeightCm };
+    }
+
+    const fitHeightCm = clampCm(maxHeightCm, maxHeightCm);
+    return {
+      widthCm: Number((fitHeightCm * aspectRatio).toFixed(1)),
+      heightCm: fitHeightCm,
+    };
+  };
+  const getDefaultUploadDimensionsCm = ({ width, height, layerSide = side }) => {
+    const { widthCm: maxWidthCm, heightCm: maxHeightCm } = getPhysicalPrintArea(layerSide);
+    const fitWidthCm = maxWidthCm * 0.7;
+    const fitHeightCm = maxHeightCm * 0.7;
+    const aspectRatio = width && height ? width / height : 1;
+
+    if (!aspectRatio || Number.isNaN(aspectRatio)) {
+      return { widthCm: Number(fitWidthCm.toFixed(1)), heightCm: Number(fitHeightCm.toFixed(1)) };
+    }
+
+    const widthRatio = fitWidthCm / width;
+    const heightRatio = fitHeightCm / height;
+    const scaleRatio = Math.min(widthRatio, heightRatio);
+    return {
+      widthCm: Number((width * scaleRatio).toFixed(1)),
+      heightCm: Number((height * scaleRatio).toFixed(1)),
+    };
+  };
+
+  const LAYER_ADD_OFFSETS = {
+    text: { x: 0, y: 4.5 },
+    shape: { x: 3.5, y: 3.5 },
+    preset: { x: 5, y: 2.5 },
+    upload: { x: 4, y: 4 },
+  };
+
+  const getNextAddedLayerPosition = (layer) => {
+    const defaultPosition = getLayerDefaultPosition(layer.type);
+    const sameSideLayers = layers.filter((currentLayer) => getLayerSide(currentLayer) === getLayerSide(layer));
+    const referenceLayer = activeLayer && getLayerSide(activeLayer) === getLayerSide(layer)
+      ? activeLayer
+      : sameSideLayers[sameSideLayers.length - 1] || null;
+    const offset = LAYER_ADD_OFFSETS[layer.type] || { x: 4, y: 4 };
+
+    if (!referenceLayer) {
+      return clampLayerPosition(defaultPosition, layer, getLayerMetrics(layer));
+    }
+
+    return clampLayerPosition({
+      x: referenceLayer.position.x + offset.x,
+      y: referenceLayer.position.y + offset.y,
+    }, layer, getLayerMetrics(layer));
+  };
 
   const buildTextLayer = (overrides = {}) => ({
     id: nextLayerId("text"),
@@ -155,7 +266,11 @@ export default function useConstructorState({
     textFillMode: "solid",
     color: getDefaultTextColor(),
     gradientKey: DEFAULT_TEXT_GRADIENT.key,
-    weight: 700,
+    weight: DEFAULT_TEXT_FONT.boldWeight ?? DEFAULT_TEXT_WEIGHT,
+    italic: false,
+    underline: false,
+    strikethrough: false,
+    uppercase: false,
     fontKey: DEFAULT_TEXT_FONT.key,
     fontFamily: DEFAULT_TEXT_FONT.family,
     fontLabel: DEFAULT_TEXT_FONT.label,
@@ -166,11 +281,14 @@ export default function useConstructorState({
     strokeWidth: 0,
     strokeColor: getDefaultTextColor() === "#ffffff" ? "#111111" : "#ffffff",
     shadowEnabled: false,
-    shadowMode: "hard",
+    shadowMode: "soft",
     shadowColor: "#111111",
     shadowOffsetX: 0,
     shadowOffsetY: 2,
     shadowBlur: 14,
+    scaleX: 1,
+    scaleY: 1,
+    side: overrides.side || side,
     position: getLayerDefaultPosition("text"),
     ...overrides,
   });
@@ -183,28 +301,65 @@ export default function useConstructorState({
     visible: true,
     locked: false,
     presetKey: presetPrints[0]?.key || "",
-    scale: 52,
+    widthCm: 18,
+    heightCm: 18,
+    side: overrides.side || side,
     position: getLayerDefaultPosition("preset"),
     ...overrides,
   });
 
-  const buildUploadLayer = ({ src, uploadName, width, height, ...overrides }) => ({
-    id: nextLayerId("upload"),
-    type: "upload",
-    name: LAYER_TYPE_LABELS.upload,
+  const buildShapeLayer = (overrides = {}) => ({
+    id: nextLayerId("shape"),
+    type: "shape",
+    name: LAYER_TYPE_LABELS.shape,
     isAutoNamed: true,
     visible: true,
     locked: false,
-    src,
-    uploadName,
-    width,
-    height,
-    scale: 78,
-    position: getLayerDefaultPosition("upload"),
+    shapeKey: getConstructorShape(overrides.shapeKey).key,
+    fillMode: "solid",
+    color: getDefaultTextColor(),
+    gradientKey: DEFAULT_TEXT_GRADIENT.key,
+    strokeStyle: "none",
+    strokeWidth: 13,
+    strokeColor: getDefaultTextColor() === "#ffffff" ? "#111111" : "#ffffff",
+    effectType: "none",
+    effectAngle: -45,
+    effectDistance: 20,
+    effectColor: "#824ef0",
+    distortionColorA: "#ed5bb7",
+    distortionColorB: "#1cb8d8",
+    widthCm: 16,
+    heightCm: 16,
+    side: overrides.side || side,
+    position: getLayerDefaultPosition("shape"),
     ...overrides,
   });
 
+  const buildUploadLayer = ({ src, uploadName, width, height, ...overrides }) => {
+    const resolvedSide = overrides.side || side;
+    const defaultDimensions = getDefaultUploadDimensionsCm({ width, height, layerSide: resolvedSide });
+
+    return {
+      id: nextLayerId("upload"),
+      type: "upload",
+      name: LAYER_TYPE_LABELS.upload,
+      isAutoNamed: true,
+      visible: true,
+      locked: false,
+      src,
+      uploadName,
+      width,
+      height,
+      widthCm: defaultDimensions.widthCm,
+      heightCm: defaultDimensions.heightCm,
+      side: resolvedSide,
+      position: getLayerDefaultPosition("upload"),
+      ...overrides,
+    };
+  };
+
   const getPresetByKey = (presetKey) => presetPrints.find((item) => item.key === presetKey) || null;
+  const getShapeByKey = (shapeKey) => getConstructorShape(shapeKey);
 
   const updateLayer = (layerId, updater) => {
     setLayers((currentLayers) => currentLayers.map((layer) => {
@@ -215,9 +370,12 @@ export default function useConstructorState({
 
   const removeLayerById = (layerId) => {
     setLayers((currentLayers) => {
+      const removedLayer = currentLayers.find((layer) => layer.id === layerId) || null;
+      const removedSide = getLayerSide(removedLayer);
       const nextLayers = reindexAutoNamedLayers(currentLayers.filter((layer) => layer.id !== layerId));
       if (activeLayerId === layerId) {
-        setActiveLayerId(nextLayers[nextLayers.length - 1]?.id || null);
+        const sameSideLayers = nextLayers.filter((layer) => getLayerSide(layer) === removedSide);
+        setActiveLayerId(sameSideLayers[sameSideLayers.length - 1]?.id || null);
       }
       if (draggingLayerId === layerId) {
         setDraggingLayerId(null);
@@ -235,35 +393,59 @@ export default function useConstructorState({
     if (nextTab) setActiveTab(nextTab);
   };
 
-  const getLayerMetrics = (layer, nextScale = layer.scale) => {
-    if (!printAreaRef.current || !layer) return null;
+  const handleSideChange = (nextSide) => {
+    const resolvedSide = nextSide === "back" ? "back" : "front";
+    setSide(resolvedSide);
+    setDraggingLayerId(null);
+    setEditingTextLayerId(null);
+
+    const nextSideLayers = layers.filter((layer) => getLayerSide(layer) === resolvedSide);
+    setActiveLayerId(nextSideLayers[nextSideLayers.length - 1]?.id || null);
+  };
+
+  const getLayerMetrics = (layer, nextState = null) => {
+    const resolvedLayer = nextState ? { ...layer, ...nextState } : layer;
+    if (!printAreaRef.current || !resolvedLayer) return null;
 
     const { width: areaWidth, height: areaHeight } = printAreaRef.current.getBoundingClientRect();
     if (!areaWidth || !areaHeight) return null;
 
-    if (layer.type === "upload") {
-      if (!layer.width || !layer.height) return null;
-      const aspectRatio = layer.width / layer.height;
-      const preferredWidth = areaWidth * (nextScale / 100);
-      const width = Math.min(preferredWidth, areaHeight * aspectRatio, areaWidth);
-      const height = aspectRatio ? width / aspectRatio : areaHeight;
+    const { widthCm: areaWidthCm, heightCm: areaHeightCm } = getPhysicalPrintArea(getLayerSide(resolvedLayer));
+
+    if (resolvedLayer.type === "upload") {
+      const widthCm = resolvedLayer.widthCm;
+      const heightCm = resolvedLayer.heightCm;
+      if (!widthCm || !heightCm) return null;
+      const width = Math.min(areaWidth, areaWidth * (widthCm / areaWidthCm));
+      const height = Math.min(areaHeight, areaHeight * (heightCm / areaHeightCm));
       return { areaWidth, areaHeight, width, height };
     }
 
-    if (layer.type === "preset") {
-      const width = Math.min(areaWidth * (nextScale / 100), areaWidth);
-      return { areaWidth, areaHeight, width, height: width };
+    if (resolvedLayer.type === "preset") {
+      const widthCm = resolvedLayer.widthCm;
+      const heightCm = resolvedLayer.heightCm ?? widthCm;
+      const width = Math.min(areaWidth, areaWidth * (widthCm / areaWidthCm));
+      const height = Math.min(areaHeight, areaHeight * (heightCm / areaHeightCm));
+      return { areaWidth, areaHeight, width, height };
     }
 
-    const resolvedText = String(layer.value || "");
+    if (resolvedLayer.type === "shape") {
+      const widthCm = resolvedLayer.widthCm;
+      const heightCm = resolvedLayer.heightCm ?? widthCm;
+      const width = Math.min(areaWidth, areaWidth * (widthCm / areaWidthCm));
+      const height = Math.min(areaHeight, areaHeight * (heightCm / areaHeightCm));
+      return { areaWidth, areaHeight, width, height };
+    }
+
+    const resolvedText = String(resolvedLayer.value || "");
     const manualLines = resolvedText.split(/\r?\n/);
-    const widthPercent = Math.min(100, Math.max(20, layer.textBoxWidth ?? 88));
+    const widthPercent = Math.min(100, Math.max(20, resolvedLayer.textBoxWidth ?? 88));
     const width = Math.min(areaWidth, areaWidth * (widthPercent / 100));
-    const averageCharWidth = Math.max(1, layer.size * 0.56 + (layer.letterSpacing ?? 1));
+    const averageCharWidth = Math.max(1, resolvedLayer.size * 0.56 + (resolvedLayer.letterSpacing ?? 1));
     const charsPerLine = Math.max(1, Math.floor(width / averageCharWidth));
     const lineCount = manualLines.reduce((total, line) => total + Math.max(1, Math.ceil(line.length / charsPerLine)), 0);
 
-    const height = Math.min(areaHeight, lineCount * layer.size * (layer.lineHeight ?? DEFAULT_TEXT_LINE_HEIGHT));
+    const height = Math.min(areaHeight, lineCount * resolvedLayer.size * (resolvedLayer.lineHeight ?? DEFAULT_TEXT_LINE_HEIGHT));
     return { areaWidth, areaHeight, width, height };
   };
 
@@ -289,24 +471,44 @@ export default function useConstructorState({
     };
   };
 
-  const resolveLayerPositionFromPointer = (clientX, clientY, layer) => {
-    if (!printAreaRef.current || !layer) return layer?.position || getLayerDefaultPosition("upload");
-    const rect = printAreaRef.current.getBoundingClientRect();
-    const nextPosition = {
-      x: ((clientX - rect.left) / rect.width) * 100,
-      y: ((clientY - rect.top) / rect.height) * 100,
-    };
-    return clampLayerPosition(nextPosition, layer);
+  const getTabByLayerType = (layerType) => {
+    if (layerType === "upload") return "upload";
+    if (layerType === "text") return "text";
+    if (layerType === "preset") return "prints";
+    if (layerType === "shape") return "shapes";
+    return null;
+  };
+
+  const selectLayer = (layerId) => {
+    const nextLayer = layers.find((layer) => layer.id === layerId) || null;
+    setActiveLayerId(layerId);
+
+    if (!nextLayer || nextLayer.type !== "text") {
+      setEditingTextLayerId(null);
+    }
+  };
+
+  const openLayerEditor = (layerId) => {
+    const nextLayer = layers.find((layer) => layer.id === layerId) || null;
+    if (!nextLayer) return;
+
+    setActiveLayerId(layerId);
+
+    const nextTab = getTabByLayerType(nextLayer.type);
+    if (nextTab) {
+      setActiveTab(nextTab);
+    }
+
+    if (nextLayer.type === "text") {
+      setEditingTextLayerId(layerId);
+      return;
+    }
+
+    setEditingTextLayerId(null);
   };
 
   const focusLayer = (layerId) => {
-    const nextLayer = layers.find((layer) => layer.id === layerId) || null;
-    setActiveLayerId(layerId);
-    if (!nextLayer) return;
-    if (nextLayer.type === "upload") setActiveTab("upload");
-    if (nextLayer.type === "text") setActiveTab("text");
-    if (nextLayer.type === "preset") setActiveTab("prints");
-    if (nextLayer.type !== "text") setEditingTextLayerId(null);
+    openLayerEditor(layerId);
   };
 
   const handleProductChange = (nextProductKey) => {
@@ -341,11 +543,12 @@ export default function useConstructorState({
 
   const handleUploadScaleChange = (event) => {
     if (!activeUploadLayer) return;
-    const nextScale = Number(event.target.value);
+    const nextWidthCm = Number(event.target.value);
+    const nextDimensions = getUploadDimensionsFromWidthCm(activeUploadLayer, nextWidthCm);
     updateLayer(activeUploadLayer.id, (layer) => ({
       ...layer,
-      scale: nextScale,
-      position: clampLayerPosition(layer.position, layer, getLayerMetrics(layer, nextScale)),
+      ...nextDimensions,
+      position: clampLayerPosition(layer.position, { ...layer, ...nextDimensions }, getLayerMetrics(layer, nextDimensions)),
     }));
   };
 
@@ -363,11 +566,7 @@ export default function useConstructorState({
     const targetLayer = layers.find((layer) => layer.id === layerId);
     if (!targetLayer) return;
 
-    setActiveLayerId(layerId);
-    if (targetLayer.type === "upload") setActiveTab("upload");
-    if (targetLayer.type === "text") setActiveTab("text");
-    if (targetLayer.type === "preset") setActiveTab("prints");
-    if (targetLayer.type !== "text") setEditingTextLayerId(null);
+    selectLayer(layerId);
 
     if (targetLayer.locked || !printAreaRef.current) return;
 
@@ -375,27 +574,51 @@ export default function useConstructorState({
 
     const pointerId = event.pointerId;
     const node = event.currentTarget;
+    const startPointer = { x: event.clientX, y: event.clientY };
+    const startPosition = { ...targetLayer.position };
+    let hasDragged = false;
+
     const updatePosition = (clientX, clientY) => {
-      const nextPosition = resolveLayerPositionFromPointer(clientX, clientY, targetLayer);
+      if (!printAreaRef.current) return;
+
+      const rect = printAreaRef.current.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+
+      const nextPosition = clampLayerPosition({
+        x: startPosition.x + (((clientX - startPointer.x) / rect.width) * 100),
+        y: startPosition.y + (((clientY - startPointer.y) / rect.height) * 100),
+      }, targetLayer);
+
       updateLayer(layerId, (layer) => {
         if (layer.position.x === nextPosition.x && layer.position.y === nextPosition.y) return layer;
         return { ...layer, position: nextPosition };
       });
     };
 
-    setDraggingLayerId(layerId);
     node.setPointerCapture?.(pointerId);
-    updatePosition(event.clientX, event.clientY);
 
     const handlePointerMove = (moveEvent) => {
       if (moveEvent.pointerId !== pointerId) return;
+
+      const deltaX = moveEvent.clientX - startPointer.x;
+      const deltaY = moveEvent.clientY - startPointer.y;
+      if (!hasDragged && Math.hypot(deltaX, deltaY) < 4) return;
+
       moveEvent.preventDefault();
+
+      if (!hasDragged) {
+        hasDragged = true;
+        setDraggingLayerId(layerId);
+      }
+
       updatePosition(moveEvent.clientX, moveEvent.clientY);
     };
 
     const stopDragging = (endEvent) => {
       if (endEvent.pointerId !== pointerId) return;
-      setDraggingLayerId(null);
+      if (hasDragged) {
+        setDraggingLayerId(null);
+      }
       node.releasePointerCapture?.(pointerId);
       window.removeEventListener("pointermove", handlePointerMove);
       window.removeEventListener("pointerup", stopDragging);
@@ -409,13 +632,21 @@ export default function useConstructorState({
 
   const addTextLayer = () => {
     const nextLayer = buildTextLayer();
+    nextLayer.position = getNextAddedLayerPosition(nextLayer);
     addLayer(nextLayer, "text");
     setEditingTextLayerId(nextLayer.id);
   };
 
   const addPresetLayer = () => {
     const nextLayer = buildPresetLayer();
+    nextLayer.position = getNextAddedLayerPosition(nextLayer);
     addLayer(nextLayer, "prints");
+  };
+
+  const addShapeLayer = (shapeKey) => {
+    const nextLayer = buildShapeLayer(shapeKey ? { shapeKey } : {});
+    nextLayer.position = getNextAddedLayerPosition(nextLayer);
+    addLayer(nextLayer, "shapes");
   };
 
   const removeActiveLayer = () => {
@@ -460,24 +691,64 @@ export default function useConstructorState({
       });
     }
 
+    if (activeLayer.type === "shape") {
+      nextLayer = buildShapeLayer({
+        ...activeLayer,
+        name: `${activeLayer.name} копия`,
+        isAutoNamed: false,
+        position: clampLayerPosition({ x: activeLayer.position.x + 4, y: activeLayer.position.y + 4 }, activeLayer),
+      });
+    }
+
     if (!nextLayer) return;
-    addLayer(nextLayer, activeLayer.type === "preset" ? "prints" : activeLayer.type);
+    addLayer(nextLayer, activeLayer.type === "preset" ? "prints" : activeLayer.type === "shape" ? "shapes" : activeLayer.type);
   };
 
   const moveActiveLayer = (direction) => {
     if (!activeLayer) return;
 
     setLayers((currentLayers) => {
-      const currentIndex = currentLayers.findIndex((layer) => layer.id === activeLayer.id);
-      if (currentIndex === -1) return currentLayers;
+      const activeSide = getLayerSide(activeLayer);
+      const scopedIndexes = currentLayers.reduce((indexes, layer, index) => {
+        if (getLayerSide(layer) === activeSide) indexes.push(index);
+        return indexes;
+      }, []);
+      const scopedIndex = scopedIndexes.findIndex((index) => currentLayers[index]?.id === activeLayer.id);
+      if (scopedIndex === -1) return currentLayers;
 
-      const nextIndex = direction === "up" ? currentIndex + 1 : currentIndex - 1;
-      if (nextIndex < 0 || nextIndex >= currentLayers.length) return currentLayers;
+      const nextScopedIndex = direction === "up" ? scopedIndex + 1 : scopedIndex - 1;
+      if (nextScopedIndex < 0 || nextScopedIndex >= scopedIndexes.length) return currentLayers;
 
+      const fromIndex = scopedIndexes[scopedIndex];
+      const toIndex = scopedIndexes[nextScopedIndex];
       const nextLayers = [...currentLayers];
-      const [movedLayer] = nextLayers.splice(currentIndex, 1);
-      nextLayers.splice(nextIndex, 0, movedLayer);
+      const [movedLayer] = nextLayers.splice(fromIndex, 1);
+      nextLayers.splice(toIndex, 0, movedLayer);
       return nextLayers;
+    });
+  };
+
+  const reorderLayers = (nextLayerIds, targetSide = side) => {
+    if (!Array.isArray(nextLayerIds) || !nextLayerIds.length) return;
+
+    setLayers((currentLayers) => {
+      const resolvedSide = targetSide === "back" ? "back" : "front";
+      const scopedLayers = currentLayers.filter((layer) => getLayerSide(layer) === resolvedSide);
+      if (nextLayerIds.length !== scopedLayers.length) return currentLayers;
+
+      const layerMap = new Map(scopedLayers.map((layer) => [layer.id, layer]));
+      const nextScopedLayers = nextLayerIds.map((layerId) => layerMap.get(layerId)).filter(Boolean);
+
+      if (nextScopedLayers.length !== scopedLayers.length) return currentLayers;
+      if (nextScopedLayers.every((layer, index) => layer.id === scopedLayers[index].id)) return currentLayers;
+
+      let scopedIndex = 0;
+      return currentLayers.map((layer) => {
+        if (getLayerSide(layer) !== resolvedSide) return layer;
+        const nextLayer = nextScopedLayers[scopedIndex];
+        scopedIndex += 1;
+        return nextLayer;
+      });
     });
   };
 
@@ -489,14 +760,63 @@ export default function useConstructorState({
     updateLayer(layerId, (layer) => ({ ...layer, locked: !layer.locked }));
   };
 
+  const applyLayerResize = (layerId, patch) => {
+    if (!layerId || !patch) return;
+
+    updateLayer(layerId, (layer) => {
+      const { widthCm: maxWidthCm, heightCm: maxHeightCm } = getPhysicalPrintArea(getLayerSide(layer));
+      const nextLayer = { ...layer, ...patch };
+
+      if (nextLayer.type === "upload" || nextLayer.type === "preset" || nextLayer.type === "shape") {
+        nextLayer.widthCm = clampCm(nextLayer.widthCm ?? layer.widthCm ?? 1, maxWidthCm);
+        nextLayer.heightCm = clampCm(nextLayer.heightCm ?? layer.heightCm ?? 1, maxHeightCm);
+      }
+
+      if (nextLayer.type === "text") {
+        nextLayer.scaleX = Number(Math.min(6, Math.max(0.2, nextLayer.scaleX ?? layer.scaleX ?? 1)).toFixed(3));
+        nextLayer.scaleY = Number(Math.min(6, Math.max(0.2, nextLayer.scaleY ?? layer.scaleY ?? 1)).toFixed(3));
+        nextLayer.size = Math.min(220, Math.max(12, Number(nextLayer.size ?? layer.size ?? 36)));
+        nextLayer.textBoxWidth = Math.min(100, Math.max(20, Number(nextLayer.textBoxWidth ?? layer.textBoxWidth ?? 88)));
+        nextLayer.lineHeight = Math.min(1.8, Math.max(0.85, Number(nextLayer.lineHeight ?? layer.lineHeight ?? DEFAULT_TEXT_LINE_HEIGHT)));
+        nextLayer.letterSpacing = Number(Math.min(24, Math.max(-8, Number(nextLayer.letterSpacing ?? layer.letterSpacing ?? 1))).toFixed(2));
+        nextLayer.strokeWidth = Number(Math.min(6, Math.max(0, Number(nextLayer.strokeWidth ?? layer.strokeWidth ?? 0))).toFixed(2));
+        nextLayer.shadowOffsetX = Number(Math.min(24, Math.max(-24, Number(nextLayer.shadowOffsetX ?? layer.shadowOffsetX ?? 0))).toFixed(2));
+        nextLayer.shadowOffsetY = Number(Math.min(24, Math.max(-24, Number(nextLayer.shadowOffsetY ?? layer.shadowOffsetY ?? 2))).toFixed(2));
+        nextLayer.shadowBlur = Number(Math.min(32, Math.max(0, Number(nextLayer.shadowBlur ?? layer.shadowBlur ?? 14))).toFixed(2));
+        nextLayer.scaleX = 1;
+        nextLayer.scaleY = 1;
+      }
+
+      nextLayer.position = clampLayerPosition(nextLayer.position ?? layer.position, nextLayer, getLayerMetrics(nextLayer));
+      return nextLayer;
+    });
+  };
+
   const updateActiveTextLayer = (patch) => {
     if (!activeTextLayer) return;
-    updateLayer(activeTextLayer.id, (layer) => ({ ...layer, ...patch }));
+    updateLayer(activeTextLayer.id, (layer) => {
+      if (typeof patch === "function") {
+        return patch(layer);
+      }
+
+      return { ...layer, ...patch };
+    });
   };
 
   const updateActivePresetLayer = (patch) => {
     if (!activePresetLayer) return;
     updateLayer(activePresetLayer.id, (layer) => ({ ...layer, ...patch }));
+  };
+
+  const updateActiveShapeLayer = (patch) => {
+    if (!activeShapeLayer) return;
+    updateLayer(activeShapeLayer.id, (layer) => {
+      if (typeof patch === "function") {
+        return patch(layer);
+      }
+
+      return { ...layer, ...patch };
+    });
   };
 
   const setTextValue = (nextValue) => {
@@ -511,10 +831,32 @@ export default function useConstructorState({
     const nextGradient = getConstructorTextGradient(nextGradientKey);
     updateActiveTextLayer({ textFillMode: "gradient", gradientKey: nextGradient.key });
   };
-  const setTextWeight = (nextWeight) => updateActiveTextLayer({ weight: nextWeight });
+  const setTextWeight = (nextWeight) => {
+    if (!activeTextLayer || !activeTextFont.supportsBold) return;
+
+    const minWeight = activeTextFont.regularWeight ?? 400;
+    const maxWeight = activeTextFont.boldWeight ?? nextWeight;
+    updateActiveTextLayer({ weight: Math.min(maxWeight, Math.max(minWeight, Number(nextWeight))) });
+  };
+  const setTextItalic = (nextItalic) => {
+    if (!activeTextLayer || !activeTextFont.supportsItalic) return;
+    updateActiveTextLayer({ italic: nextItalic });
+  };
+  const setTextUnderline = (nextUnderline) => updateActiveTextLayer({ underline: nextUnderline });
+  const setTextStrikethrough = (nextStrikethrough) => updateActiveTextLayer({ strikethrough: nextStrikethrough });
+  const setTextUppercase = (nextUppercase) => updateActiveTextLayer({ uppercase: nextUppercase });
   const setTextFontKey = (nextFontKey) => {
     const nextFont = getConstructorTextFont(nextFontKey);
-    updateActiveTextLayer({ fontKey: nextFont.key, fontFamily: nextFont.family, fontLabel: nextFont.label });
+    updateActiveTextLayer((layer) => ({
+      ...layer,
+      fontKey: nextFont.key,
+      fontFamily: nextFont.family,
+      fontLabel: nextFont.label,
+      weight: nextFont.supportsBold
+        ? (isTextBold(layer) ? (nextFont.boldWeight ?? layer.weight) : (nextFont.regularWeight ?? layer.weight))
+        : (nextFont.regularWeight ?? 400),
+      italic: nextFont.supportsItalic ? layer.italic : false,
+    }));
   };
   const setTextBoxWidth = (nextTextBoxWidth) => updateActiveTextLayer({ textBoxWidth: Math.min(100, Math.max(20, Math.round(nextTextBoxWidth))) });
   const setTextLineHeight = (nextLineHeight) => updateActiveTextLayer({ lineHeight: Math.min(1.8, Math.max(0.85, Number(nextLineHeight.toFixed(2)))) });
@@ -522,41 +864,78 @@ export default function useConstructorState({
   const setTextAlign = (nextTextAlign) => updateActiveTextLayer({ textAlign: nextTextAlign });
   const setTextStrokeWidth = (nextStrokeWidth) => updateActiveTextLayer({ strokeWidth: Math.min(6, Math.max(0, Number(nextStrokeWidth))) });
   const setTextStrokeColor = (nextStrokeColor) => updateActiveTextLayer({ strokeColor: nextStrokeColor });
-  const setTextShadowEnabled = (nextShadowEnabled) => updateActiveTextLayer({ shadowEnabled: nextShadowEnabled });
-  const setTextShadowMode = (nextShadowMode) => updateActiveTextLayer({ shadowMode: nextShadowMode });
+  const setTextShadowEnabled = (nextShadowEnabled) => updateActiveTextLayer({ shadowEnabled: nextShadowEnabled, shadowMode: "soft" });
   const setTextShadowColor = (nextShadowColor) => updateActiveTextLayer({ shadowColor: nextShadowColor });
   const setTextShadowOffsetX = (nextShadowOffsetX) => updateActiveTextLayer({ shadowOffsetX: Math.min(24, Math.max(-24, Math.round(nextShadowOffsetX))) });
   const setTextShadowOffsetY = (nextShadowOffsetY) => updateActiveTextLayer({ shadowOffsetY: Math.min(24, Math.max(-24, Math.round(nextShadowOffsetY))) });
   const setTextShadowBlur = (nextShadowBlur) => updateActiveTextLayer({ shadowBlur: Math.min(32, Math.max(0, Math.round(nextShadowBlur))) });
   const setPresetKey = (nextPresetKey) => updateActivePresetLayer({ presetKey: nextPresetKey });
-  const setPresetScale = (nextScale) => {
+  const setPresetWidthCm = (nextWidthCm) => {
     if (!activePresetLayer) return;
+    const { widthCm: maxWidthCm, heightCm: maxHeightCm } = getPhysicalPrintArea(getLayerSide(activePresetLayer));
+    const nextDimensions = {
+      widthCm: clampCm(nextWidthCm, maxWidthCm),
+      heightCm: clampCm(nextWidthCm, maxHeightCm),
+    };
     updateLayer(activePresetLayer.id, (layer) => ({
       ...layer,
-      scale: nextScale,
-      position: clampLayerPosition(layer.position, layer, getLayerMetrics(layer, nextScale)),
+      ...nextDimensions,
+      position: clampLayerPosition(layer.position, { ...layer, ...nextDimensions }, getLayerMetrics(layer, nextDimensions)),
+    }));
+  };
+  const setShapeKey = (nextShapeKey) => updateActiveShapeLayer({ shapeKey: getConstructorShape(nextShapeKey).key });
+  const setShapeColor = (nextColor) => updateActiveShapeLayer({ fillMode: "solid", color: nextColor });
+  const setShapeGradientKey = (nextGradientKey) => updateActiveShapeLayer({ fillMode: "gradient", gradientKey: getConstructorTextGradient(nextGradientKey).key });
+  const setShapeStrokeStyle = (nextStrokeStyle) => updateActiveShapeLayer((layer) => ({
+    ...layer,
+    strokeStyle: nextStrokeStyle,
+    strokeWidth: nextStrokeStyle === "none"
+      ? layer.strokeWidth ?? 13
+      : Math.max(1, layer.strokeWidth ?? 13),
+  }));
+  const setShapeStrokeWidth = (nextStrokeWidth) => updateActiveShapeLayer({ strokeWidth: Math.min(24, Math.max(1, Number(nextStrokeWidth))) });
+  const setShapeStrokeColor = (nextStrokeColor) => updateActiveShapeLayer({ strokeColor: nextStrokeColor });
+  const setShapeEffectType = (nextEffectType) => updateActiveShapeLayer({ effectType: nextEffectType });
+  const setShapeEffectAngle = (nextEffectAngle) => updateActiveShapeLayer({ effectAngle: Math.min(180, Math.max(-180, Math.round(nextEffectAngle))) });
+  const setShapeEffectDistance = (nextEffectDistance) => updateActiveShapeLayer({ effectDistance: Math.min(40, Math.max(0, Math.round(nextEffectDistance))) });
+  const setShapeEffectColor = (nextEffectColor) => updateActiveShapeLayer({ effectColor: nextEffectColor });
+  const setShapeDistortionColorA = (nextColor) => updateActiveShapeLayer({ distortionColorA: nextColor });
+  const setShapeDistortionColorB = (nextColor) => updateActiveShapeLayer({ distortionColorB: nextColor });
+  const setShapeWidthCm = (nextWidthCm) => {
+    if (!activeShapeLayer) return;
+    const { widthCm: maxWidthCm, heightCm: maxHeightCm } = getPhysicalPrintArea(getLayerSide(activeShapeLayer));
+    const nextDimensions = {
+      widthCm: clampCm(nextWidthCm, maxWidthCm),
+      heightCm: clampCm(nextWidthCm, maxHeightCm),
+    };
+    updateLayer(activeShapeLayer.id, (layer) => ({
+      ...layer,
+      ...nextDimensions,
+      position: clampLayerPosition(layer.position, { ...layer, ...nextDimensions }, getLayerMetrics(layer, nextDimensions)),
     }));
   };
 
-  const telegramLink = buildTelegramLink([currentOrderLine]);
+  const telegramLink = buildTelegramLink(currentOrderLines);
 
   return {
     activeTab,
     setActiveTab,
     productKey,
     side,
-    setSide,
+    setSide: handleSideChange,
     color: resolvedColor,
     size,
     setSize,
     qty,
     setQty,
     layers,
+    sideLayers,
     activeLayer,
     activeLayerId,
     activeUploadLayer,
     activeTextLayer,
     activePresetLayer,
+    activeShapeLayer,
     draggingLayerId,
     editingTextLayerId,
     textValue: activeTextLayer?.value || "",
@@ -568,8 +947,20 @@ export default function useConstructorState({
     setTextColor,
     textGradientKey: activeTextLayer?.gradientKey || DEFAULT_TEXT_GRADIENT.key,
     setTextGradientKey,
-    textWeight: activeTextLayer?.weight || 700,
+    textWeight: activeTextLayer?.weight || (activeTextFont.boldWeight ?? DEFAULT_TEXT_WEIGHT),
     setTextWeight,
+    textItalic: activeTextLayer?.italic ?? false,
+    setTextItalic,
+    textFontSupportsBold: activeTextFont.supportsBold ?? false,
+    textFontSupportsItalic: activeTextFont.supportsItalic ?? false,
+    textRegularWeight: activeTextFont.regularWeight ?? 400,
+    textBoldWeight: activeTextFont.boldWeight ?? (activeTextFont.regularWeight ?? 400),
+    textUnderline: activeTextLayer?.underline ?? false,
+    setTextUnderline,
+    textStrikethrough: activeTextLayer?.strikethrough ?? false,
+    setTextStrikethrough,
+    textUppercase: activeTextLayer?.uppercase ?? false,
+    setTextUppercase,
     textFontKey: activeTextLayer?.fontKey || DEFAULT_TEXT_FONT.key,
     textFontLabel: activeTextLayer?.fontLabel || DEFAULT_TEXT_FONT.label,
     setTextFontKey,
@@ -587,8 +978,7 @@ export default function useConstructorState({
     setTextStrokeColor,
     textShadowEnabled: activeTextLayer?.shadowEnabled ?? false,
     setTextShadowEnabled,
-    textShadowMode: activeTextLayer?.shadowMode || "hard",
-    setTextShadowMode,
+    textShadowMode: "soft",
     textShadowColor: activeTextLayer?.shadowColor || "#111111",
     setTextShadowColor,
     textShadowOffsetX: activeTextLayer?.shadowOffsetX ?? 0,
@@ -597,10 +987,41 @@ export default function useConstructorState({
     setTextShadowOffsetY,
     textShadowBlur: activeTextLayer?.shadowBlur ?? 14,
     setTextShadowBlur,
+    textScaleX: activeTextLayer?.scaleX ?? 1,
+    textScaleY: activeTextLayer?.scaleY ?? 1,
     presetKey: activePresetLayer?.presetKey || "",
     setPresetKey,
-    presetScale: activePresetLayer?.scale || 52,
-    setPresetScale,
+    presetWidthCm: activePresetLayer?.widthCm || 18,
+    presetHeightCm: activePresetLayer?.heightCm || 18,
+    setPresetWidthCm,
+    shapeKey: activeShapeLayer?.shapeKey || getConstructorShape().key,
+    setShapeKey,
+    shapeFillMode: activeShapeLayer?.fillMode || "solid",
+    shapeColor: activeShapeLayer?.color || getDefaultTextColor(),
+    setShapeColor,
+    shapeGradientKey: activeShapeLayer?.gradientKey || DEFAULT_TEXT_GRADIENT.key,
+    setShapeGradientKey,
+    shapeStrokeStyle: activeShapeLayer?.strokeStyle || "none",
+    setShapeStrokeStyle,
+    shapeStrokeWidth: activeShapeLayer?.strokeWidth ?? 0,
+    setShapeStrokeWidth,
+    shapeStrokeColor: activeShapeLayer?.strokeColor || (getDefaultTextColor() === "#ffffff" ? "#111111" : "#ffffff"),
+    setShapeStrokeColor,
+    shapeEffectType: activeShapeLayer?.effectType || "none",
+    setShapeEffectType,
+    shapeEffectAngle: activeShapeLayer?.effectAngle ?? -45,
+    setShapeEffectAngle,
+    shapeEffectDistance: activeShapeLayer?.effectDistance ?? 20,
+    setShapeEffectDistance,
+    shapeEffectColor: activeShapeLayer?.effectColor || "#824ef0",
+    setShapeEffectColor,
+    shapeDistortionColorA: activeShapeLayer?.distortionColorA || "#ed5bb7",
+    setShapeDistortionColorA,
+    shapeDistortionColorB: activeShapeLayer?.distortionColorB || "#1cb8d8",
+    setShapeDistortionColorB,
+    shapeWidthCm: activeShapeLayer?.widthCm || 16,
+    shapeHeightCm: activeShapeLayer?.heightCm || 16,
+    setShapeWidthCm,
     printAreaRef,
     product,
     printArea,
@@ -612,20 +1033,28 @@ export default function useConstructorState({
     handleProductChange,
     handleColorChange,
     handleUploadChange,
+    uploadWidthCm: activeUploadLayer?.widthCm || 0,
+    uploadHeightCm: activeUploadLayer?.heightCm || 0,
     handleUploadScaleChange,
     handleUploadRemove,
     handleLayerPointerDown,
+    applyLayerResize,
     centerActiveLayerPosition,
     setEditingTextLayerId,
+    selectLayer,
+    openLayerEditor,
     addTextLayer,
     addPresetLayer,
+    addShapeLayer,
     focusLayer,
     removeLayer,
     removeActiveLayer,
     duplicateActiveLayer,
     moveActiveLayer,
+    reorderLayers,
     toggleLayerVisibility,
     toggleLayerLock,
     getPresetByKey,
+    getShapeByKey,
   };
 }

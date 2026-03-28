@@ -12,9 +12,9 @@ export default function ConstructorOrderPanel({ currentTotal, orderMeta, canSubm
         <div style={{ padding: 16, borderRadius: 18, background: "rgba(255,255,255,.03)", border: "1px solid rgba(255,255,255,.05)", minWidth: 0 }}>
           <div style={{ display: "grid", gap: 10, minWidth: 0 }}>
             {orderMeta.map(([label, value]) => (
-              <div key={label} style={{ display: "grid", gridTemplateColumns: "112px minmax(0,1fr)", alignItems: "start", gap: 12, minWidth: 0 }}>
-                <span style={{ minWidth: 0, fontSize: 12, letterSpacing: 1.1, textTransform: "uppercase", color: "rgba(240,238,245,.36)", whiteSpace: "nowrap" }}>{label}</span>
-                <span style={{ minWidth: 0, fontSize: 14, lineHeight: 1.45, fontWeight: 500, color: "#f0eef5", textAlign: "right", overflowWrap: "break-word", wordBreak: "normal" }}>{value}</span>
+              <div key={label} className="constructor-order-row" style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: "4px 12px", minWidth: 0 }}>
+                <span className="constructor-order-label" style={{ minWidth: 0, flex: "0 1 auto", fontSize: 12, letterSpacing: 1.1, textTransform: "uppercase", color: "rgba(240,238,245,.36)", whiteSpace: "normal", overflowWrap: "break-word", wordBreak: "normal" }}>{label}</span>
+                <span className="constructor-order-value" style={{ minWidth: 0, flex: "1 1 132px", fontSize: 14, lineHeight: 1.45, fontWeight: 500, color: "#f0eef5", textAlign: "right", overflowWrap: "break-word", wordBreak: "normal" }}>{value}</span>
               </div>
             ))}
           </div>

@@ -130,13 +130,15 @@ Constructor-related элементы:
 - upload processing
 - active layer drag-and-drop
 - text layer state
+- shape layer state
 - empty initial text value for newly created text layers with preview placeholder
 - text font selection with local search, keyboard-layout tolerance, keyboard navigation, grouped sections, pinned active font, listbox-semantics and auto-scroll to active result
 - text color system with solid presets, gradient presets, native picker and HEX input
-- text box width with default auto-wrap and preview resize handles
-- text line-height, stroke and hard/soft shadow effects
+- text box width with auto-wrap inside a single working container and canva-like preview resize handles
+- text line-height, stroke and soft shadow effects
 - text alignment and letter spacing
 - preset layer state
+- shape categories, category-browser state для overview/detail-экрана, active shape, основной цвет, stroke state с отдельным style/color workflow и взаимоисключающие shape-эффекты
 - order summary data
 
 ### src/components/constructor/constructorConfig.js
@@ -151,8 +153,12 @@ Constructor-related элементы:
 
 - CONSTRUCTOR_PRINT_AREAS
 - CONSTRUCTOR_TABS
+- CONSTRUCTOR_SHAPE_CATEGORIES
+- CONSTRUCTOR_SHAPES
+- CONSTRUCTOR_SHAPE_BASIC_COLORS
 - buildConstructorProducts(...)
 - createConstructorPresetPrints(...)
+- buildConstructorShapeSvg(...)
 - buildConstructorTelegramLink(...)
 - readFileAsDataUrl(...)
 - readImageSize(...)
@@ -182,13 +188,20 @@ Props:
 - upload
 - text
 - preset prints
+- shapes
 
 Тип ответственности:
 
 - presentational
 - event forwarding
+- компактный менеджер слоёв с single-click выбором, double-click переходом к нужной вкладке редактирования, centered layer-content, live drag-and-drop reorder и постоянными action-кнопками скрытия/удаления справа
+- side-aware layer model: front/back хранят независимые наборы слоёв, а manager/preview показывают только слои текущей стороны
+- physical print model for oversize black XS/S mockups: front/back PNG plus print-area 40 × 50 см; upload, preset и shape-layer хранят widthCm/heightCm вместо абстрактного scale
 - primary CTA для создания текстового слоя, fallback-подпись «Текст N» до ввода, короткие фрагменты текста после ввода, быстрые действия скрытия/удаления text-layer и переключение активного text-layer из боковой панели
 - одна активная панель текстовых настроек под списком слоёв для режимов «Шрифт», «Цвет», «Интервалы» и «Эффекты»
+- отдельная вкладка фигур для выбора shape-layer
+- отдельная вкладка фигур с overview-каталогом категорий, горизонтальными лентами превью и отдельным экраном выбранной категории; по умолчанию каталог добавляет новый shape-layer, замена фигуры текущего слоя идёт через отдельную кнопку «Редактировать», подсветка этой кнопки означает active replace-режим, а single-click по другому слою или по пустому месту превью возвращает каталог в add-режим
+- отдельные левые панели для shape color/stroke color/effects, открываемые из sticky shape-toolbar над превью
 
 ### src/components/constructor/ConstructorPreviewPanel.jsx
 
@@ -201,14 +214,19 @@ Props:
 - preview image
 - side switcher
 - print area overlay
-- render stack of visible layers
+- render stack of visible layers only for the active side
+- upload/preset/shape rendering via layer widthCm/heightCm mapped into physical print-area
 - active layer highlight
-- active text box guide overlay
+- active text box guide overlay for a single working text container
+- 8 resize handles for active upload/preset/shape/text layer: for text side handles change container width and wrapping, corner handles scale the text box and font together
 - direct text editing inside the active text layer on preview
 - solid and gradient text fill rendering
-- active text box resize handles
+- SVG shape-layer rendering with основной фигурой, внутренней обводкой, падающей тенью и двойным искажением через цветовые offset-копии
+- active layer resize handles with proportional corner scaling and one-axis edge stretching for non-text layers
+- для активного text-layer preview измеряет DOM-габариты текста и text-box, переводит их в сантиметры относительно physical print-area и отдаёт в sidebar
 - text effect rendering for line-height, stroke and shadow
 - pointer bridge for layer dragging
+- deselect/reset bridge for clicks on empty preview space
 
 Тип ответственности:
 
@@ -219,8 +237,11 @@ Props:
 
 Дополнительно отвечает за:
 
-- toolbar быстрых текстовых действий над превью
+- sticky text-toolbar под переключателем стороны
 - синхронизацию toolbar с активной левой панелью текста
+- sticky text-toolbar и sticky shape-toolbar под переключателем стороны, плюс синхронизацию text/shape toolbar с активными левыми панелями; для shape-toolbar также отдельные режимы add/replace каталога фигур, кнопку «Редактировать» с подсветкой только в replace-режиме и переходом на вкладку «Фигуры», показ toolbar для активного shape-layer даже вне вкладки «Фигуры», сброс replace-режима по выбору другого слоя или пустого места превью, якорный quick-popover «Обводка» и переключение между панелями «Редактирование», «Цвет», «Цвет обводки» и «Эффекты"
+- side-aware orchestration: при переключении стороны активный слой и preview/sidebar синхронизируются с независимым front/back набором, а summary заказа считает слои по обеим сторонам отдельно
+- выбор реального previewSrc: PNG-мокапы только для чёрной oversize-модели размеров XS/S и SVG fallback для остальных сочетаний размера/модели/цвета
 
 ### src/components/constructor/ConstructorOrderPanel.jsx
 

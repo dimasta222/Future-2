@@ -1,13 +1,176 @@
 import { useEffect, useRef, useState } from "react";
+import { buildConstructorShapeSvg, getConstructorTextFont } from "./constructorConfig.js";
+import { svgToDataUri } from "../../shared/textilePreviewHelpers.js";
 
 const DEFAULT_TEXT_SHADOW = {
   light: "0 2px 14px rgba(0,0,0,.16)",
   dark: "0 2px 14px rgba(0,0,0,.32)",
 };
 
+const RESIZE_HANDLES = [
+  { key: "nw", x: -1, y: -1, cursor: "nwse-resize", style: { left: -8, top: -8 } },
+  { key: "n", x: 0, y: -1, cursor: "ns-resize", style: { left: "50%", top: -8, transform: "translateX(-50%)" } },
+  { key: "ne", x: 1, y: -1, cursor: "nesw-resize", style: { right: -8, top: -8 } },
+  { key: "e", x: 1, y: 0, cursor: "ew-resize", style: { right: -8, top: "50%", transform: "translateY(-50%)" } },
+  { key: "se", x: 1, y: 1, cursor: "nwse-resize", style: { right: -8, bottom: -8 } },
+  { key: "s", x: 0, y: 1, cursor: "ns-resize", style: { left: "50%", bottom: -8, transform: "translateX(-50%)" } },
+  { key: "sw", x: -1, y: 1, cursor: "nesw-resize", style: { left: -8, bottom: -8 } },
+  { key: "w", x: -1, y: 0, cursor: "ew-resize", style: { left: -8, top: "50%", transform: "translateY(-50%)" } },
+];
+
+const TEXT_RESIZE_HANDLE_KEYS = new Set(["nw", "ne", "se", "sw", "e", "w"]);
+const textMeasureCanvas = typeof document !== "undefined" ? document.createElement("canvas") : null;
+const textMeasureContext = textMeasureCanvas?.getContext("2d") || null;
+
+function getTextDecorationLine(layer) {
+  const decorationLines = [];
+  if (layer.underline) decorationLines.push("underline");
+  if (layer.strikethrough) decorationLines.push("line-through");
+  return decorationLines.length ? decorationLines.join(" ") : "none";
+}
+
+function getDirectionalOffset(angle, distance) {
+  const radians = ((Number(angle) || 0) * Math.PI) / 180;
+  const radius = Number(distance) || 0;
+
+  return {
+    x: Math.cos(radians) * radius,
+    y: Math.sin(radians) * radius,
+  };
+}
+
+function isCornerHandle(handle) {
+  return handle.x !== 0 && handle.y !== 0;
+}
+
+function getCenteredBoundsLimit(position, bounds) {
+  const centerX = (position.x / 100) * bounds.width;
+  const centerY = (position.y / 100) * bounds.height;
+
+  return {
+    maxWidth: Math.max(20, Math.min(centerX, bounds.width - centerX) * 2),
+    maxHeight: Math.max(20, Math.min(centerY, bounds.height - centerY) * 2),
+  };
+}
+
+function measureCanvasTextWidth(text, letterSpacing = 0) {
+  if (!textMeasureContext) return 0;
+
+  const value = String(text || "");
+  if (!value.length) return 0;
+
+  return textMeasureContext.measureText(value).width + Math.max(0, value.length - 1) * letterSpacing;
+}
+
+function splitTokenToWidth(token, maxWidthPx, letterSpacing = 0) {
+  const chunks = [];
+  let currentChunk = "";
+
+  for (const character of token) {
+    const nextChunk = `${currentChunk}${character}`;
+
+    if (currentChunk && measureCanvasTextWidth(nextChunk, letterSpacing) > maxWidthPx) {
+      chunks.push(currentChunk);
+      currentChunk = character;
+      continue;
+    }
+
+    currentChunk = nextChunk;
+  }
+
+  if (currentChunk) {
+    chunks.push(currentChunk);
+  }
+
+  return chunks.length ? chunks : [token];
+}
+
+function wrapTextToWidth(text, maxWidthPx, letterSpacing = 0) {
+  const manualLines = String(text || "").replace(/\r/g, "").split("\n");
+  const lines = [];
+  const safeMaxWidthPx = Math.max(1, maxWidthPx);
+
+  manualLines.forEach((manualLine) => {
+    if (!manualLine.length) {
+      lines.push("");
+      return;
+    }
+
+    let currentLine = "";
+
+    const tokens = manualLine.split(/(\s+)/).filter((token) => token.length > 0);
+
+    tokens.forEach((token) => {
+      const candidate = `${currentLine}${token}`;
+
+      if (!currentLine && measureCanvasTextWidth(token, letterSpacing) > safeMaxWidthPx) {
+        const tokenChunks = splitTokenToWidth(token, safeMaxWidthPx, letterSpacing);
+        tokenChunks.forEach((chunk, chunkIndex) => {
+          if (chunkIndex < tokenChunks.length - 1) {
+            lines.push(chunk);
+          } else {
+            currentLine = chunk;
+          }
+        });
+        return;
+      }
+
+      if (!currentLine || measureCanvasTextWidth(candidate, letterSpacing) <= safeMaxWidthPx) {
+        currentLine = candidate;
+        return;
+      }
+
+      lines.push(currentLine);
+
+      if (measureCanvasTextWidth(token, letterSpacing) <= safeMaxWidthPx) {
+        currentLine = token;
+        return;
+      }
+
+      const tokenChunks = splitTokenToWidth(token, safeMaxWidthPx, letterSpacing);
+      tokenChunks.forEach((chunk, chunkIndex) => {
+        if (chunkIndex < tokenChunks.length - 1) {
+          lines.push(chunk);
+        } else {
+          currentLine = chunk;
+        }
+      });
+    });
+
+    if (currentLine || !tokens.length) {
+      lines.push(currentLine);
+    }
+  });
+
+  return lines.length ? lines : [""];
+}
+
+function getTextBoxHeightPx({
+  text,
+  fontFamily,
+  fontSize,
+  fontWeight,
+  fontStyle,
+  lineHeight,
+  letterSpacing,
+  boxWidthPx,
+}) {
+  if (!textMeasureContext) return Math.max(1, fontSize * lineHeight);
+
+  textMeasureContext.font = `${fontStyle} ${fontWeight} ${fontSize}px ${fontFamily}`;
+  const lines = wrapTextToWidth(text, boxWidthPx, letterSpacing);
+  const sampleMetrics = textMeasureContext.measureText(String(text || "") || "Hg");
+  const glyphHeightPx = Math.max(1, (sampleMetrics.actualBoundingBoxAscent || fontSize * 0.72) + (sampleMetrics.actualBoundingBoxDescent || fontSize * 0.18));
+  const lineHeightPx = fontSize * lineHeight;
+
+  return Math.max(1, glyphHeightPx + Math.max(0, lines.length - 1) * lineHeightPx);
+}
+
+
 export default function ConstructorPreviewPanel({
   side,
   onSideChange,
+  topOverlay,
   previewSrc,
   productName,
   color,
@@ -18,20 +181,35 @@ export default function ConstructorPreviewPanel({
   draggingLayerId,
   editingTextLayerId,
   onLayerPointerDown,
+  onLayerEditOpen,
+  onPreviewBackgroundPointerDown,
   onActiveTextValueChange,
-  onActiveTextBoxWidthChange,
   onEditingTextLayerChange,
+  onLayerResize,
+  onActiveTextMetricsChange,
   getPresetByKey,
+  getShapeByKey,
   getTextGradientByKey,
 }) {
   const [resizingLayerId, setResizingLayerId] = useState(null);
   const editableTextLayerRefs = useRef({});
+  const textContentLayerRefs = useRef({});
+  const textLayerRefs = useRef({});
+  const physicalWidthCm = printArea?.physicalWidthCm || 40;
+  const physicalHeightCm = printArea?.physicalHeightCm || 50;
 
   useEffect(() => {
     if (!editingTextLayerId) return;
 
     const node = editableTextLayerRefs.current[editingTextLayerId];
     if (!node) return;
+
+    const editingLayer = layers.find((layer) => layer.id === editingTextLayerId);
+    const nextTextValue = editingLayer?.value || "";
+
+    if (node.textContent !== nextTextValue) {
+      node.textContent = nextTextValue;
+    }
 
     node.focus();
 
@@ -41,35 +219,207 @@ export default function ConstructorPreviewPanel({
     range.collapse(false);
     selection?.removeAllRanges();
     selection?.addRange(range);
-  }, [editingTextLayerId]);
+  }, [editingTextLayerId, layers]);
 
-  const handleTextBoxResizePointerDown = (layer, event) => {
-    if (layer.locked || layer.id !== activeLayerId || !printAreaRef.current) return;
+  useEffect(() => {
+    const activeTextLayer = layers.find((layer) => layer.id === activeLayerId && layer.type === "text") || null;
+
+    if (!activeTextLayer || !printAreaRef.current) {
+      const clearFrame = window.requestAnimationFrame(() => {
+        onActiveTextMetricsChange?.(null);
+      });
+
+      return () => window.cancelAnimationFrame(clearFrame);
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      const printAreaBounds = printAreaRef.current?.getBoundingClientRect();
+      const textLayerNode = textLayerRefs.current[activeTextLayer.id];
+      const textContentNode = textContentLayerRefs.current[activeTextLayer.id];
+
+      if (!printAreaBounds?.width || !printAreaBounds?.height || !textLayerNode || !textContentNode) {
+        onActiveTextMetricsChange?.(null);
+        return;
+      }
+
+      const textLayerBounds = textLayerNode.getBoundingClientRect();
+      const textContentBounds = textContentNode.getBoundingClientRect();
+      const boxWidthPx = Number(textLayerBounds.width.toFixed(2));
+      const boxHeightPx = Number(Math.max(textContentNode.scrollHeight, textContentBounds.height, 1).toFixed(2));
+      const contentWidthPx = Number(Math.min(boxWidthPx, Math.max(textContentNode.scrollWidth, textContentBounds.width, 1)).toFixed(2));
+
+      onActiveTextMetricsChange?.({
+        contentWidthCm: Number(((contentWidthPx / printAreaBounds.width) * physicalWidthCm).toFixed(1)),
+        contentHeightCm: Number(((boxHeightPx / printAreaBounds.height) * physicalHeightCm).toFixed(1)),
+        boxWidthCm: Number(((boxWidthPx / printAreaBounds.width) * physicalWidthCm).toFixed(1)),
+        boxHeightCm: Number(((boxHeightPx / printAreaBounds.height) * physicalHeightCm).toFixed(1)),
+      });
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeLayerId, layers, editingTextLayerId, onActiveTextMetricsChange, physicalHeightCm, physicalWidthCm, printAreaRef, resizingLayerId]);
+
+  const getLayerRenderSize = (layer) => ({
+    width: `${((layer.widthCm || 1) / physicalWidthCm) * 100}%`,
+    height: `${((layer.heightCm || 1) / physicalHeightCm) * 100}%`,
+  });
+
+  const handleLayerResizePointerDown = (layer, handle, event) => {
+    if (layer.locked || layer.id !== activeLayerId || !printAreaRef.current || !onLayerResize) return;
 
     event.preventDefault();
     event.stopPropagation();
 
     const pointerId = event.pointerId;
     const node = event.currentTarget;
-    const printAreaNode = printAreaRef.current;
+    const layerNode = layer.type === "text"
+      ? textLayerRefs.current[layer.id]
+      : node.parentElement;
+    if (!layerNode) return;
 
-    const updateWidth = (clientX) => {
-      const bounds = printAreaNode.getBoundingClientRect();
-      if (!bounds.width) return;
+    const printAreaBounds = printAreaRef.current.getBoundingClientRect();
+    const layerBounds = layerNode.getBoundingClientRect();
+    if (!printAreaBounds.width || !printAreaBounds.height || !layerBounds.width || !layerBounds.height) return;
 
-      const centerX = bounds.left + bounds.width * (layer.position.x / 100);
-      const nextWidth = Math.min(100, Math.max(20, Math.round((Math.abs(clientX - centerX) * 2 * 100) / bounds.width)));
-      onActiveTextBoxWidthChange(nextWidth);
+    const startPointer = { x: event.clientX, y: event.clientY };
+    const startWidthCm = layer.widthCm ?? 0;
+    const startHeightCm = layer.heightCm ?? 0;
+    const startRenderedWidth = layerBounds.width;
+    const startRenderedHeight = layerBounds.height;
+    const centeredLimit = getCenteredBoundsLimit(layer.position, printAreaBounds);
+
+    const updateResize = (clientX, clientY) => {
+      const deltaX = clientX - startPointer.x;
+      const deltaY = clientY - startPointer.y;
+      const horizontalGrowth = handle.x === 0 ? 0 : deltaX * handle.x * 2;
+      const verticalGrowth = handle.y === 0 ? 0 : deltaY * handle.y * 2;
+
+      if (layer.type === "text") {
+        const layerFont = getConstructorTextFont(layer.fontKey);
+        const resolvedText = layer.uppercase ? String(layer.value || "").toUpperCase() : String(layer.value || "");
+        const resolvedFontFamily = layer.fontFamily || layerFont.family || "'Outfit', sans-serif";
+        const resolvedFontWeight = layerFont.supportsBold ? layer.weight : (layerFont.regularWeight ?? 400);
+        const resolvedFontStyle = layerFont.supportsItalic && layer.italic ? "italic" : "normal";
+        const resolvedLineHeight = layer.lineHeight ?? 1.05;
+        const resolvedLetterSpacing = layer.letterSpacing ?? 1;
+        const startBoundsLeft = layerBounds.left - printAreaBounds.left;
+        const startBoundsTop = layerBounds.top - printAreaBounds.top;
+        const startBoundsRight = startBoundsLeft + startRenderedWidth;
+        const startBoundsBottom = startBoundsTop + startRenderedHeight;
+
+        if (handle.x !== 0 && handle.y === 0) {
+          const anchorX = handle.x > 0 ? startBoundsLeft : startBoundsRight;
+          const nextEdgeX = Math.min(printAreaBounds.width, Math.max(0, clientX - printAreaBounds.left));
+          const maxWidthPx = handle.x > 0 ? printAreaBounds.width - anchorX : anchorX;
+          const nextWidthPx = Math.min(maxWidthPx, Math.max(20, Math.abs(nextEdgeX - anchorX)));
+          const fittedEdgeX = handle.x > 0 ? anchorX + nextWidthPx : anchorX - nextWidthPx;
+          const nextCenterX = (anchorX + fittedEdgeX) / 2;
+          const nextTextBoxWidth = (nextWidthPx / printAreaBounds.width) * 100;
+
+          onLayerResize(layer.id, {
+            textBoxWidth: nextTextBoxWidth,
+            position: {
+              x: (nextCenterX / printAreaBounds.width) * 100,
+              y: layer.position.y,
+            },
+          });
+          return;
+        }
+
+        if (isCornerHandle(handle)) {
+          const anchorX = handle.x > 0 ? startBoundsLeft : startBoundsRight;
+          const anchorY = handle.y > 0 ? startBoundsTop : startBoundsBottom;
+          const nextEdgeX = Math.min(printAreaBounds.width, Math.max(0, clientX - printAreaBounds.left));
+          const nextEdgeY = Math.min(printAreaBounds.height, Math.max(0, clientY - printAreaBounds.top));
+          const nextWidth = Math.min(centeredLimit.maxWidth, Math.max(20, Math.abs(nextEdgeX - anchorX)));
+          const nextHeight = Math.min(centeredLimit.maxHeight, Math.max(20, Math.abs(nextEdgeY - anchorY)));
+          const widthMultiplier = nextWidth / startRenderedWidth;
+          const heightMultiplier = nextHeight / startRenderedHeight;
+          const requestedMultiplier = Math.abs(widthMultiplier - 1) >= Math.abs(heightMultiplier - 1)
+            ? widthMultiplier
+            : heightMultiplier;
+          const maxWidthMultiplier = centeredLimit.maxWidth / Math.max(1, startRenderedWidth);
+          const maxHeightMultiplier = centeredLimit.maxHeight / Math.max(1, startRenderedHeight);
+          let uniformMultiplier = Math.max(0.25, Math.min(requestedMultiplier, maxWidthMultiplier, maxHeightMultiplier));
+          let nextWidthPx = Math.max(20, startRenderedWidth * uniformMultiplier);
+          let nextHeightPx = Math.max(20, startRenderedHeight * uniformMultiplier);
+          let nextCenterX = (anchorX + nextEdgeX) / 2;
+          let nextCenterY = (anchorY + nextEdgeY) / 2;
+
+          for (let attempt = 0; attempt < 8; attempt += 1) {
+            nextWidthPx = Math.max(20, startRenderedWidth * uniformMultiplier);
+            nextHeightPx = Math.max(20, startRenderedHeight * uniformMultiplier);
+            const probeHeight = getTextBoxHeightPx({
+              text: resolvedText,
+              fontFamily: resolvedFontFamily,
+              fontSize: (layer.size ?? 36) * uniformMultiplier,
+              fontWeight: resolvedFontWeight,
+              fontStyle: resolvedFontStyle,
+              lineHeight: resolvedLineHeight,
+              letterSpacing: resolvedLetterSpacing * uniformMultiplier,
+              boxWidthPx: nextWidthPx,
+            });
+            const fittedEdgeX = handle.x > 0 ? anchorX + nextWidthPx : anchorX - nextWidthPx;
+            const fittedEdgeY = handle.y > 0 ? anchorY + nextHeightPx : anchorY - nextHeightPx;
+            nextCenterX = (anchorX + fittedEdgeX) / 2;
+            nextCenterY = (anchorY + fittedEdgeY) / 2;
+            const availableHeightPx = Math.max(20, Math.min(nextCenterY, printAreaBounds.height - nextCenterY) * 2);
+
+            if (probeHeight <= availableHeightPx + 0.5) break;
+            uniformMultiplier *= 0.92;
+          }
+
+          onLayerResize(layer.id, {
+            size: (layer.size ?? 36) * uniformMultiplier,
+            textBoxWidth: (((startRenderedWidth * uniformMultiplier) / printAreaBounds.width) * 100),
+            letterSpacing: (layer.letterSpacing ?? 1) * uniformMultiplier,
+            strokeWidth: (layer.strokeWidth ?? 0) * uniformMultiplier,
+            position: {
+              x: (nextCenterX / printAreaBounds.width) * 100,
+              y: (nextCenterY / printAreaBounds.height) * 100,
+            },
+            ...(layer.shadowEnabled ? {
+              shadowOffsetX: (layer.shadowOffsetX ?? 0) * uniformMultiplier,
+              shadowOffsetY: (layer.shadowOffsetY ?? 2) * uniformMultiplier,
+              shadowBlur: (layer.shadowBlur ?? 14) * uniformMultiplier,
+            } : {}),
+          });
+          return;
+        }
+        return;
+      }
+
+      const nextWidthCm = startWidthCm + ((horizontalGrowth / printAreaBounds.width) * physicalWidthCm);
+      const nextHeightCm = startHeightCm + ((verticalGrowth / printAreaBounds.height) * physicalHeightCm);
+
+      if (isCornerHandle(handle)) {
+        const widthMultiplier = nextWidthCm / startWidthCm;
+        const heightMultiplier = nextHeightCm / startHeightCm;
+        const uniformMultiplier = Math.abs(widthMultiplier - 1) >= Math.abs(heightMultiplier - 1)
+          ? widthMultiplier
+          : heightMultiplier;
+
+        onLayerResize(layer.id, {
+          widthCm: startWidthCm * uniformMultiplier,
+          heightCm: startHeightCm * uniformMultiplier,
+        });
+        return;
+      }
+
+      onLayerResize(layer.id, {
+        ...(handle.x !== 0 ? { widthCm: nextWidthCm } : {}),
+        ...(handle.y !== 0 ? { heightCm: nextHeightCm } : {}),
+      });
     };
 
     setResizingLayerId(layer.id);
     node.setPointerCapture?.(pointerId);
-    updateWidth(event.clientX);
+    updateResize(event.clientX, event.clientY);
 
     const handlePointerMove = (moveEvent) => {
       if (moveEvent.pointerId !== pointerId) return;
       moveEvent.preventDefault();
-      updateWidth(moveEvent.clientX);
+      updateResize(moveEvent.clientX, moveEvent.clientY);
     };
 
     const stopResizing = (endEvent) => {
@@ -86,49 +436,167 @@ export default function ConstructorPreviewPanel({
     window.addEventListener("pointercancel", stopResizing);
   };
 
+  const renderResizeHandles = (layer) => {
+    if (layer.locked || layer.id !== activeLayerId) return null;
+
+    const handles = layer.type === "text"
+      ? RESIZE_HANDLES.filter((handle) => TEXT_RESIZE_HANDLE_KEYS.has(handle.key))
+      : RESIZE_HANDLES;
+
+    const buttons = handles.map((handle) => (
+      <button
+        key={handle.key}
+        type="button"
+        data-constructor-interactive="true"
+        aria-label={`Изменить размер слоя: ${handle.key}`}
+        onPointerDown={(event) => handleLayerResizePointerDown(layer, handle, event)}
+        style={{
+          position: "absolute",
+          width: 14,
+          height: 14,
+          padding: 0,
+          borderRadius: 5,
+          border: "1px solid rgba(255,255,255,.32)",
+          background: resizingLayerId === layer.id ? "linear-gradient(180deg, rgba(232,67,147,.96), rgba(108,92,231,.96))" : "rgba(15,15,18,.9)",
+          boxShadow: resizingLayerId === layer.id ? "0 10px 24px rgba(232,67,147,.24)" : "0 8px 18px rgba(0,0,0,.22)",
+          cursor: handle.cursor,
+          pointerEvents: "auto",
+          touchAction: "none",
+          zIndex: 3,
+          ...handle.style,
+        }}
+      />
+    ));
+
+    return buttons;
+  };
+
+  const handlePreviewBackgroundPointerDown = (event) => {
+    const target = event.target;
+    if (target instanceof Element && target.closest('[data-constructor-interactive="true"]')) return;
+    onPreviewBackgroundPointerDown?.();
+  };
+
   return (
-    <div className="constructor-preview" style={{ position: "sticky", top: 28, minWidth: 0 }}>
+    <div className="constructor-preview" style={{ minWidth: 0 }}>
       <div style={{ display: "flex", justifyContent: "center", marginBottom: 18 }}>
         <div style={{ display: "inline-flex", gap: 8, padding: 6, borderRadius: 999, background: "rgba(255,255,255,.03)", border: "1px solid rgba(255,255,255,.06)" }}>
           {[["front", "Спереди"], ["back", "Спина"]].map(([key, label]) => <button key={label} type="button" onClick={() => onSideChange(key)} className={`tb ${side === key ? "ta" : "ti"}`} style={{ padding: "10px 20px", minWidth: 128 }}>{label}</button>)}
         </div>
       </div>
 
-      <div style={{ position: "relative", minHeight: 640 }}>
-        <img src={previewSrc} alt={`${productName} — ${color}`} draggable={false} style={{ width: "100%", display: "block", aspectRatio: "1 / 1.08", objectFit: "cover", userSelect: "none", WebkitUserDrag: "none" }} />
+      {topOverlay ? <div style={{ position: "sticky", top: 12, zIndex: 7, marginBottom: 14 }}>{topOverlay}</div> : null}
+
+      <div style={{ position: "relative", minHeight: 640 }} onPointerDown={handlePreviewBackgroundPointerDown}>
+        <img src={previewSrc} alt={`${productName} — ${color}`} draggable={false} style={{ width: "100%", display: "block", userSelect: "none", WebkitUserDrag: "none" }} />
         <div ref={printAreaRef} style={{ position: "absolute", left: `${printArea.left}%`, top: `${printArea.top}%`, width: `${printArea.width}%`, height: `${printArea.height}%`, transform: "translate(-50%, -50%)", display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
           {layers.map((layer, index) => {
             if (!layer.visible) return null;
 
             const active = layer.id === activeLayerId;
             const dragging = layer.id === draggingLayerId;
-            const frameStyle = active ? "0 0 0 1px rgba(232,67,147,.6), 0 0 0 8px rgba(232,67,147,.12)" : "none";
+            const frameStyle = active ? "0 0 0 1px rgba(232,67,147,.82)" : "none";
 
             if (layer.type === "preset") {
               const preset = getPresetByKey(layer.presetKey);
               if (!preset) return null;
+              const layerSize = getLayerRenderSize(layer);
 
               return (
                 <div
                   key={layer.id}
+                  data-constructor-interactive="true"
                   role="presentation"
                   onPointerDown={(event) => onLayerPointerDown(layer.id, event)}
-                  style={{ position: "absolute", left: `${layer.position.x}%`, top: `${layer.position.y}%`, transform: "translate(-50%, -50%)", width: `${layer.scale}%`, maxWidth: "100%", maxHeight: "100%", pointerEvents: "auto", cursor: layer.locked ? "default" : dragging ? "grabbing" : "grab", touchAction: "none", boxShadow: frameStyle, borderRadius: 14, zIndex: index + 1 }}
+                  onDoubleClick={() => onLayerEditOpen(layer.id)}
+                  style={{ position: "absolute", left: `${layer.position.x}%`, top: `${layer.position.y}%`, transform: "translate(-50%, -50%)", width: layerSize.width, height: layerSize.height, maxWidth: "100%", maxHeight: "100%", pointerEvents: "auto", cursor: layer.locked ? "default" : dragging ? "grabbing" : "grab", touchAction: "none", boxShadow: frameStyle, borderRadius: 14, zIndex: index + 1 }}
                 >
-                  <img src={preset.src} alt={preset.label} draggable={false} style={{ width: "100%", maxWidth: "100%", maxHeight: "100%", objectFit: "contain", display: "block", filter: "drop-shadow(0 10px 20px rgba(0,0,0,.25))" }} />
+                  <img src={preset.src} alt={preset.label} draggable={false} style={{ width: "100%", height: "100%", maxWidth: "100%", maxHeight: "100%", objectFit: "fill", display: "block", filter: "drop-shadow(0 10px 20px rgba(0,0,0,.25))" }} />
+                  {renderResizeHandles(layer)}
                 </div>
               );
             }
 
             if (layer.type === "upload") {
+              const layerSize = getLayerRenderSize(layer);
+
               return (
                 <div
                   key={layer.id}
+                  data-constructor-interactive="true"
                   role="presentation"
                   onPointerDown={(event) => onLayerPointerDown(layer.id, event)}
-                  style={{ position: "absolute", left: `${layer.position.x}%`, top: `${layer.position.y}%`, transform: "translate(-50%, -50%)", width: `${layer.scale}%`, maxWidth: "100%", maxHeight: "100%", display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "auto", cursor: layer.locked ? "default" : dragging ? "grabbing" : "grab", touchAction: "none", boxShadow: frameStyle, borderRadius: 14, zIndex: index + 1 }}
+                  onDoubleClick={() => onLayerEditOpen(layer.id)}
+                  style={{ position: "absolute", left: `${layer.position.x}%`, top: `${layer.position.y}%`, transform: "translate(-50%, -50%)", width: layerSize.width, height: layerSize.height, maxWidth: "100%", maxHeight: "100%", display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "auto", cursor: layer.locked ? "default" : dragging ? "grabbing" : "grab", touchAction: "none", boxShadow: frameStyle, borderRadius: 14, zIndex: index + 1 }}
                 >
-                  <img src={layer.src} alt={layer.uploadName} draggable={false} style={{ width: "100%", maxWidth: "100%", maxHeight: "100%", objectFit: "contain", display: "block", filter: "drop-shadow(0 12px 24px rgba(0,0,0,.24))", userSelect: "none", WebkitUserDrag: "none" }} />
+                  <img src={layer.src} alt={layer.uploadName} draggable={false} style={{ width: "100%", height: "100%", maxWidth: "100%", maxHeight: "100%", objectFit: "fill", display: "block", filter: "drop-shadow(0 12px 24px rgba(0,0,0,.24))", userSelect: "none", WebkitUserDrag: "none" }} />
+                  {renderResizeHandles(layer)}
+                </div>
+              );
+            }
+
+            if (layer.type === "shape") {
+              const shape = getShapeByKey(layer.shapeKey);
+              if (!shape) return null;
+              const layerSize = getLayerRenderSize(layer);
+              const shapeGradient = layer.fillMode === "gradient" ? getTextGradientByKey(layer.gradientKey) : null;
+              const shapeSrc = svgToDataUri(buildConstructorShapeSvg({
+                shape,
+                fillMode: layer.fillMode,
+                color: layer.color,
+                gradient: shapeGradient,
+                strokeStyle: layer.strokeStyle,
+                strokeColor: layer.strokeColor,
+                strokeWidth: layer.strokeWidth,
+              }));
+              const effectOffset = getDirectionalOffset(layer.effectAngle ?? -45, layer.effectDistance ?? 0);
+              const shadowSrc = svgToDataUri(buildConstructorShapeSvg({
+                shape,
+                fillMode: "solid",
+                color: layer.effectColor || "#824ef0",
+                strokeStyle: layer.strokeStyle,
+                strokeColor: "transparent",
+                strokeWidth: layer.strokeWidth,
+              }));
+              const distortSrcA = svgToDataUri(buildConstructorShapeSvg({
+                shape,
+                fillMode: "solid",
+                color: layer.distortionColorA || "#ed5bb7",
+                strokeStyle: layer.strokeStyle,
+                strokeColor: "transparent",
+                strokeWidth: layer.strokeWidth,
+              }));
+              const distortSrcB = svgToDataUri(buildConstructorShapeSvg({
+                shape,
+                fillMode: "solid",
+                color: layer.distortionColorB || "#1cb8d8",
+                strokeStyle: layer.strokeStyle,
+                strokeColor: "transparent",
+                strokeWidth: layer.strokeWidth,
+              }));
+
+              return (
+                <div
+                  key={layer.id}
+                  data-constructor-interactive="true"
+                  role="presentation"
+                  onPointerDown={(event) => onLayerPointerDown(layer.id, event)}
+                  onDoubleClick={() => onLayerEditOpen(layer.id)}
+                  style={{ position: "absolute", left: `${layer.position.x}%`, top: `${layer.position.y}%`, transform: "translate(-50%, -50%)", width: layerSize.width, height: layerSize.height, maxWidth: "100%", maxHeight: "100%", pointerEvents: "auto", cursor: layer.locked ? "default" : dragging ? "grabbing" : "grab", touchAction: "none", boxShadow: frameStyle, borderRadius: 0, zIndex: index + 1 }}
+                >
+                  <div style={{ position: "relative", width: "100%", height: "100%", maxWidth: "100%", maxHeight: "100%" }}>
+                    {layer.effectType === "drop-shadow" ? (
+                      <img src={shadowSrc} alt="" aria-hidden="true" draggable={false} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", maxWidth: "100%", maxHeight: "100%", objectFit: "fill", display: "block", transform: `translate(${effectOffset.x}px, ${effectOffset.y}px)`, opacity: 0.78, userSelect: "none", WebkitUserDrag: "none", pointerEvents: "none" }} />
+                    ) : null}
+                    {layer.effectType === "distort" ? (
+                      <>
+                        <img src={distortSrcA} alt="" aria-hidden="true" draggable={false} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", maxWidth: "100%", maxHeight: "100%", objectFit: "fill", display: "block", transform: `translate(${effectOffset.x}px, ${effectOffset.y}px)`, opacity: 1, userSelect: "none", WebkitUserDrag: "none", pointerEvents: "none" }} />
+                        <img src={distortSrcB} alt="" aria-hidden="true" draggable={false} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", maxWidth: "100%", maxHeight: "100%", objectFit: "fill", display: "block", transform: `translate(${-effectOffset.x}px, ${-effectOffset.y}px)`, opacity: 1, userSelect: "none", WebkitUserDrag: "none", pointerEvents: "none" }} />
+                      </>
+                    ) : null}
+                    <img src={shapeSrc} alt={shape.label} draggable={false} style={{ position: "relative", width: "100%", height: "100%", maxWidth: "100%", maxHeight: "100%", objectFit: "fill", display: "block", userSelect: "none", WebkitUserDrag: "none" }} />
+                  </div>
+                  {renderResizeHandles(layer)}
                 </div>
               );
             }
@@ -140,57 +608,77 @@ export default function ConstructorPreviewPanel({
             if (!hasVisibleText && !active && !editing) return null;
 
             const showTextBoxGuides = active;
-            const showResizeHandle = showTextBoxGuides && !layer.locked;
             const resizing = resizingLayerId === layer.id;
             const allowTextEditing = active && editing && !layer.locked;
             const textGuideShadow = showTextBoxGuides
               ? `${frameStyle}, inset 0 0 0 1px rgba(255,255,255,.24)`
               : frameStyle;
             const textShadowValue = layer.shadowEnabled
-              ? layer.shadowMode === "soft"
-                ? `${layer.shadowOffsetX ?? 0}px ${layer.shadowOffsetY ?? 2}px ${layer.shadowBlur ?? 14}px ${layer.shadowColor || "#111111"}`
-                : `${layer.shadowOffsetX ?? 0}px ${layer.shadowOffsetY ?? 2}px 0 ${layer.shadowColor || "#111111"}`
+              ? `${layer.shadowOffsetX ?? 0}px ${layer.shadowOffsetY ?? 2}px ${layer.shadowBlur ?? 14}px ${layer.shadowColor || "#111111"}`
               : color === "Белый"
                 ? DEFAULT_TEXT_SHADOW.light
                 : DEFAULT_TEXT_SHADOW.dark;
+            const layerFont = getConstructorTextFont(layer.fontKey);
             const activeGradient = layer.textFillMode === "gradient" ? getTextGradientByKey(layer.gradientKey) : null;
-
+            const textDecorationLine = getTextDecorationLine(layer);
+            const decorationColor = activeGradient ? layer.color || (color === "Белый" ? "#111111" : "#ffffff") : layer.color;
+            const textTransform = layer.uppercase ? "uppercase" : "none";
+            const fontWeight = layerFont.supportsBold ? layer.weight : (layerFont.regularWeight ?? 400);
+            const fontStyle = layerFont.supportsItalic && layer.italic ? "italic" : "normal";
+            const textMinHeight = !hasVisibleText && (active || editing)
+              ? `${Math.max(layer.size * (layer.lineHeight ?? 1.05), layer.size)}px`
+              : undefined;
             return (
               <div
                 key={layer.id}
+                data-constructor-interactive="true"
+                ref={(node) => {
+                  textLayerRefs.current[layer.id] = node;
+                }}
                 role="presentation"
                 onPointerDown={allowTextEditing ? undefined : (event) => onLayerPointerDown(layer.id, event)}
-                onDoubleClick={layer.locked ? undefined : (event) => {
+                onDoubleClick={(event) => {
                   event.preventDefault();
                   event.stopPropagation();
-                  onEditingTextLayerChange(layer.id);
+                  onLayerEditOpen(layer.id);
                 }}
-                style={{ position: "absolute", left: `${layer.position.x}%`, top: `${layer.position.y}%`, transform: "translate(-50%, -50%)", width: `${layer.textBoxWidth ?? 88}%`, maxWidth: "100%", minHeight: active || editing ? `${Math.max(layer.size * (layer.lineHeight ?? 1.05), layer.size)}px` : undefined, padding: showTextBoxGuides ? "12px 10px 10px" : 0, textAlign: layer.textAlign || "center", fontSize: `${layer.size}px`, lineHeight: layer.lineHeight ?? 1.05, fontWeight: layer.weight, fontFamily: layer.fontFamily || "'Outfit', sans-serif", color: activeGradient ? "transparent" : layer.color, letterSpacing: `${layer.letterSpacing ?? 1}px`, WebkitTextStroke: (layer.strokeWidth ?? 0) > 0 ? `${layer.strokeWidth}px ${layer.strokeColor || "#111111"}` : "0 transparent", paintOrder: "stroke fill", whiteSpace: "pre-wrap", overflowWrap: "anywhere", wordBreak: "break-word", textShadow: textShadowValue, pointerEvents: "auto", cursor: allowTextEditing ? "text" : resizing ? "ew-resize" : layer.locked ? "default" : dragging ? "grabbing" : "grab", touchAction: allowTextEditing ? "auto" : "none", boxShadow: textGuideShadow, borderRadius: 10, outline: showTextBoxGuides ? "1px dashed rgba(255,255,255,.48)" : "none", outlineOffset: showTextBoxGuides ? 4 : 0, background: showTextBoxGuides ? "linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.025))" : "transparent", zIndex: index + 1 }}
+                style={{ position: "absolute", left: `${layer.position.x}%`, top: `${layer.position.y}%`, transform: "translate(-50%, -50%)", transformOrigin: "center center", width: `${layer.textBoxWidth ?? 88}%`, maxWidth: "100%", minHeight: textMinHeight, padding: 0, textAlign: layer.textAlign || "center", fontSize: `${layer.size}px`, lineHeight: layer.lineHeight ?? 1.05, fontWeight, fontStyle, fontFamily: layer.fontFamily || "'Outfit', sans-serif", color: activeGradient ? "transparent" : layer.color, letterSpacing: `${layer.letterSpacing ?? 1}px`, WebkitTextStroke: (layer.strokeWidth ?? 0) > 0 ? `${layer.strokeWidth}px ${layer.strokeColor || "#111111"}` : "0 transparent", paintOrder: "stroke fill", whiteSpace: "pre-wrap", overflowWrap: "break-word", wordBreak: "normal", hyphens: "none", textShadow: textShadowValue, pointerEvents: "auto", cursor: allowTextEditing ? "text" : resizing ? "nwse-resize" : layer.locked ? "default" : dragging ? "grabbing" : "grab", touchAction: allowTextEditing ? "auto" : "none", boxShadow: showTextBoxGuides ? textGuideShadow : "none", borderRadius: 0, outline: "none", outlineOffset: 0, background: "transparent", zIndex: index + 1 }}
               >
-                {showResizeHandle ? [-1, 1].map((direction) => <button key={direction} type="button" aria-label={direction < 0 ? "Уменьшить или увеличить ширину слева" : "Уменьшить или увеличить ширину справа"} onPointerDown={(event) => handleTextBoxResizePointerDown(layer, event)} style={{ position: "absolute", top: "50%", [direction < 0 ? "left" : "right"]: -16, transform: "translateY(-50%)", width: 14, height: 42, borderRadius: 999, border: "1px solid rgba(255,255,255,.24)", background: resizing ? "linear-gradient(180deg, rgba(232,67,147,.96), rgba(108,92,231,.96))" : "rgba(15,15,18,.82)", boxShadow: resizing ? "0 10px 24px rgba(232,67,147,.28)" : "0 8px 18px rgba(0,0,0,.24)", cursor: "ew-resize", pointerEvents: "auto", touchAction: "none", padding: 0 }} />) : null}
-                <div
-                  ref={(node) => {
-                    editableTextLayerRefs.current[layer.id] = node;
-                  }}
-                  contentEditable={allowTextEditing}
-                  suppressContentEditableWarning
-                  spellCheck={false}
-                  onPointerDown={allowTextEditing ? (event) => event.stopPropagation() : undefined}
-                  onFocus={allowTextEditing ? () => onEditingTextLayerChange(layer.id) : undefined}
-                  onBlur={allowTextEditing ? () => onEditingTextLayerChange(null) : undefined}
-                  onInput={allowTextEditing ? (event) => {
-                    const nextValue = event.currentTarget.innerText.replace(/\r/g, "").replace(/\n$/, "");
-                    onActiveTextValueChange(nextValue);
-                  } : undefined}
-                  style={{ minHeight: `${Math.max(layer.size * (layer.lineHeight ?? 1.05), layer.size)}px`, outline: "none", cursor: allowTextEditing ? "text" : "inherit", color: activeGradient ? "transparent" : layer.color, backgroundImage: activeGradient ? activeGradient.css : "none", WebkitBackgroundClip: activeGradient ? "text" : "border-box", backgroundClip: activeGradient ? "text" : "border-box", WebkitTextFillColor: activeGradient ? "transparent" : layer.color, caretColor: layer.color || "#f0eef5" }}
-                >
-                  {overlayText}
-                </div>
+                {allowTextEditing ? (
+                  <div
+                    ref={(node) => {
+                      editableTextLayerRefs.current[layer.id] = node;
+                      textContentLayerRefs.current[layer.id] = node;
+                    }}
+                    dir="auto"
+                    contentEditable
+                    suppressContentEditableWarning
+                    spellCheck={false}
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onFocus={() => onEditingTextLayerChange(layer.id)}
+                    onBlur={() => onEditingTextLayerChange(null)}
+                    onInput={(event) => {
+                      const nextValue = event.currentTarget.innerText.replace(/\r/g, "").replace(/\n$/, "");
+                      onActiveTextValueChange(nextValue);
+                    }}
+                    style={{ minHeight: textMinHeight, outline: "none", cursor: "text", color: activeGradient ? "transparent" : layer.color, backgroundImage: activeGradient ? activeGradient.css : "none", WebkitBackgroundClip: activeGradient ? "text" : "border-box", backgroundClip: activeGradient ? "text" : "border-box", WebkitTextFillColor: activeGradient ? "transparent" : layer.color, caretColor: layer.color || "#f0eef5", fontStyle, textTransform: "none", textDecorationLine, textDecorationColor: decorationColor, textDecorationThickness: textDecorationLine === "none" ? undefined : "0.08em", textUnderlineOffset: layer.underline ? "0.14em" : undefined, whiteSpace: "pre-wrap", overflowWrap: "break-word", wordBreak: "normal", hyphens: "none", padding: 0, margin: 0 }}
+                  />
+                ) : (
+                  <div
+                    ref={(node) => {
+                      textContentLayerRefs.current[layer.id] = node;
+                    }}
+                    style={{ minHeight: textMinHeight, outline: "none", cursor: "inherit", color: activeGradient ? "transparent" : layer.color, backgroundImage: activeGradient ? activeGradient.css : "none", WebkitBackgroundClip: activeGradient ? "text" : "border-box", backgroundClip: activeGradient ? "text" : "border-box", WebkitTextFillColor: activeGradient ? "transparent" : layer.color, caretColor: layer.color || "#f0eef5", fontStyle, textTransform, textDecorationLine, textDecorationColor: decorationColor, textDecorationThickness: textDecorationLine === "none" ? undefined : "0.08em", textUnderlineOffset: layer.underline ? "0.14em" : undefined, whiteSpace: "pre-wrap", overflowWrap: "break-word", wordBreak: "normal", hyphens: "none", padding: 0, margin: 0 }}
+                  >
+                    {overlayText}
+                  </div>
+                )}
                 {showEmptyTextPlaceholder ? (
-                  <span style={{ position: "absolute", inset: showTextBoxGuides ? "12px 10px 10px" : 0, display: "flex", alignItems: "center", justifyContent: layer.textAlign === "left" ? "flex-start" : layer.textAlign === "right" ? "flex-end" : "center", color: "rgba(240,238,245,.32)", textShadow: "none", pointerEvents: "none", fontSize: "0.58em", lineHeight: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  <span style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: layer.textAlign === "left" ? "flex-start" : layer.textAlign === "right" ? "flex-end" : "center", color: "rgba(240,238,245,.32)", textShadow: "none", pointerEvents: "none", fontSize: "0.58em", lineHeight: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textTransform }}>
                     Введите текст
                   </span>
                 ) : null}
+                {showTextBoxGuides ? renderResizeHandles(layer) : null}
               </div>
             );
           })}

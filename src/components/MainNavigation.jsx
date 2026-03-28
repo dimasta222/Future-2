@@ -111,8 +111,6 @@ export default function MainNavigation({
             <div className="mobile-nav-head">
               <div>
                 <div className="mobile-nav-eyebrow">Навигация</div>
-                <div className="mobile-nav-title">Разделы сайта</div>
-                <div className="mobile-nav-subtitle">Собрал все основные действия в одном выезжающем меню, чтобы на телефоне ничего не нужно было свайпать по горизонтали.</div>
               </div>
               <button type="button" className="mobile-nav-close" onClick={() => setMobileMenuOpen(false)} aria-label="Закрыть меню">×</button>
             </div>

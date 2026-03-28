@@ -1348,14 +1348,6 @@ export default function ConstructorSidebarPanel({
             onShapeToolPanelChange("edit");
           }} />}
 
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <ActionButton onClick={() => {
-            onShapeCatalogModeChange?.("add");
-            onAddShapeLayer();
-          }}>Новый слой-фигура</ActionButton>
-          <ActionButton onClick={() => onTabChange("layers")}>Управление слоями</ActionButton>
-        </div>
-
         {currentShapeToolPanel === "edit" ? (
           <>
             {expandedShapeCategory ? (

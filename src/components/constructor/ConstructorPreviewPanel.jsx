@@ -74,6 +74,18 @@ function isCornerHandle(handle) {
   return handle.x !== 0 && handle.y !== 0;
 }
 
+function DeleteIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 6h18" />
+      <path d="M8 6V4h8v2" />
+      <path d="M19 6l-1 14H6L5 6" />
+      <path d="M10 11v6" />
+      <path d="M14 11v6" />
+    </svg>
+  );
+}
+
 
 function measureTextSelectionBounds(node) {
   if (!node) return null;
@@ -278,25 +290,23 @@ export default function ConstructorPreviewPanel({
           position: "absolute",
           right: 0,
           top: "100%",
-          transform: "translateY(12px)",
-          width: 34,
-          height: 34,
+          transform: "translateY(8px)",
+          width: 30,
+          height: 30,
           padding: 0,
-          borderRadius: 999,
-          border: "1px solid rgba(232,67,147,.24)",
-          background: "linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.03)), rgba(232,67,147,.16)",
-          color: "#ffd7ea",
-          boxShadow: "0 12px 24px rgba(0,0,0,.22)",
+          borderRadius: 10,
+          border: "1px solid rgba(232,67,147,.22)",
+          background: "rgba(232,67,147,.08)",
+          color: "rgba(255,194,222,.86)",
+          boxShadow: "0 10px 18px rgba(0,0,0,.2)",
           cursor: "pointer",
-          fontSize: 18,
-          lineHeight: 1,
           display: "inline-flex",
           alignItems: "center",
           justifyContent: "center",
           zIndex: 6,
         }}
       >
-        ×
+        <DeleteIcon />
       </button>
     );
   };

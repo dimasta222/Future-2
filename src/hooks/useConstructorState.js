@@ -37,7 +37,7 @@ const DEFAULT_TEXT_LINE_HEIGHT = 1.05;
 const DEFAULT_TEXT_WEIGHT = 700;
 const MIN_TEXT_FONT_SIZE = 12;
 const MAX_TEXT_FONT_SIZE = 400;
-const SNAP_THRESHOLD_PX = 6;
+const SNAP_THRESHOLD_PX = 4;
 const textMeasureCanvas = typeof document !== "undefined" ? document.createElement("canvas") : null;
 const textMeasureContext = textMeasureCanvas?.getContext("2d") || null;
 
@@ -86,7 +86,7 @@ function wrapTextToWidth(text, maxWidthPx, letterSpacing = 0) {
   return lines.length ? lines : [""];
 }
 
-function getTextBoxHeightPx({
+function getTextContentMetricsPx({
   text,
   fontFamily,
   fontSize,
@@ -96,15 +96,48 @@ function getTextBoxHeightPx({
   letterSpacing,
   boxWidthPx,
 }) {
-  if (!textMeasureContext) return Math.max(1, fontSize * lineHeight);
+  const safeFontSize = Math.max(1, Number(fontSize) || 1);
+  const safeLineHeight = Math.max(0.85, Number(lineHeight) || DEFAULT_TEXT_LINE_HEIGHT);
+  const safeBoxWidthPx = Math.max(1, Number(boxWidthPx) || 1);
+  const resolvedText = String(text || "");
 
-  textMeasureContext.font = `${fontStyle} ${fontWeight} ${fontSize}px ${fontFamily}`;
-  const lines = wrapTextToWidth(text, boxWidthPx, letterSpacing);
-  const sampleMetrics = textMeasureContext.measureText(String(text || "") || "Hg");
-  const glyphHeightPx = Math.max(1, (sampleMetrics.actualBoundingBoxAscent || fontSize * 0.72) + (sampleMetrics.actualBoundingBoxDescent || fontSize * 0.18));
-  const lineHeightPx = fontSize * lineHeight;
+  if (!textMeasureContext) {
+    const fallbackWidth = resolvedText.length
+      ? Math.min(safeBoxWidthPx, resolvedText.length * safeFontSize * 0.56)
+      : Math.max(0, safeFontSize * 0.5);
+    const fallbackHeight = resolvedText.length
+      ? Math.max(1, safeFontSize * safeLineHeight)
+      : Math.max(1, safeFontSize * safeLineHeight);
 
-  return Math.max(1, glyphHeightPx + Math.max(0, lines.length - 1) * lineHeightPx);
+    return {
+      lines: resolvedText.length ? [resolvedText] : [""],
+      contentWidthPx: Number(fallbackWidth.toFixed(2)),
+      contentHeightPx: Number(fallbackHeight.toFixed(2)),
+      glyphHeightPx: fallbackHeight,
+      lineHeightPx: safeFontSize * safeLineHeight,
+    };
+  }
+
+  textMeasureContext.font = `${fontStyle} ${fontWeight} ${safeFontSize}px ${fontFamily}`;
+  const lines = wrapTextToWidth(resolvedText, safeBoxWidthPx, letterSpacing);
+  const lineWidths = lines.map((line) => measureCanvasTextWidth(line, letterSpacing));
+  const sampleMetrics = textMeasureContext.measureText(resolvedText || "Hg");
+  const glyphHeightPx = Math.max(1, (sampleMetrics.actualBoundingBoxAscent || safeFontSize * 0.72) + (sampleMetrics.actualBoundingBoxDescent || safeFontSize * 0.18));
+  const lineHeightPx = safeFontSize * safeLineHeight;
+  const contentWidthPx = resolvedText.length
+    ? Math.min(safeBoxWidthPx, Math.max(...lineWidths, 0))
+    : 0;
+  const contentHeightPx = resolvedText.length
+    ? Math.max(1, glyphHeightPx + Math.max(0, lines.length - 1) * lineHeightPx)
+    : 0;
+
+  return {
+    lines,
+    contentWidthPx: Number(contentWidthPx.toFixed(2)),
+    contentHeightPx: Number(contentHeightPx.toFixed(2)),
+    glyphHeightPx,
+    lineHeightPx,
+  };
 }
 
 function getSnapGuidesPx(areaWidth, areaHeight) {
@@ -168,6 +201,10 @@ export default function useConstructorState({
   const [activeSnapGuides, setActiveSnapGuides] = useState([]);
   const printAreaRef = useRef(null);
   const layerIdRef = useRef(0);
+  const copiedLayerRef = useRef(null);
+  const historyPastRef = useRef([]);
+  const historyFutureRef = useRef([]);
+  const lastHistorySnapshotRef = useRef(null);
 
   const product = products.find((item) => item.key === productKey) || initialProduct;
   const safeColors = product.colors?.length ? product.colors : ["Чёрный"];
@@ -259,6 +296,52 @@ export default function useConstructorState({
     return `${type}-${layerIdRef.current}`;
   };
 
+  const clonePlain = (value) => JSON.parse(JSON.stringify(value));
+
+  const captureSnapshot = () => clonePlain({
+    layers,
+    activeLayerId,
+    editingTextLayerId,
+    side,
+    activeTab,
+  });
+
+  const pushHistoryCheckpoint = () => {
+    const snapshot = captureSnapshot();
+    const serialized = JSON.stringify(snapshot);
+    if (serialized === lastHistorySnapshotRef.current) return;
+    historyPastRef.current.push(snapshot);
+    if (historyPastRef.current.length > 100) historyPastRef.current.shift();
+    historyFutureRef.current = [];
+    lastHistorySnapshotRef.current = serialized;
+  };
+
+  const applyHistorySnapshot = (snapshot) => {
+    if (!snapshot) return;
+    setLayers(snapshot.layers || []);
+    setActiveLayerId(snapshot.activeLayerId ?? null);
+    setEditingTextLayerId(snapshot.editingTextLayerId ?? null);
+    setSide(snapshot.side === "back" ? "back" : "front");
+    setActiveTab(snapshot.activeTab || "textile");
+    setDraggingLayerId(null);
+    setActiveSnapGuides([]);
+    lastHistorySnapshotRef.current = JSON.stringify(snapshot);
+  };
+
+  const undo = () => {
+    const previousSnapshot = historyPastRef.current.pop();
+    if (!previousSnapshot) return;
+    historyFutureRef.current.push(captureSnapshot());
+    applyHistorySnapshot(previousSnapshot);
+  };
+
+  const redo = () => {
+    const nextSnapshot = historyFutureRef.current.pop();
+    if (!nextSnapshot) return;
+    historyPastRef.current.push(captureSnapshot());
+    applyHistorySnapshot(nextSnapshot);
+  };
+
   const getLayerCreationOrder = (layer) => Number(String(layer.id || "").split("-").pop()) || 0;
 
   const getAutoLayerName = (type, index) => `${LAYER_TYPE_LABELS[type]} ${index + 1}`;
@@ -302,7 +385,7 @@ export default function useConstructorState({
     const { widthCm: maxWidthCm, heightCm: maxHeightCm } = getPhysicalPrintArea(getLayerSide(layer));
     const aspectRatio = getUploadAspectRatio(layer);
     const clampedWidthCm = clampCm(nextWidthCm, maxWidthCm);
-    const derivedHeightCm = Number((clampedWidthCm / aspectRatio).toFixed(1));
+    const derivedHeightCm = Number((clampedWidthCm / aspectRatio).toFixed(3));
 
     if (derivedHeightCm <= maxHeightCm) {
       return { widthCm: clampedWidthCm, heightCm: derivedHeightCm };
@@ -310,7 +393,7 @@ export default function useConstructorState({
 
     const fitHeightCm = clampCm(maxHeightCm, maxHeightCm);
     return {
-      widthCm: Number((fitHeightCm * aspectRatio).toFixed(1)),
+      widthCm: Number((fitHeightCm * aspectRatio).toFixed(3)),
       heightCm: fitHeightCm,
     };
   };
@@ -321,15 +404,15 @@ export default function useConstructorState({
     const aspectRatio = width && height ? width / height : 1;
 
     if (!aspectRatio || Number.isNaN(aspectRatio)) {
-      return { widthCm: Number(fitWidthCm.toFixed(1)), heightCm: Number(fitHeightCm.toFixed(1)) };
+      return { widthCm: Number(fitWidthCm.toFixed(3)), heightCm: Number(fitHeightCm.toFixed(3)) };
     }
 
     const widthRatio = fitWidthCm / width;
     const heightRatio = fitHeightCm / height;
     const scaleRatio = Math.min(widthRatio, heightRatio);
     return {
-      widthCm: Number((width * scaleRatio).toFixed(1)),
-      heightCm: Number((height * scaleRatio).toFixed(1)),
+      widthCm: Number((width * scaleRatio).toFixed(3)),
+      heightCm: Number((height * scaleRatio).toFixed(3)),
     };
   };
 
@@ -543,14 +626,14 @@ export default function useConstructorState({
     }
     const resolvedText = String(resolvedLayer.value || "");
     const widthPercent = Math.min(100, Math.max(20, resolvedLayer.textBoxWidth ?? 88));
-    const width = Math.min(areaWidth, areaWidth * (widthPercent / 100));
+    const boxWidth = Math.min(areaWidth, areaWidth * (widthPercent / 100));
     const resolvedFont = getConstructorTextFont(resolvedLayer.fontKey || DEFAULT_TEXT_FONT.key);
     const fontFamily = resolvedLayer.fontFamily || resolvedFont.family || DEFAULT_TEXT_FONT.family;
     const fontWeight = resolvedFont.supportsBold
       ? (resolvedLayer.weight ?? resolvedFont.regularWeight ?? DEFAULT_TEXT_WEIGHT)
       : (resolvedFont.regularWeight ?? 400);
     const fontStyle = resolvedFont.supportsItalic && resolvedLayer.italic ? "italic" : "normal";
-    const height = Math.min(areaHeight, getTextBoxHeightPx({
+    const contentMetrics = getTextContentMetricsPx({
       text: resolvedLayer.uppercase ? resolvedText.toUpperCase() : resolvedText,
       fontFamily,
       fontSize: resolvedLayer.size ?? 36,
@@ -558,9 +641,11 @@ export default function useConstructorState({
       fontStyle,
       lineHeight: resolvedLayer.lineHeight ?? DEFAULT_TEXT_LINE_HEIGHT,
       letterSpacing: resolvedLayer.letterSpacing ?? 1,
-      boxWidthPx: width,
-    }));
-    return { areaWidth, areaHeight, width, height };
+      boxWidthPx: boxWidth,
+    });
+    const width = resolvedText.trim().length ? Math.min(areaWidth, Math.max(1, contentMetrics.contentWidthPx)) : Math.min(areaWidth, boxWidth);
+    const height = resolvedText.trim().length ? Math.min(areaHeight, Math.max(1, contentMetrics.contentHeightPx)) : Math.max(1, (resolvedLayer.size ?? 36) * (resolvedLayer.lineHeight ?? DEFAULT_TEXT_LINE_HEIGHT));
+    return { areaWidth, areaHeight, width, height, boxWidth, boxHeight: Math.min(areaHeight, Math.max(height, contentMetrics.contentHeightPx || 0)) };
   };
 
   const clampLayerPosition = (position, layer, metrics = getLayerMetrics(layer)) => {
@@ -628,6 +713,7 @@ export default function useConstructorState({
   const handleProductChange = (nextProductKey) => {
     const nextProduct = products.find((item) => item.key === nextProductKey);
     if (!nextProduct) return;
+    pushHistoryCheckpoint();
     setProductKey(nextProductKey);
     setSize("");
     if (!nextProduct.colors.includes(resolvedColor)) {
@@ -637,6 +723,7 @@ export default function useConstructorState({
 
   const handleColorChange = (nextColor) => {
     const nextResolvedColor = nextColor || safeColors[0];
+    pushHistoryCheckpoint();
     const previousAutoTextColor = resolvedColor === "Белый" ? "#111111" : "#ffffff";
     setColor(nextResolvedColor);
     setLayers((currentLayers) => currentLayers.map((layer) => {
@@ -648,6 +735,7 @@ export default function useConstructorState({
   const handleUploadChange = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    pushHistoryCheckpoint();
     const src = await readFileAsDataUrl(file);
     const dimensions = await readImageSize(src);
     const nextLayer = buildUploadLayer({ src, uploadName: file.name, ...dimensions });
@@ -657,6 +745,7 @@ export default function useConstructorState({
 
   const handleUploadScaleChange = (event) => {
     if (!activeUploadLayer) return;
+    pushHistoryCheckpoint();
     const nextWidthCm = Number(event.target.value);
     const nextDimensions = getUploadDimensionsFromWidthCm(activeUploadLayer, nextWidthCm);
     updateLayer(activeUploadLayer.id, (layer) => ({
@@ -679,11 +768,13 @@ export default function useConstructorState({
 
   const handleUploadRemove = () => {
     if (!activeUploadLayer) return;
+    pushHistoryCheckpoint();
     removeLayerById(activeUploadLayer.id);
   };
 
   const centerActiveLayerPosition = () => {
     if (!activeLayer) return;
+    pushHistoryCheckpoint();
     updateLayer(activeLayer.id, { position: getLayerDefaultPosition(activeLayer.type) });
   };
 
@@ -779,6 +870,7 @@ export default function useConstructorState({
 
       if (!hasDragged) {
         hasDragged = true;
+        pushHistoryCheckpoint();
         setDraggingLayerId(layerId);
       }
 
@@ -803,6 +895,7 @@ export default function useConstructorState({
   };
 
   const addTextLayer = () => {
+    pushHistoryCheckpoint();
     const nextLayer = buildTextLayer();
     nextLayer.position = getNextAddedLayerPosition(nextLayer);
     addLayer(nextLayer, "text");
@@ -810,12 +903,14 @@ export default function useConstructorState({
   };
 
   const addPresetLayer = () => {
+    pushHistoryCheckpoint();
     const nextLayer = buildPresetLayer();
     nextLayer.position = getNextAddedLayerPosition(nextLayer);
     addLayer(nextLayer, "prints");
   };
 
   const addShapeLayer = (shapeKey) => {
+    pushHistoryCheckpoint();
     const nextLayer = buildShapeLayer(shapeKey ? { shapeKey } : {});
     nextLayer.position = getNextAddedLayerPosition(nextLayer);
     addLayer(nextLayer, "shapes");
@@ -823,61 +918,88 @@ export default function useConstructorState({
 
   const removeActiveLayer = () => {
     if (!activeLayer) return;
+    pushHistoryCheckpoint();
     removeLayerById(activeLayer.id);
   };
 
   const removeLayer = (layerId) => {
     if (!layerId) return;
+    pushHistoryCheckpoint();
     removeLayerById(layerId);
   };
 
+  const cloneLayerAsNew = (sourceLayer, overrides = {}) => {
+    if (!sourceLayer) return null;
+
+    const { id: _sourceId, ...sourceWithoutId } = sourceLayer;
+    const { id: _overrideId, ...overrideWithoutId } = overrides;
+    const baseLayer = {
+      ...sourceWithoutId,
+      ...overrideWithoutId,
+      isAutoNamed: false,
+      side: overrideWithoutId.side || sourceLayer.side,
+    };
+
+    if (sourceLayer.type === "text") {
+      return buildTextLayer(baseLayer);
+    }
+
+    if (sourceLayer.type === "preset") {
+      return buildPresetLayer(baseLayer);
+    }
+
+    if (sourceLayer.type === "shape") {
+      return buildShapeLayer(baseLayer);
+    }
+
+    if (sourceLayer.type === "upload") {
+      return buildUploadLayer(baseLayer);
+    }
+
+    return null;
+  };
+
+
   const duplicateActiveLayer = () => {
     if (!activeLayer) return;
+    pushHistoryCheckpoint();
 
-    let nextLayer;
-
-    if (activeLayer.type === "text") {
-      nextLayer = buildTextLayer({
-        ...activeLayer,
-        name: `${activeLayer.name} копия`,
-        isAutoNamed: false,
-        position: clampLayerPosition({ x: activeLayer.position.x + 4, y: activeLayer.position.y + 4 }, activeLayer),
-      });
-    }
-
-    if (activeLayer.type === "preset") {
-      nextLayer = buildPresetLayer({
-        ...activeLayer,
-        name: `${activeLayer.name} копия`,
-        isAutoNamed: false,
-        position: clampLayerPosition({ x: activeLayer.position.x + 4, y: activeLayer.position.y + 4 }, activeLayer),
-      });
-    }
-
-    if (activeLayer.type === "upload") {
-      nextLayer = buildUploadLayer({
-        ...activeLayer,
-        name: `${activeLayer.name} копия`,
-        isAutoNamed: false,
-        position: clampLayerPosition({ x: activeLayer.position.x + 4, y: activeLayer.position.y + 4 }, activeLayer),
-      });
-    }
-
-    if (activeLayer.type === "shape") {
-      nextLayer = buildShapeLayer({
-        ...activeLayer,
-        name: `${activeLayer.name} копия`,
-        isAutoNamed: false,
-        position: clampLayerPosition({ x: activeLayer.position.x + 4, y: activeLayer.position.y + 4 }, activeLayer),
-      });
-    }
+    const nextLayer = cloneLayerAsNew(activeLayer, {
+      name: `${activeLayer.name} копия`,
+      position: clampLayerPosition({ x: activeLayer.position.x + 4, y: activeLayer.position.y + 4 }, activeLayer),
+    });
 
     if (!nextLayer) return;
     addLayer(nextLayer, activeLayer.type === "preset" ? "prints" : activeLayer.type === "shape" ? "shapes" : activeLayer.type);
   };
 
+  const copyActiveLayer = () => {
+    if (!activeLayer) return;
+    copiedLayerRef.current = clonePlain(activeLayer);
+  };
+
+  const pasteCopiedLayer = () => {
+    if (!copiedLayerRef.current) return;
+    pushHistoryCheckpoint();
+    const sourceLayer = copiedLayerRef.current;
+    const draftLayer = { ...sourceLayer, side };
+    const nextLayer = cloneLayerAsNew(draftLayer, {
+      side,
+      name: `${sourceLayer.name} копия`,
+      position: clampLayerPosition(
+        activeLayer && getLayerSide(activeLayer) === side
+          ? { x: activeLayer.position.x + 4, y: activeLayer.position.y + 4 }
+          : getLayerDefaultPosition(sourceLayer.type),
+        draftLayer,
+      ),
+    });
+    if (!nextLayer) return;
+    addLayer(nextLayer, nextLayer.type === "preset" ? "prints" : nextLayer.type === "shape" ? "shapes" : nextLayer.type);
+  };
+
   const moveActiveLayer = (direction) => {
     if (!activeLayer) return;
+    pushHistoryCheckpoint();
 
     setLayers((currentLayers) => {
       const activeSide = getLayerSide(activeLayer);
@@ -902,6 +1024,7 @@ export default function useConstructorState({
 
   const reorderLayers = (nextLayerIds, targetSide = side) => {
     if (!Array.isArray(nextLayerIds) || !nextLayerIds.length) return;
+    pushHistoryCheckpoint();
 
     setLayers((currentLayers) => {
       const resolvedSide = targetSide === "back" ? "back" : "front";
@@ -925,10 +1048,12 @@ export default function useConstructorState({
   };
 
   const toggleLayerVisibility = (layerId) => {
+    pushHistoryCheckpoint();
     updateLayer(layerId, (layer) => ({ ...layer, visible: !layer.visible }));
   };
 
   const toggleLayerLock = (layerId) => {
+    pushHistoryCheckpoint();
     updateLayer(layerId, (layer) => ({ ...layer, locked: !layer.locked }));
   };
 
@@ -1010,10 +1135,11 @@ export default function useConstructorState({
     const normalizedValue = String(nextValue).replace(/\r/g, "");
     updateLayer(activeTextLayer.id, { value: normalizedValue });
   };
-  const setTextSize = (nextSize) => updateActiveTextLayer({ size: Math.min(MAX_TEXT_FONT_SIZE, Math.max(MIN_TEXT_FONT_SIZE, Number(nextSize))) });
-  const setTextColor = (nextColor) => updateActiveTextLayer({ textFillMode: "solid", color: nextColor });
+  const setTextSize = (nextSize) => { pushHistoryCheckpoint(); updateActiveTextLayer({ size: Math.min(MAX_TEXT_FONT_SIZE, Math.max(MIN_TEXT_FONT_SIZE, Number(nextSize))) }); };
+  const setTextColor = (nextColor) => { pushHistoryCheckpoint(); updateActiveTextLayer({ textFillMode: "solid", color: nextColor }); };
   const setTextGradientKey = (nextGradientKey) => {
     const nextGradient = getConstructorTextGradient(nextGradientKey);
+    pushHistoryCheckpoint();
     updateActiveTextLayer({ textFillMode: "gradient", gradientKey: nextGradient.key });
   };
   const setTextWeight = (nextWeight) => {
@@ -1021,17 +1147,20 @@ export default function useConstructorState({
 
     const minWeight = activeTextFont.regularWeight ?? 400;
     const maxWeight = activeTextFont.boldWeight ?? nextWeight;
+    pushHistoryCheckpoint();
     updateActiveTextLayer({ weight: Math.min(maxWeight, Math.max(minWeight, Number(nextWeight))) });
   };
   const setTextItalic = (nextItalic) => {
     if (!activeTextLayer || !activeTextFont.supportsItalic) return;
+    pushHistoryCheckpoint();
     updateActiveTextLayer({ italic: nextItalic });
   };
-  const setTextUnderline = (nextUnderline) => updateActiveTextLayer({ underline: nextUnderline });
-  const setTextStrikethrough = (nextStrikethrough) => updateActiveTextLayer({ strikethrough: nextStrikethrough });
-  const setTextUppercase = (nextUppercase) => updateActiveTextLayer({ uppercase: nextUppercase });
+  const setTextUnderline = (nextUnderline) => { pushHistoryCheckpoint(); updateActiveTextLayer({ underline: nextUnderline }); };
+  const setTextStrikethrough = (nextStrikethrough) => { pushHistoryCheckpoint(); updateActiveTextLayer({ strikethrough: nextStrikethrough }); };
+  const setTextUppercase = (nextUppercase) => { pushHistoryCheckpoint(); updateActiveTextLayer({ uppercase: nextUppercase }); };
   const setTextFontKey = (nextFontKey) => {
     const nextFont = getConstructorTextFont(nextFontKey);
+    pushHistoryCheckpoint();
     updateActiveTextLayer((layer) => ({
       ...layer,
       fontKey: nextFont.key,
@@ -1043,20 +1172,21 @@ export default function useConstructorState({
       italic: nextFont.supportsItalic ? layer.italic : false,
     }));
   };
-  const setTextBoxWidth = (nextTextBoxWidth) => updateActiveTextLayer({ textBoxWidth: Math.min(100, Math.max(20, Number(nextTextBoxWidth))) });
-  const setTextLineHeight = (nextLineHeight) => updateActiveTextLayer({ lineHeight: Math.min(1.8, Math.max(0.85, Number(nextLineHeight.toFixed(2)))) });
-  const setTextLetterSpacing = (nextLetterSpacing) => updateActiveTextLayer({ letterSpacing: nextLetterSpacing });
-  const setTextAlign = (nextTextAlign) => updateActiveTextLayer({ textAlign: nextTextAlign });
-  const setTextStrokeWidth = (nextStrokeWidth) => updateActiveTextLayer({ strokeWidth: Math.min(6, Math.max(0, Number(nextStrokeWidth))) });
-  const setTextStrokeColor = (nextStrokeColor) => updateActiveTextLayer({ strokeColor: nextStrokeColor });
-  const setTextShadowEnabled = (nextShadowEnabled) => updateActiveTextLayer({ shadowEnabled: nextShadowEnabled, shadowMode: "soft" });
-  const setTextShadowColor = (nextShadowColor) => updateActiveTextLayer({ shadowColor: nextShadowColor });
-  const setTextShadowOffsetX = (nextShadowOffsetX) => updateActiveTextLayer({ shadowOffsetX: Math.min(24, Math.max(-24, Math.round(nextShadowOffsetX))) });
-  const setTextShadowOffsetY = (nextShadowOffsetY) => updateActiveTextLayer({ shadowOffsetY: Math.min(24, Math.max(-24, Math.round(nextShadowOffsetY))) });
-  const setTextShadowBlur = (nextShadowBlur) => updateActiveTextLayer({ shadowBlur: Math.min(32, Math.max(0, Math.round(nextShadowBlur))) });
-  const setPresetKey = (nextPresetKey) => updateActivePresetLayer({ presetKey: nextPresetKey });
+  const setTextBoxWidth = (nextTextBoxWidth) => { pushHistoryCheckpoint(); updateActiveTextLayer({ textBoxWidth: Math.min(100, Math.max(20, Number(nextTextBoxWidth))) }); };
+  const setTextLineHeight = (nextLineHeight) => { pushHistoryCheckpoint(); updateActiveTextLayer({ lineHeight: Math.min(1.8, Math.max(0.85, Number(nextLineHeight.toFixed(2)))) }); };
+  const setTextLetterSpacing = (nextLetterSpacing) => { pushHistoryCheckpoint(); updateActiveTextLayer({ letterSpacing: nextLetterSpacing }); };
+  const setTextAlign = (nextTextAlign) => { pushHistoryCheckpoint(); updateActiveTextLayer({ textAlign: nextTextAlign }); };
+  const setTextStrokeWidth = (nextStrokeWidth) => { pushHistoryCheckpoint(); updateActiveTextLayer({ strokeWidth: Math.min(6, Math.max(0, Number(nextStrokeWidth))) }); };
+  const setTextStrokeColor = (nextStrokeColor) => { pushHistoryCheckpoint(); updateActiveTextLayer({ strokeColor: nextStrokeColor }); };
+  const setTextShadowEnabled = (nextShadowEnabled) => { pushHistoryCheckpoint(); updateActiveTextLayer({ shadowEnabled: nextShadowEnabled, shadowMode: "soft" }); };
+  const setTextShadowColor = (nextShadowColor) => { pushHistoryCheckpoint(); updateActiveTextLayer({ shadowColor: nextShadowColor }); };
+  const setTextShadowOffsetX = (nextShadowOffsetX) => { pushHistoryCheckpoint(); updateActiveTextLayer({ shadowOffsetX: Math.min(24, Math.max(-24, Math.round(nextShadowOffsetX))) }); };
+  const setTextShadowOffsetY = (nextShadowOffsetY) => { pushHistoryCheckpoint(); updateActiveTextLayer({ shadowOffsetY: Math.min(24, Math.max(-24, Math.round(nextShadowOffsetY))) }); };
+  const setTextShadowBlur = (nextShadowBlur) => { pushHistoryCheckpoint(); updateActiveTextLayer({ shadowBlur: Math.min(32, Math.max(0, Math.round(nextShadowBlur))) }); };
+  const setPresetKey = (nextPresetKey) => { pushHistoryCheckpoint(); updateActivePresetLayer({ presetKey: nextPresetKey }); };
   const setPresetWidthCm = (nextWidthCm) => {
     if (!activePresetLayer) return;
+    pushHistoryCheckpoint();
     const { widthCm: maxWidthCm, heightCm: maxHeightCm } = getPhysicalPrintArea(getLayerSide(activePresetLayer));
     const nextDimensions = {
       widthCm: clampCm(nextWidthCm, maxWidthCm),
@@ -1068,26 +1198,30 @@ export default function useConstructorState({
       position: clampLayerPosition(layer.position, { ...layer, ...nextDimensions }, getLayerMetrics(layer, nextDimensions)),
     }));
   };
-  const setShapeKey = (nextShapeKey) => updateActiveShapeLayer({ shapeKey: getConstructorShape(nextShapeKey).key });
-  const setShapeColor = (nextColor) => updateActiveShapeLayer({ fillMode: "solid", color: nextColor });
-  const setShapeGradientKey = (nextGradientKey) => updateActiveShapeLayer({ fillMode: "gradient", gradientKey: getConstructorTextGradient(nextGradientKey).key });
-  const setShapeStrokeStyle = (nextStrokeStyle) => updateActiveShapeLayer((layer) => ({
-    ...layer,
-    strokeStyle: nextStrokeStyle,
-    strokeWidth: nextStrokeStyle === "none"
-      ? layer.strokeWidth ?? 13
-      : Math.max(1, layer.strokeWidth ?? 13),
-  }));
-  const setShapeStrokeWidth = (nextStrokeWidth) => updateActiveShapeLayer({ strokeWidth: Math.min(24, Math.max(1, Number(nextStrokeWidth))) });
-  const setShapeStrokeColor = (nextStrokeColor) => updateActiveShapeLayer({ strokeColor: nextStrokeColor });
-  const setShapeEffectType = (nextEffectType) => updateActiveShapeLayer({ effectType: nextEffectType });
-  const setShapeEffectAngle = (nextEffectAngle) => updateActiveShapeLayer({ effectAngle: Math.min(180, Math.max(-180, Math.round(nextEffectAngle))) });
-  const setShapeEffectDistance = (nextEffectDistance) => updateActiveShapeLayer({ effectDistance: Math.min(40, Math.max(0, Math.round(nextEffectDistance))) });
-  const setShapeEffectColor = (nextEffectColor) => updateActiveShapeLayer({ effectColor: nextEffectColor });
-  const setShapeDistortionColorA = (nextColor) => updateActiveShapeLayer({ distortionColorA: nextColor });
-  const setShapeDistortionColorB = (nextColor) => updateActiveShapeLayer({ distortionColorB: nextColor });
+  const setShapeKey = (nextShapeKey) => { pushHistoryCheckpoint(); updateActiveShapeLayer({ shapeKey: getConstructorShape(nextShapeKey).key }); };
+  const setShapeColor = (nextColor) => { pushHistoryCheckpoint(); updateActiveShapeLayer({ fillMode: "solid", color: nextColor }); };
+  const setShapeGradientKey = (nextGradientKey) => { pushHistoryCheckpoint(); updateActiveShapeLayer({ fillMode: "gradient", gradientKey: getConstructorTextGradient(nextGradientKey).key }); };
+  const setShapeStrokeStyle = (nextStrokeStyle) => {
+    pushHistoryCheckpoint();
+    updateActiveShapeLayer((layer) => ({
+      ...layer,
+      strokeStyle: nextStrokeStyle,
+      strokeWidth: nextStrokeStyle === "none"
+        ? layer.strokeWidth ?? 13
+        : Math.max(1, layer.strokeWidth ?? 13),
+    }));
+  };
+  const setShapeStrokeWidth = (nextStrokeWidth) => { pushHistoryCheckpoint(); updateActiveShapeLayer({ strokeWidth: Math.min(24, Math.max(1, Number(nextStrokeWidth))) }); };
+  const setShapeStrokeColor = (nextStrokeColor) => { pushHistoryCheckpoint(); updateActiveShapeLayer({ strokeColor: nextStrokeColor }); };
+  const setShapeEffectType = (nextEffectType) => { pushHistoryCheckpoint(); updateActiveShapeLayer({ effectType: nextEffectType }); };
+  const setShapeEffectAngle = (nextEffectAngle) => { pushHistoryCheckpoint(); updateActiveShapeLayer({ effectAngle: Math.min(180, Math.max(-180, Math.round(nextEffectAngle))) }); };
+  const setShapeEffectDistance = (nextEffectDistance) => { pushHistoryCheckpoint(); updateActiveShapeLayer({ effectDistance: Math.min(40, Math.max(0, Math.round(nextEffectDistance))) }); };
+  const setShapeEffectColor = (nextEffectColor) => { pushHistoryCheckpoint(); updateActiveShapeLayer({ effectColor: nextEffectColor }); };
+  const setShapeDistortionColorA = (nextColor) => { pushHistoryCheckpoint(); updateActiveShapeLayer({ distortionColorA: nextColor }); };
+  const setShapeDistortionColorB = (nextColor) => { pushHistoryCheckpoint(); updateActiveShapeLayer({ distortionColorB: nextColor }); };
   const setShapeWidthCm = (nextWidthCm) => {
     if (!activeShapeLayer) return;
+    pushHistoryCheckpoint();
     const { widthCm: maxWidthCm, heightCm: maxHeightCm } = getPhysicalPrintArea(getLayerSide(activeShapeLayer));
     const nextDimensions = {
       widthCm: clampCm(nextWidthCm, maxWidthCm),
@@ -1238,8 +1372,13 @@ export default function useConstructorState({
     removeLayer,
     removeActiveLayer,
     duplicateActiveLayer,
+    copyActiveLayer,
+    pasteCopiedLayer,
     moveActiveLayer,
     reorderLayers,
+    undo,
+    redo,
+    pushHistoryCheckpoint,
     toggleLayerVisibility,
     toggleLayerLock,
     getPresetByKey,

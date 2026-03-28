@@ -24,7 +24,7 @@ function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
-const SNAP_THRESHOLD_PX = 6;
+const SNAP_THRESHOLD_PX = 4;
 
 function getSnapGuidesPx(areaWidth, areaHeight) {
   return {
@@ -75,6 +75,42 @@ function isCornerHandle(handle) {
 }
 
 
+function measureTextSelectionBounds(node) {
+  if (!node) return null;
+  const textValue = String(node.textContent || "").replace(/\r/g, "");
+  if (!textValue.trim().length) return null;
+
+  const doc = node.ownerDocument;
+  if (!doc?.createRange) return null;
+
+  const range = doc.createRange();
+  range.selectNodeContents(node);
+  const rects = Array.from(range.getClientRects()).filter((rect) => rect.width > 0 || rect.height > 0);
+  if (!rects.length) return null;
+
+  const left = Math.min(...rects.map((rect) => rect.left));
+  const right = Math.max(...rects.map((rect) => rect.right));
+  const top = Math.min(...rects.map((rect) => rect.top));
+  const bottom = Math.max(...rects.map((rect) => rect.bottom));
+
+  return {
+    left,
+    right,
+    top,
+    bottom,
+    width: Math.max(0, right - left),
+    height: Math.max(0, bottom - top),
+  };
+}
+
+function getMeasuredLayerBounds(layer, layerNode, textNode) {
+  if (layer?.type === "text") {
+    const measuredBounds = measureTextSelectionBounds(textNode);
+    if (measuredBounds) return measuredBounds;
+  }
+
+  return layerNode?.getBoundingClientRect() || null;
+}
 
 export default function ConstructorPreviewPanel({
   side,
@@ -96,6 +132,7 @@ export default function ConstructorPreviewPanel({
   onActiveTextValueChange,
   onEditingTextLayerChange,
   onLayerResize,
+  onHistoryCheckpoint,
   onActiveTextMetricsChange,
   onRemoveLayer,
   getPresetByKey,
@@ -103,7 +140,7 @@ export default function ConstructorPreviewPanel({
   getTextGradientByKey,
 }) {
   const [resizingLayerId, setResizingLayerId] = useState(null);
-  const [activeTextFrameMetrics, setActiveTextFrameMetrics] = useState(null);
+  const [_activeTextFrameMetrics, setActiveTextFrameMetrics] = useState(null);
   const [resizeSnapGuides, setResizeSnapGuides] = useState([]);
   const editableTextLayerRefs = useRef({});
   const textContentLayerRefs = useRef({});
@@ -159,11 +196,11 @@ export default function ConstructorPreviewPanel({
       }
 
       const textLayerBounds = textLayerNode.getBoundingClientRect();
-      const textContentBounds = textContentNode.getBoundingClientRect();
+      const textSelectionBounds = measureTextSelectionBounds(textContentNode);
       const boxWidthPx = Number(textLayerBounds.width.toFixed(2));
-      const boxHeightPx = Number(Math.max(textContentNode.scrollHeight, textContentBounds.height, 1).toFixed(2));
-      const contentWidthPx = Number(Math.min(boxWidthPx, Math.max(textContentBounds.width, 1)).toFixed(2));
-      const contentHeightPx = Number(Math.max(textContentBounds.height, 1).toFixed(2));
+      const boxHeightPx = Number(Math.max(textLayerBounds.height, 1).toFixed(2));
+      const contentWidthPx = Number(Math.max(textSelectionBounds?.width || 0, 0).toFixed(2));
+      const contentHeightPx = Number(Math.max(textSelectionBounds?.height || 0, 0).toFixed(2));
 
       setActiveTextFrameMetrics((currentValue) => {
         const nextValue = {
@@ -210,8 +247,8 @@ export default function ConstructorPreviewPanel({
       if (!layer.visible || layer.id === excludeLayerId) return;
       const node = layerElementRefs.current[layer.id];
       if (!node) return;
-      const bounds = node.getBoundingClientRect();
-      if (!bounds.width || !bounds.height) return;
+      const bounds = getMeasuredLayerBounds(layer, node, textContentLayerRefs.current[layer.id]);
+      if (!bounds?.width || !bounds?.height) return;
       const left = bounds.left - areaBounds.left;
       const top = bounds.top - areaBounds.top;
       const right = left + bounds.width;
@@ -239,9 +276,9 @@ export default function ConstructorPreviewPanel({
         }}
         style={{
           position: "absolute",
-          left: "50%",
+          right: 0,
           top: "100%",
-          transform: "translate(-50%, 12px)",
+          transform: "translateY(12px)",
           width: 34,
           height: 34,
           padding: 0,
@@ -280,6 +317,8 @@ export default function ConstructorPreviewPanel({
     const printAreaBounds = printAreaRef.current.getBoundingClientRect();
     const layerBounds = layerNode.getBoundingClientRect();
     if (!printAreaBounds.width || !printAreaBounds.height || !layerBounds.width || !layerBounds.height) return;
+
+    onHistoryCheckpoint?.();
 
     const startPointer = { x: event.clientX, y: event.clientY };
     const startWidthCm = layer.widthCm ?? 0;
@@ -642,7 +681,7 @@ export default function ConstructorPreviewPanel({
                   ref={(node) => { layerElementRefs.current[layer.id] = node; }}
                   style={{ position: "absolute", left: `${layer.position.x}%`, top: `${layer.position.y}%`, transform: "translate(-50%, -50%)", width: layerSize.width, height: layerSize.height, maxWidth: "100%", maxHeight: "100%", display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "auto", cursor: layer.locked ? "default" : dragging ? "grabbing" : "grab", touchAction: "none", boxShadow: frameStyle, borderRadius: 14, zIndex: index + 1 }}
                 >
-                  <img src={layer.src} alt={layer.uploadName} draggable={false} style={{ width: "100%", height: "100%", maxWidth: "100%", maxHeight: "100%", objectFit: "fill", display: "block", filter: "drop-shadow(0 12px 24px rgba(0,0,0,.24))", userSelect: "none", WebkitUserDrag: "none" }} />
+                  <img src={layer.src} alt={layer.uploadName} draggable={false} style={{ width: "100%", height: "100%", maxWidth: "100%", maxHeight: "100%", objectFit: "contain", display: "block", filter: "drop-shadow(0 12px 24px rgba(0,0,0,.24))", userSelect: "none", WebkitUserDrag: "none" }} />
                   {renderResizeHandles(layer)}
                   {renderDeleteButton(layer)}
                 </div>
@@ -743,11 +782,6 @@ export default function ConstructorPreviewPanel({
             const textMinHeight = !hasVisibleText
               ? `${Math.max(layer.size * (layer.lineHeight ?? 1.05), layer.size)}px`
               : undefined;
-            const activeTextFrame = active && hasVisibleText && activeTextFrameMetrics?.layerId === layer.id
-              ? activeTextFrameMetrics
-              : null;
-            const activeTextFrameHeight = activeTextFrame ? `${activeTextFrame.boxHeightPx}px` : undefined;
-
             return (
               <div
                 key={layer.id}
@@ -760,7 +794,7 @@ export default function ConstructorPreviewPanel({
                   event.stopPropagation();
                   onLayerEditOpen(layer.id);
                 }}
-                style={{ position: "absolute", left: `${layer.position.x}%`, top: `${layer.position.y}%`, transform: "translate(-50%, -50%)", transformOrigin: "center center", width: `${layer.textBoxWidth ?? 88}%`, height: activeTextFrameHeight, maxWidth: "100%", minHeight: textMinHeight, padding: 0, textAlign: layer.textAlign || "center", fontSize: `${layer.size}px`, lineHeight: layer.lineHeight ?? 1.05, fontWeight, fontStyle, fontFamily: layer.fontFamily || "'Outfit', sans-serif", color: activeGradient ? "transparent" : layer.color, letterSpacing: `${layer.letterSpacing ?? 1}px`, WebkitTextStroke: (layer.strokeWidth ?? 0) > 0 ? `${layer.strokeWidth}px ${layer.strokeColor || "#111111"}` : "0 transparent", paintOrder: "stroke fill", whiteSpace: "pre-wrap", overflowWrap: "anywhere", wordBreak: "break-word", hyphens: "none", textShadow: textShadowValue, pointerEvents: "auto", cursor: allowTextEditing ? "text" : resizing ? "nwse-resize" : layer.locked ? "default" : dragging ? "grabbing" : "grab", touchAction: allowTextEditing ? "auto" : "none", boxShadow: showTextBoxGuides ? textGuideShadow : "none", borderRadius: 0, outline: "none", outlineOffset: 0, background: "transparent", zIndex: index + 1 }}
+                style={{ position: "absolute", left: `${layer.position.x}%`, top: `${layer.position.y}%`, transform: "translate(-50%, -50%)", transformOrigin: "center center", width: `${layer.textBoxWidth ?? 88}%`, maxWidth: "100%", minHeight: textMinHeight, padding: 0, textAlign: layer.textAlign || "center", fontSize: `${layer.size}px`, lineHeight: layer.lineHeight ?? 1.05, fontWeight, fontStyle, fontFamily: layer.fontFamily || "'Outfit', sans-serif", color: activeGradient ? "transparent" : layer.color, letterSpacing: `${layer.letterSpacing ?? 1}px`, WebkitTextStroke: (layer.strokeWidth ?? 0) > 0 ? `${layer.strokeWidth}px ${layer.strokeColor || "#111111"}` : "0 transparent", paintOrder: "stroke fill", whiteSpace: "pre-wrap", overflowWrap: "anywhere", wordBreak: "break-word", hyphens: "none", textShadow: textShadowValue, pointerEvents: "auto", cursor: allowTextEditing ? "text" : resizing ? "nwse-resize" : layer.locked ? "default" : dragging ? "grabbing" : "grab", touchAction: allowTextEditing ? "auto" : "none", boxShadow: showTextBoxGuides ? textGuideShadow : "none", borderRadius: 0, outline: "none", outlineOffset: 0, background: "transparent", zIndex: index + 1 }}
               >
                 {allowTextEditing ? (
                   <div

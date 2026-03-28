@@ -650,8 +650,13 @@ export default function ConstructorPage({ onBack, products, presetPrints }) {
     removeLayer,
     removeActiveLayer,
     duplicateActiveLayer,
+    copyActiveLayer,
+    pasteCopiedLayer,
     moveActiveLayer,
     reorderLayers,
+    undo,
+    redo,
+    pushHistoryCheckpoint,
     toggleLayerVisibility,
     toggleLayerLock,
     getPresetByKey,
@@ -716,20 +721,64 @@ export default function ConstructorPage({ onBack, products, presetPrints }) {
   };
 
   useEffect(() => {
+    const isTypingTarget = (target) => {
+      if (!(target instanceof HTMLElement)) return false;
+      const tagName = target.tagName;
+      return target.isContentEditable || tagName === "INPUT" || tagName === "TEXTAREA" || tagName === "SELECT";
+    };
+
     const handleKeyDown = (event) => {
-      if ((event.key !== "Backspace" && event.key !== "Delete") || !activeLayer) return;
       const target = event.target;
-      if (target instanceof HTMLElement) {
-        const tagName = target.tagName;
-        if (target.isContentEditable || tagName === "INPUT" || tagName === "TEXTAREA" || tagName === "SELECT") return;
+      const typing = isTypingTarget(target);
+      const primary = event.metaKey || event.ctrlKey;
+
+      if (!typing && (event.key === "Backspace" || event.key === "Delete") && activeLayer) {
+        event.preventDefault();
+        removeActiveLayer();
+        return;
       }
-      event.preventDefault();
-      removeActiveLayer();
+
+      if (!primary || typing) return;
+
+      const key = event.key.toLowerCase();
+
+      if (key === "d" && activeLayer) {
+        event.preventDefault();
+        duplicateActiveLayer();
+        return;
+      }
+
+      if (key === "c" && activeLayer) {
+        event.preventDefault();
+        copyActiveLayer();
+        return;
+      }
+
+      if (key === "v") {
+        event.preventDefault();
+        pasteCopiedLayer();
+        return;
+      }
+
+      if (key === "z") {
+        event.preventDefault();
+        if (event.shiftKey) {
+          redo();
+        } else {
+          undo();
+        }
+        return;
+      }
+
+      if (key === "y") {
+        event.preventDefault();
+        redo();
+      }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activeLayer, removeActiveLayer]);
+  }, [activeLayer, copyActiveLayer, duplicateActiveLayer, pasteCopiedLayer, redo, removeActiveLayer, undo]);
 
   const previewTopOverlay = showTextQuickToolbar ? (
     <TextQuickToolbar
@@ -848,7 +897,7 @@ export default function ConstructorPage({ onBack, products, presetPrints }) {
           </div>
 
           <div style={{ minWidth: 0, position: "sticky", top: 18, alignSelf: "start" }}>
-            <ConstructorPreviewPanel side={side} onSideChange={setSide} topOverlay={previewTopOverlay} previewSrc={previewSrc} productName={product.name} color={color} printAreaRef={printAreaRef} printArea={printArea} layers={sideLayers} activeLayerId={activeLayerId} draggingLayerId={draggingLayerId} activeSnapGuides={activeSnapGuides} editingTextLayerId={editingTextLayerId} onLayerPointerDown={handlePreviewLayerPointerDown} onLayerEditOpen={handleLayerEditOpen} onPreviewBackgroundPointerDown={handlePreviewBackgroundPointerDown} onActiveTextValueChange={setTextValue} onEditingTextLayerChange={setEditingTextLayerId} onLayerResize={applyLayerResize} onActiveTextMetricsChange={setActiveTextMetricsCm} onRemoveLayer={removeLayer} getPresetByKey={getPresetByKey} getShapeByKey={getShapeByKey} getTextGradientByKey={getConstructorTextGradient} />
+            <ConstructorPreviewPanel side={side} onSideChange={setSide} topOverlay={previewTopOverlay} previewSrc={previewSrc} productName={product.name} color={color} printAreaRef={printAreaRef} printArea={printArea} layers={sideLayers} activeLayerId={activeLayerId} draggingLayerId={draggingLayerId} activeSnapGuides={activeSnapGuides} editingTextLayerId={editingTextLayerId} onLayerPointerDown={handlePreviewLayerPointerDown} onLayerEditOpen={handleLayerEditOpen} onPreviewBackgroundPointerDown={handlePreviewBackgroundPointerDown} onActiveTextValueChange={setTextValue} onEditingTextLayerChange={setEditingTextLayerId} onLayerResize={applyLayerResize} onHistoryCheckpoint={pushHistoryCheckpoint} onActiveTextMetricsChange={setActiveTextMetricsCm} onRemoveLayer={removeLayer} getPresetByKey={getPresetByKey} getShapeByKey={getShapeByKey} getTextGradientByKey={getConstructorTextGradient} />
           </div>
 
           <ConstructorOrderPanel currentTotal={currentTotal} orderMeta={orderMeta} canSubmitOrder={canSubmitOrder} telegramLink={telegramLink} />

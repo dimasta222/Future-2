@@ -714,10 +714,6 @@ export default function ConstructorSidebarPanel({
   if (activeTab === "textile") {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 10, minWidth: 0 }}>
-        <SidebarTitle>Текстиль</SidebarTitle>
-        <div style={{ fontSize: 13, lineHeight: 1.5, color: "rgba(240,238,245,.42)" }}>
-          Здесь собраны все футболки из каталога: модели, плотности, материалы, доступные цвета и актуальные цены.
-        </div>
         <SidebarFieldRow label="Текстиль" minHeight={96}>
           <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr)", gap: 8 }}>
             {products.map((item) => {

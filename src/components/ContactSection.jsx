@@ -12,9 +12,6 @@ export default function ContactSection({ Reveal: _Reveal, formData, setFormData,
                 <input className="inf" placeholder="Ваше имя" value={formData.n} onChange={(event) => setFormData({ ...formData, n: event.target.value })} required />
                 <input className="inf" placeholder="Телефон" value={formData.p} onChange={(event) => setFormData({ ...formData, p: event.target.value })} required />
                 <textarea className="inf" placeholder="Опишите заказ..." rows={4} style={{ resize: "vertical", minHeight: 100 }} value={formData.m} onChange={(event) => setFormData({ ...formData, m: event.target.value })} />
-                <div style={{ fontSize: 12, color: "rgba(240,238,245,.45)", lineHeight: 1.5 }}>
-                  После отправки откроется Telegram с подготовленным сообщением для менеджера.
-                </div>
                 <button type="submit" className="bp" style={{ width: "100%", marginTop: 4 }}>Отправить в Telegram</button>
               </div>
             </form>

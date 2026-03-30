@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { buildConstructorShapeSvg, getConstructorTextFont } from "./constructorConfig.js";
 import { svgToDataUri } from "../../shared/textilePreviewHelpers.js";
 
@@ -19,11 +19,6 @@ const RESIZE_HANDLES = [
 ];
 
 const TEXT_RESIZE_HANDLE_KEYS = new Set(["nw", "ne", "se", "sw", "e", "w"]);
-const MIN_TEXT_FONT_SIZE = 12;
-
-function clamp(value, min, max) {
-  return Math.min(max, Math.max(min, value));
-}
 
 function getTextDecorationLine(layer) {
   const decorationLines = [];
@@ -44,31 +39,6 @@ function getDirectionalOffset(angle, distance) {
 
 function isCornerHandle(handle) {
   return handle.x !== 0 && handle.y !== 0;
-}
-
-function measureTextSelectionBounds(node) {
-  if (!node) return null;
-
-  const textValue = String(node.textContent || "").replace(/\r/g, "");
-  if (!textValue.trim().length) return null;
-
-  const doc = node.ownerDocument;
-  if (!doc?.createRange) return null;
-
-  const range = doc.createRange();
-  range.selectNodeContents(node);
-  const rects = Array.from(range.getClientRects()).filter((rect) => rect.width > 0 || rect.height > 0);
-  if (!rects.length) return null;
-
-  const left = Math.min(...rects.map((rect) => rect.left));
-  const right = Math.max(...rects.map((rect) => rect.right));
-  const top = Math.min(...rects.map((rect) => rect.top));
-  const bottom = Math.max(...rects.map((rect) => rect.bottom));
-
-  return {
-    width: Math.max(0, right - left),
-    height: Math.max(0, bottom - top),
-  };
 }
 
 function selectAllEditableText(target) {
@@ -114,15 +84,14 @@ export default function ConstructorPreviewPanel({
   getTextGradientByKey,
 }) {
   const [resizingLayerId, setResizingLayerId] = useState(null);
+  const [activeTextFrameMetrics, setActiveTextFrameMetrics] = useState(null);
   const editableTextLayerRefs = useRef({});
   const textContentLayerRefs = useRef({});
   const textLayerRefs = useRef({});
   const lastFocusedEditingLayerIdRef = useRef(null);
-  const activeTextMetricsRef = useRef(null);
   const physicalWidthCm = printArea?.physicalWidthCm || 40;
   const physicalHeightCm = printArea?.physicalHeightCm || 50;
 
-  const activeTextLayer = layers.find((layer) => layer.id === activeLayerId && layer.type === "text") || null;
   const editingLayer = layers.find((layer) => layer.id === editingTextLayerId) || null;
   const editingLayerValue = editingLayer?.value || "";
 
@@ -154,13 +123,13 @@ export default function ConstructorPreviewPanel({
     }
   }, [editingTextLayerId, editingLayerValue]);
 
-  useLayoutEffect(() => {
+  useEffect(() => {
+    const activeTextLayer = layers.find((layer) => layer.id === activeLayerId && layer.type === "text") || null;
+
     if (!activeTextLayer || !printAreaRef.current) {
       const clearFrame = window.requestAnimationFrame(() => {
-        if (activeTextMetricsRef.current) {
-          activeTextMetricsRef.current = null;
-          onActiveTextMetricsChange?.(null);
-        }
+        setActiveTextFrameMetrics(null);
+        onActiveTextMetricsChange?.(null);
       });
 
       return () => window.cancelAnimationFrame(clearFrame);
@@ -172,69 +141,49 @@ export default function ConstructorPreviewPanel({
       const textContentNode = textContentLayerRefs.current[activeTextLayer.id];
 
       if (!printAreaBounds?.width || !printAreaBounds?.height || !textLayerNode || !textContentNode) {
-        if (activeTextMetricsRef.current) {
-          activeTextMetricsRef.current = null;
-          onActiveTextMetricsChange?.(null);
-        }
+        setActiveTextFrameMetrics(null);
+        onActiveTextMetricsChange?.(null);
         return;
       }
 
       const textLayerBounds = textLayerNode.getBoundingClientRect();
-      const textSelectionBounds = measureTextSelectionBounds(textContentNode);
+      const textContentBounds = textContentNode.getBoundingClientRect();
       const boxWidthPx = Number(textLayerBounds.width.toFixed(2));
-      const boxHeightPx = Number(Math.max(textLayerBounds.height, 1).toFixed(2));
-      const contentWidthPx = Number(Math.min(boxWidthPx, Math.max(textSelectionBounds?.width || 0, 0)).toFixed(2));
-      const contentHeightPx = Number(Math.max(textSelectionBounds?.height || 0, 0).toFixed(2));
-      const nextValue = {
-        layerId: activeTextLayer.id,
-        boxWidthPx,
-        boxHeightPx,
-        contentWidthPx,
-        contentHeightPx,
-      };
-      const currentValue = activeTextMetricsRef.current;
-      if (
-        currentValue?.layerId === nextValue.layerId
-        && currentValue?.boxWidthPx === nextValue.boxWidthPx
-        && currentValue?.boxHeightPx === nextValue.boxHeightPx
-        && currentValue?.contentWidthPx === nextValue.contentWidthPx
-        && currentValue?.contentHeightPx === nextValue.contentHeightPx
-      ) {
-        return;
-      }
-      activeTextMetricsRef.current = nextValue;
+      const boxHeightPx = Number(Math.max(textContentNode.scrollHeight, textContentBounds.height, 1).toFixed(2));
+      const contentWidthPx = Number(Math.min(boxWidthPx, Math.max(textContentNode.scrollWidth, textContentBounds.width, 1)).toFixed(2));
+
+      setActiveTextFrameMetrics((currentValue) => {
+        const nextValue = {
+          layerId: activeTextLayer.id,
+          boxWidthPx,
+          boxHeightPx,
+          contentWidthPx,
+          contentHeightPx: boxHeightPx,
+        };
+
+        if (
+          currentValue?.layerId === nextValue.layerId
+          && currentValue?.boxWidthPx === nextValue.boxWidthPx
+          && currentValue?.boxHeightPx === nextValue.boxHeightPx
+          && currentValue?.contentWidthPx === nextValue.contentWidthPx
+          && currentValue?.contentHeightPx === nextValue.contentHeightPx
+        ) {
+          return currentValue;
+        }
+
+        return nextValue;
+      });
 
       onActiveTextMetricsChange?.({
         contentWidthCm: Number(((contentWidthPx / printAreaBounds.width) * physicalWidthCm).toFixed(1)),
-        contentHeightCm: Number(((contentHeightPx / printAreaBounds.height) * physicalHeightCm).toFixed(1)),
+        contentHeightCm: Number(((boxHeightPx / printAreaBounds.height) * physicalHeightCm).toFixed(1)),
         boxWidthCm: Number(((boxWidthPx / printAreaBounds.width) * physicalWidthCm).toFixed(1)),
         boxHeightCm: Number(((boxHeightPx / printAreaBounds.height) * physicalHeightCm).toFixed(1)),
       });
     });
 
     return () => window.cancelAnimationFrame(frame);
-  }, [
-    activeTextLayer,
-    activeTextLayer?.id,
-    activeTextLayer?.value,
-    activeTextLayer?.size,
-    activeTextLayer?.textBoxWidth,
-    activeTextLayer?.lineHeight,
-    activeTextLayer?.letterSpacing,
-    activeTextLayer?.fontKey,
-    activeTextLayer?.fontFamily,
-    activeTextLayer?.weight,
-    activeTextLayer?.italic,
-    activeTextLayer?.uppercase,
-    activeTextLayer?.strokeWidth,
-    activeTextLayer?.textAlign,
-    editingTextLayerId,
-    onActiveTextMetricsChange,
-    physicalHeightCm,
-    physicalWidthCm,
-    printAreaRef,
-    resizingLayerId,
-  ]);
+  }, [activeLayerId, layers, editingTextLayerId, onActiveTextMetricsChange, physicalHeightCm, physicalWidthCm, printAreaRef, resizingLayerId]);
 
   const getLayerRenderSize = (layer) => ({
     width: `${((layer.widthCm || 1) / physicalWidthCm) * 100}%`,
@@ -306,23 +255,18 @@ export default function ConstructorPreviewPanel({
           const clampedPointerY = Math.min(printAreaBounds.height, Math.max(0, clientY - printAreaBounds.top));
           const fixedX = handle.x > 0 ? startBoundsLeft : startBoundsRight;
           const fixedY = handle.y > 0 ? startBoundsTop : startBoundsBottom;
-          const startVectorX = handle.x > 0 ? startRenderedWidth : -startRenderedWidth;
-          const startVectorY = handle.y > 0 ? startRenderedHeight : -startRenderedHeight;
-          const pointerVectorX = clampedPointerX - fixedX;
-          const pointerVectorY = clampedPointerY - fixedY;
-          const dot = (pointerVectorX * startVectorX) + (pointerVectorY * startVectorY);
-          const base = Math.max(1, (startVectorX * startVectorX) + (startVectorY * startVectorY));
-          const requestedMultiplier = dot / base;
+          const requestedWidthPx = Math.max(MIN_TEXT_BOX_WIDTH_PX, Math.abs(clampedPointerX - fixedX));
+          const requestedHeightPx = Math.max(4, Math.abs(clampedPointerY - fixedY));
+          const widthMultiplier = requestedWidthPx / Math.max(1, startRenderedWidth);
+          const heightMultiplier = requestedHeightPx / Math.max(1, startRenderedHeight);
+          const requestedMultiplier = Math.abs(widthMultiplier - 1) >= Math.abs(heightMultiplier - 1)
+            ? widthMultiplier
+            : heightMultiplier;
           const maxWidthPx = handle.x > 0 ? (printAreaBounds.width - fixedX) : fixedX;
           const maxHeightPx = handle.y > 0 ? (printAreaBounds.height - fixedY) : fixedY;
-          const minFontSizeMultiplier = MIN_TEXT_FONT_SIZE / Math.max(MIN_TEXT_FONT_SIZE, layer.size ?? MIN_TEXT_FONT_SIZE);
-          const minWidthMultiplier = MIN_TEXT_BOX_WIDTH_PX / Math.max(1, startRenderedWidth);
-          const minHeightMultiplier = 4 / Math.max(1, startRenderedHeight);
           const maxWidthMultiplier = maxWidthPx / Math.max(1, startRenderedWidth);
           const maxHeightMultiplier = maxHeightPx / Math.max(1, startRenderedHeight);
-          const minUniformMultiplier = Math.max(minFontSizeMultiplier, minWidthMultiplier, minHeightMultiplier);
-          const maxUniformMultiplier = Math.max(minUniformMultiplier, Math.min(maxWidthMultiplier, maxHeightMultiplier));
-          const uniformMultiplier = clamp(requestedMultiplier, minUniformMultiplier, maxUniformMultiplier);
+          const uniformMultiplier = Math.max(0.05, Math.min(requestedMultiplier, maxWidthMultiplier, maxHeightMultiplier));
           const nextWidthPx = Math.max(MIN_TEXT_BOX_WIDTH_PX, startRenderedWidth * uniformMultiplier);
           const nextHeightPx = Math.max(4, startRenderedHeight * uniformMultiplier);
 
@@ -519,7 +463,7 @@ export default function ConstructorPreviewPanel({
                   onDoubleClick={() => onLayerEditOpen(layer.id)}
                   style={{ position: "absolute", left: `${layer.position.x}%`, top: `${layer.position.y}%`, transform: "translate(-50%, -50%)", width: layerSize.width, height: layerSize.height, maxWidth: "100%", maxHeight: "100%", display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "auto", cursor: layer.locked ? "default" : dragging ? "grabbing" : "grab", touchAction: "none", boxShadow: frameStyle, borderRadius: 14, zIndex: index + 1 }}
                 >
-                  <img src={layer.src} alt={layer.uploadName} draggable={false} style={{ width: "100%", height: "100%", maxWidth: "100%", maxHeight: "100%", objectFit: "contain", display: "block", filter: "drop-shadow(0 12px 24px rgba(0,0,0,.24))", userSelect: "none", WebkitUserDrag: "none" }} />
+                  <img src={layer.src} alt={layer.uploadName} draggable={false} style={{ width: "100%", height: "100%", maxWidth: "100%", maxHeight: "100%", objectFit: "fill", display: "block", filter: "drop-shadow(0 12px 24px rgba(0,0,0,.24))", userSelect: "none", WebkitUserDrag: "none" }} />
                   {renderResizeHandles(layer)}
                 </div>
               );
@@ -618,6 +562,10 @@ export default function ConstructorPreviewPanel({
             const textMinHeight = !hasVisibleText && (active || editing)
               ? `${Math.max(layer.size * (layer.lineHeight ?? 1.05), layer.size)}px`
               : undefined;
+            const activeTextFrame = active && hasVisibleText && activeTextFrameMetrics?.layerId === layer.id
+              ? activeTextFrameMetrics
+              : null;
+            const activeTextFrameHeight = activeTextFrame ? `${activeTextFrame.boxHeightPx}px` : undefined;
 
             return (
               <div
@@ -633,7 +581,7 @@ export default function ConstructorPreviewPanel({
                   event.stopPropagation();
                   onLayerEditOpen(layer.id);
                 }}
-                style={{ position: "absolute", left: `${layer.position.x}%`, top: `${layer.position.y}%`, transform: "translate(-50%, -50%)", transformOrigin: "center center", width: `${layer.textBoxWidth ?? 88}%`, maxWidth: "100%", minHeight: textMinHeight, padding: 0, textAlign: layer.textAlign || "center", fontSize: `${layer.size}px`, lineHeight: layer.lineHeight ?? 1.05, fontWeight, fontStyle, fontFamily: layer.fontFamily || "'Outfit', sans-serif", color: activeGradient ? "transparent" : layer.color, letterSpacing: `${layer.letterSpacing ?? 1}px`, WebkitTextStroke: (layer.strokeWidth ?? 0) > 0 ? `${layer.strokeWidth}px ${layer.strokeColor || "#111111"}` : "0 transparent", paintOrder: "stroke fill", whiteSpace: "pre-wrap", overflowWrap: "anywhere", wordBreak: "break-word", hyphens: "none", textShadow: textShadowValue, pointerEvents: "auto", cursor: allowTextEditing ? "text" : resizing ? "nwse-resize" : layer.locked ? "default" : dragging ? "grabbing" : "grab", touchAction: allowTextEditing ? "auto" : "none", boxShadow: showTextBoxGuides ? textGuideShadow : "none", borderRadius: 0, outline: "none", outlineOffset: 0, background: "transparent", zIndex: index + 1 }}
+                style={{ position: "absolute", left: `${layer.position.x}%`, top: `${layer.position.y}%`, transform: "translate(-50%, -50%)", transformOrigin: "center center", width: `${layer.textBoxWidth ?? 88}%`, height: activeTextFrameHeight, maxWidth: "100%", minHeight: textMinHeight, padding: 0, textAlign: layer.textAlign || "center", fontSize: `${layer.size}px`, lineHeight: layer.lineHeight ?? 1.05, fontWeight, fontStyle, fontFamily: layer.fontFamily || "'Outfit', sans-serif", color: activeGradient ? "transparent" : layer.color, letterSpacing: `${layer.letterSpacing ?? 1}px`, WebkitTextStroke: (layer.strokeWidth ?? 0) > 0 ? `${layer.strokeWidth}px ${layer.strokeColor || "#111111"}` : "0 transparent", paintOrder: "stroke fill", whiteSpace: "pre-wrap", overflowWrap: "anywhere", wordBreak: "break-word", hyphens: "none", textShadow: textShadowValue, pointerEvents: "auto", cursor: allowTextEditing ? "text" : resizing ? "nwse-resize" : layer.locked ? "default" : dragging ? "grabbing" : "grab", touchAction: allowTextEditing ? "auto" : "none", boxShadow: showTextBoxGuides ? textGuideShadow : "none", borderRadius: 0, outline: "none", outlineOffset: 0, background: "transparent", zIndex: index + 1 }}
               >
                 {allowTextEditing ? (
                   <div

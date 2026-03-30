@@ -39,7 +39,6 @@ const MIN_TEXT_FONT_SIZE = 12;
 const MAX_TEXT_FONT_SIZE = 400;
 const MIN_TEXT_BOX_WIDTH_PERCENT = 1;
 const SNAP_THRESHOLD_PX = 4;
-const UPLOAD_RATIO_TOLERANCE = 0.02;
 const textMeasureCanvas = typeof document !== "undefined" ? document.createElement("canvas") : null;
 const textMeasureContext = textMeasureCanvas?.getContext("2d") || null;
 
@@ -409,51 +408,21 @@ export default function useConstructorState({
   };
   const getDefaultUploadDimensionsCm = ({ width, height, layerSide = side }) => {
     const { widthCm: maxWidthCm, heightCm: maxHeightCm } = getPhysicalPrintArea(layerSide);
-    const targetArea = product.printAreas?.[layerSide] || product.printAreas?.front || FALLBACK_PRODUCT.printAreas.front;
-    const areaWidthUnits = Math.max(1, Number(targetArea?.width) || 1);
-    const areaHeightUnits = Math.max(1, Number(targetArea?.height) || 1);
-    const naturalWidth = Number(width);
-    const naturalHeight = Number(height);
+    const fitWidthCm = maxWidthCm * 0.7;
+    const fitHeightCm = maxHeightCm * 0.7;
+    const aspectRatio = width && height ? width / height : 1;
 
-    if (!Number.isFinite(naturalWidth) || !Number.isFinite(naturalHeight) || naturalWidth <= 0 || naturalHeight <= 0) {
-      return {
-        widthCm: Number((maxWidthCm * 0.7).toFixed(3)),
-        heightCm: Number((maxHeightCm * 0.7).toFixed(3)),
-      };
+    if (!aspectRatio || Number.isNaN(aspectRatio)) {
+      return { widthCm: Number(fitWidthCm.toFixed(3)), heightCm: Number(fitHeightCm.toFixed(3)) };
     }
 
-    const maxAllowedWidthUnits = areaWidthUnits * 0.7;
-    const maxAllowedHeightUnits = areaHeightUnits * 0.7;
-    const scaleX = maxAllowedWidthUnits / naturalWidth;
-    const scaleY = maxAllowedHeightUnits / naturalHeight;
-    const scaleRatio = Math.min(scaleX, scaleY, 1);
-    const finalWidthUnits = naturalWidth * scaleRatio;
-    const finalHeightUnits = naturalHeight * scaleRatio;
-    const widthPercent = (finalWidthUnits / areaWidthUnits) * 100;
-    const heightPercent = (finalHeightUnits / areaHeightUnits) * 100;
-
-    const widthCm = Number(((maxWidthCm * widthPercent) / 100).toFixed(3));
-    const heightCm = Number(((maxHeightCm * heightPercent) / 100).toFixed(3));
-
-    if (import.meta.env.DEV) {
-      const sourceRatio = naturalWidth / naturalHeight;
-      const previewWidthUnits = (widthCm / maxWidthCm) * areaWidthUnits;
-      const previewHeightUnits = (heightCm / maxHeightCm) * areaHeightUnits;
-      const previewRatio = previewHeightUnits > 0 ? (previewWidthUnits / previewHeightUnits) : sourceRatio;
-      const normalizedDelta = sourceRatio > 0 ? Math.abs(previewRatio - sourceRatio) / sourceRatio : 0;
-
-      if (normalizedDelta > UPLOAD_RATIO_TOLERANCE) {
-        console.warn("[constructor] upload ratio mismatch on init", {
-          sourceRatio,
-          previewRatio,
-          widthCm,
-          heightCm,
-          layerSide,
-        });
-      }
-    }
-
-    return { widthCm, heightCm };
+    const widthRatio = fitWidthCm / width;
+    const heightRatio = fitHeightCm / height;
+    const scaleRatio = Math.min(widthRatio, heightRatio);
+    return {
+      widthCm: Number((width * scaleRatio).toFixed(3)),
+      heightCm: Number((height * scaleRatio).toFixed(3)),
+    };
   };
 
   const LAYER_ADD_OFFSETS = {
@@ -696,20 +665,8 @@ export default function useConstructorState({
       letterSpacing: resolvedLayer.letterSpacing ?? 1,
       boxWidthPx: boxWidth,
     });
-    const contentHeight = resolvedText.trim().length
-      ? Math.min(areaHeight, Math.max(1, contentMetrics.contentHeightPx))
-      : Math.max(1, (resolvedLayer.size ?? 36) * (resolvedLayer.lineHeight ?? DEFAULT_TEXT_LINE_HEIGHT));
-    const boxHeight = Math.min(areaHeight, Math.max(1, contentHeight));
-    return {
-      areaWidth,
-      areaHeight,
-      width: boxWidth,
-      height: boxHeight,
-      boxWidth,
-      boxHeight,
-      contentWidth: Math.min(areaWidth, Math.max(1, contentMetrics.contentWidthPx)),
-      contentHeight,
-    };
+    const height = resolvedText.trim().length ? Math.min(areaHeight, Math.max(1, contentMetrics.contentHeightPx)) : Math.max(1, (resolvedLayer.size ?? 36) * (resolvedLayer.lineHeight ?? DEFAULT_TEXT_LINE_HEIGHT));
+    return { areaWidth, areaHeight, width: boxWidth, height, boxWidth, boxHeight: Math.min(areaHeight, Math.max(height, contentMetrics.contentHeightPx || 0)), contentWidth: Math.min(areaWidth, Math.max(1, contentMetrics.contentWidthPx)) };
   };
 
   const clampLayerPosition = (position, layer, metrics = getLayerMetrics(layer)) => {
@@ -1304,13 +1261,7 @@ export default function useConstructorState({
     const normalizedValue = String(nextValue).replace(/\r/g, "");
     updateLayer(activeTextLayer.id, { value: normalizedValue });
   };
-  const setTextSize = (nextSize) => {
-    if (!activeTextLayer) return;
-
-    const clampedSize = Math.min(MAX_TEXT_FONT_SIZE, Math.max(MIN_TEXT_FONT_SIZE, Number(nextSize)));
-    pushHistoryCheckpoint();
-    updateActiveTextLayer({ size: clampedSize });
-  };
+  const setTextSize = (nextSize) => { pushHistoryCheckpoint(); updateActiveTextLayer({ size: Math.min(MAX_TEXT_FONT_SIZE, Math.max(MIN_TEXT_FONT_SIZE, Number(nextSize))) }); };
   const setTextColor = (nextColor) => { pushHistoryCheckpoint(); updateActiveTextLayer({ textFillMode: "solid", color: nextColor }); };
   const setTextGradientKey = (nextGradientKey) => {
     const nextGradient = getConstructorTextGradient(nextGradientKey);

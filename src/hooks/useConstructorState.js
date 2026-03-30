@@ -410,8 +410,10 @@ export default function useConstructorState({
   const getDefaultUploadDimensionsCm = ({ width, height, layerSide = side }) => {
     const { widthCm: maxWidthCm, heightCm: maxHeightCm } = getPhysicalPrintArea(layerSide);
     const targetArea = product.printAreas?.[layerSide] || product.printAreas?.front || FALLBACK_PRODUCT.printAreas.front;
-    const areaWidthUnits = Math.max(1, Number(targetArea?.width) || 1);
-    const areaHeightUnits = Math.max(1, Number(targetArea?.height) || 1);
+    // Upload dimensions are stored in cm, but preview layout uses percent axes with different physical scales.
+    // We normalize area units by physical axis scales so initial width/height preserve bitmap aspect ratio in preview.
+    const areaWidthUnits = Math.max(1, (Number(targetArea?.width) || 1) * maxWidthCm);
+    const areaHeightUnits = Math.max(1, (Number(targetArea?.height) || 1) * maxHeightCm);
     const naturalWidth = Number(width);
     const naturalHeight = Number(height);
 

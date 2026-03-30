@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { buildConstructorShapeSvg, getConstructorTextFont } from "./constructorConfig.js";
 import { svgToDataUri } from "../../shared/textilePreviewHelpers.js";
+import { resizeLayer } from "../../utils/constructor/resize/resizeLayer.js";
 
 const DEFAULT_TEXT_SHADOW = {
   light: "0 2px 14px rgba(0,0,0,.16)",
@@ -19,11 +20,6 @@ const RESIZE_HANDLES = [
 ];
 
 const TEXT_RESIZE_HANDLE_KEYS = new Set(["nw", "ne", "se", "sw", "e", "w"]);
-const MIN_TEXT_FONT_SIZE = 12;
-
-function clamp(value, min, max) {
-  return Math.min(max, Math.max(min, value));
-}
 
 function getTextDecorationLine(layer) {
   const decorationLines = [];
@@ -40,10 +36,6 @@ function getDirectionalOffset(angle, distance) {
     x: Math.cos(radians) * radius,
     y: Math.sin(radians) * radius,
   };
-}
-
-function isCornerHandle(handle) {
-  return handle.x !== 0 && handle.y !== 0;
 }
 
 function measureTextSelectionBounds(node) {
@@ -268,129 +260,32 @@ export default function ConstructorPreviewPanel({
     const startBoundsTop = layerBounds.top - printAreaBounds.top;
     const startBoundsRight = startBoundsLeft + startRenderedWidth;
     const startBoundsBottom = startBoundsTop + startRenderedHeight;
-    const MIN_TEXT_BOX_WIDTH_PX = 4;
+    const dragState = {
+      startPointer,
+      startWidthCm,
+      startHeightCm,
+      startRenderedWidth,
+      startRenderedHeight,
+      startTextBoxWidthPercent,
+      startBoundsLeft,
+      startBoundsTop,
+      startBoundsRight,
+      startBoundsBottom,
+    };
 
     const updateResize = (clientX, clientY) => {
-      const deltaX = clientX - startPointer.x;
-      const deltaY = clientY - startPointer.y;
-      const horizontalGrowth = handle.x === 0 ? 0 : deltaX * handle.x * 2;
-      const verticalGrowth = handle.y === 0 ? 0 : deltaY * handle.y * 2;
-
-      if (layer.type === "text") {
-        if (handle.x !== 0 && handle.y === 0) {
-          const clampedPointerX = Math.min(printAreaBounds.width, Math.max(0, clientX - printAreaBounds.left));
-          let nextLeftPx = startBoundsLeft;
-          let nextRightPx = startBoundsRight;
-
-          if (handle.x > 0) {
-            nextRightPx = Math.max(startBoundsLeft + MIN_TEXT_BOX_WIDTH_PX, clampedPointerX);
-          } else {
-            nextLeftPx = Math.min(startBoundsRight - MIN_TEXT_BOX_WIDTH_PX, clampedPointerX);
-          }
-
-          const nextWidthPx = Math.max(MIN_TEXT_BOX_WIDTH_PX, nextRightPx - nextLeftPx);
-          const nextCenterX = (nextLeftPx + nextRightPx) / 2;
-
-          onLayerResize(layer.id, {
-            textBoxWidth: (nextWidthPx / printAreaBounds.width) * 100,
-            position: {
-              x: (nextCenterX / printAreaBounds.width) * 100,
-              y: layer.position.y,
-            },
-          });
-          return;
-        }
-
-        if (isCornerHandle(handle)) {
-          const clampedPointerX = Math.min(printAreaBounds.width, Math.max(0, clientX - printAreaBounds.left));
-          const clampedPointerY = Math.min(printAreaBounds.height, Math.max(0, clientY - printAreaBounds.top));
-          const fixedX = handle.x > 0 ? startBoundsLeft : startBoundsRight;
-          const fixedY = handle.y > 0 ? startBoundsTop : startBoundsBottom;
-          const startVectorX = handle.x > 0 ? startRenderedWidth : -startRenderedWidth;
-          const startVectorY = handle.y > 0 ? startRenderedHeight : -startRenderedHeight;
-          const pointerVectorX = clampedPointerX - fixedX;
-          const pointerVectorY = clampedPointerY - fixedY;
-          const dot = (pointerVectorX * startVectorX) + (pointerVectorY * startVectorY);
-          const base = Math.max(1, (startVectorX * startVectorX) + (startVectorY * startVectorY));
-          const requestedMultiplier = dot / base;
-          const maxWidthPx = handle.x > 0 ? (printAreaBounds.width - fixedX) : fixedX;
-          const maxHeightPx = handle.y > 0 ? (printAreaBounds.height - fixedY) : fixedY;
-          const minFontSizeMultiplier = MIN_TEXT_FONT_SIZE / Math.max(MIN_TEXT_FONT_SIZE, layer.size ?? MIN_TEXT_FONT_SIZE);
-          const minWidthMultiplier = MIN_TEXT_BOX_WIDTH_PX / Math.max(1, startRenderedWidth);
-          const minHeightMultiplier = 4 / Math.max(1, startRenderedHeight);
-          const maxWidthMultiplier = maxWidthPx / Math.max(1, startRenderedWidth);
-          const maxHeightMultiplier = maxHeightPx / Math.max(1, startRenderedHeight);
-          const minUniformMultiplier = Math.max(minFontSizeMultiplier, minWidthMultiplier, minHeightMultiplier);
-          const maxUniformMultiplier = Math.max(minUniformMultiplier, Math.min(maxWidthMultiplier, maxHeightMultiplier));
-          const uniformMultiplier = clamp(requestedMultiplier, minUniformMultiplier, maxUniformMultiplier);
-          const nextWidthPx = Math.max(MIN_TEXT_BOX_WIDTH_PX, startRenderedWidth * uniformMultiplier);
-          const nextHeightPx = Math.max(4, startRenderedHeight * uniformMultiplier);
-
-          let nextLeftPx = startBoundsLeft;
-          let nextRightPx = startBoundsRight;
-          let nextTopPx = startBoundsTop;
-          let nextBottomPx = startBoundsBottom;
-
-          if (handle.x > 0) {
-            nextLeftPx = fixedX;
-            nextRightPx = fixedX + nextWidthPx;
-          } else {
-            nextRightPx = fixedX;
-            nextLeftPx = fixedX - nextWidthPx;
-          }
-
-          if (handle.y > 0) {
-            nextTopPx = fixedY;
-            nextBottomPx = fixedY + nextHeightPx;
-          } else {
-            nextBottomPx = fixedY;
-            nextTopPx = fixedY - nextHeightPx;
-          }
-
-          const nextCenterX = (nextLeftPx + nextRightPx) / 2;
-          const nextCenterY = (nextTopPx + nextBottomPx) / 2;
-
-          onLayerResize(layer.id, {
-            size: (layer.size ?? 36) * uniformMultiplier,
-            textBoxWidth: startTextBoxWidthPercent * uniformMultiplier,
-            letterSpacing: (layer.letterSpacing ?? 1) * uniformMultiplier,
-            strokeWidth: (layer.strokeWidth ?? 0) * uniformMultiplier,
-            position: {
-              x: (nextCenterX / printAreaBounds.width) * 100,
-              y: (nextCenterY / printAreaBounds.height) * 100,
-            },
-            ...(layer.shadowEnabled ? {
-              shadowOffsetX: (layer.shadowOffsetX ?? 0) * uniformMultiplier,
-              shadowOffsetY: (layer.shadowOffsetY ?? 2) * uniformMultiplier,
-              shadowBlur: (layer.shadowBlur ?? 14) * uniformMultiplier,
-            } : {}),
-          });
-          return;
-        }
-        return;
-      }
-
-      const nextWidthCm = startWidthCm + ((horizontalGrowth / printAreaBounds.width) * physicalWidthCm);
-      const nextHeightCm = startHeightCm + ((verticalGrowth / printAreaBounds.height) * physicalHeightCm);
-
-      if (isCornerHandle(handle)) {
-        const widthMultiplier = nextWidthCm / startWidthCm;
-        const heightMultiplier = nextHeightCm / startHeightCm;
-        const uniformMultiplier = Math.abs(widthMultiplier - 1) >= Math.abs(heightMultiplier - 1)
-          ? widthMultiplier
-          : heightMultiplier;
-
-        onLayerResize(layer.id, {
-          widthCm: startWidthCm * uniformMultiplier,
-          heightCm: startHeightCm * uniformMultiplier,
-        });
-        return;
-      }
-
-      onLayerResize(layer.id, {
-        ...(handle.x !== 0 ? { widthCm: nextWidthCm } : {}),
-        ...(handle.y !== 0 ? { heightCm: nextHeightCm } : {}),
+      const patch = resizeLayer({
+        layer,
+        handle,
+        pointer: { x: clientX, y: clientY },
+        printAreaBounds,
+        dragState,
+        physicalWidthCm,
+        physicalHeightCm,
       });
+
+      if (!patch) return;
+      onLayerResize(layer.id, patch);
     };
 
     setResizingLayerId(layer.id);

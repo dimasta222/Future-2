@@ -196,14 +196,20 @@ function LayerIconButton({ onClick, ariaLabel, title, children, variant = "defau
   );
 }
 
-function LayerPreview({ layer, presetPrints }) {
+function LayerPreview({ layer }) {
   if (layer.type === "upload") {
-    return <img src={layer.src} alt={layer.uploadName || layer.name} draggable={false} style={{ maxWidth: 58, maxHeight: 72, objectFit: "contain", display: "block", filter: layer.visible ? "none" : "grayscale(1) opacity(.6)" }} />;
-  }
+    const renderFrame = layer.renderFrame || {
+      innerOffsetXPercent: 0,
+      innerOffsetYPercent: 0,
+      innerWidthPercent: 100,
+      innerHeightPercent: 100,
+    };
 
-  if (layer.type === "preset") {
-    const preset = presetPrints.find((item) => item.key === layer.presetKey) || null;
-    return preset ? <img src={preset.src} alt={preset.label} draggable={false} style={{ maxWidth: 112, maxHeight: 72, objectFit: "contain", display: "block", filter: layer.visible ? "none" : "grayscale(1) opacity(.6)" }} /> : null;
+    return (
+      <div style={{ position: "relative", width: 72, height: 72, overflow: "hidden", flex: "0 0 auto" }}>
+        <img src={layer.src} alt={layer.uploadName || layer.name} draggable={false} style={{ position: "absolute", left: `${renderFrame.innerOffsetXPercent}%`, top: `${renderFrame.innerOffsetYPercent}%`, width: `${renderFrame.innerWidthPercent}%`, height: `${renderFrame.innerHeightPercent}%`, maxWidth: "none", maxHeight: "none", objectFit: "fill", display: "block", filter: layer.visible ? "none" : "grayscale(1) opacity(.6)" }} />
+      </div>
+    );
   }
 
   if (layer.type === "shape") {
@@ -233,10 +239,9 @@ function LayerPreview({ layer, presetPrints }) {
   );
 }
 
-function getLayerCardTitle(layer, presetPrints) {
+function getLayerCardTitle(layer) {
   if (layer.type === "upload") return layer.uploadName || layer.name;
   if (layer.type === "text") return getTextLayerDisplayLabel(layer, 44);
-  if (layer.type === "preset") return presetPrints.find((item) => item.key === layer.presetKey)?.label || layer.name;
   if (layer.type === "shape") return getConstructorShape(layer.shapeKey)?.label || layer.name;
   return layer.name;
 }
@@ -368,14 +373,14 @@ function ShapeEffectCard({ title, active = false, previewType, onClick }) {
   );
 }
 
-function ClosableShapePanelHeader({ title, onClose }) {
+function ClosablePanelHeader({ title, onClose, closeLabel = "Закрыть панель" }) {
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
       <SidebarTitle>{title}</SidebarTitle>
       <button
         type="button"
         onClick={onClose}
-        aria-label="Закрыть панель и вернуться к набору фигур"
+        aria-label={closeLabel}
         title="Закрыть"
         style={{ width: 34, height: 34, borderRadius: 10, border: "1px solid rgba(255,255,255,.08)", background: "rgba(255,255,255,.03)", color: "#f0eef5", display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontFamily: "inherit" }}
       >
@@ -390,23 +395,26 @@ function ClosableShapePanelHeader({ title, onClose }) {
 
 function ShapeSelectTile({ shape, active = false, onClick, compact = false }) {
   const plain = !compact;
+  const activeTileShadow = "0 0 0 1px rgba(232,67,147,.42)";
 
   return (
     <button
       type="button"
       onClick={onClick}
+      aria-pressed={active}
       style={{
         width: compact ? 72 : "100%",
         minWidth: compact ? 72 : 0,
         padding: compact ? 4 : 0,
         borderRadius: compact ? 14 : 0,
         border: "none",
+        outline: "none",
         background: "transparent",
         cursor: "pointer",
         fontFamily: "inherit",
         textAlign: "left",
         flexShrink: 0,
-        boxShadow: !compact && active ? "0 0 0 1px rgba(232,67,147,.42)" : "none",
+        boxShadow: active ? activeTileShadow : "none",
       }}
     >
       <ShapeOptionPreview shape={shape} fillMode="solid" color="#ffffff" gradientKey="future-pulse" strokeStyle="none" strokeColor="transparent" strokeWidth={0} plain={plain} />
@@ -439,7 +447,6 @@ function ShapeCategoryStrip({ category, shapes, activeShapeKey, onShapePick, onS
 export default function ConstructorSidebarPanel({
   activeTab,
   onTabChange,
-  side,
   printArea,
   products,
   product,
@@ -457,13 +464,17 @@ export default function ConstructorSidebarPanel({
   _activeLayerId,
   selectedLayerIds = [],
   isMultiSelection = false,
+  uploadedFiles = [],
   activeUploadLayer,
   activeTextLayer,
   activeTextMetricsCm,
   activeTextToolPanel,
-  activePresetLayer,
+  textSidebarOverlayOpen = false,
+  onCloseTextSidebarOverlay,
   activeShapeLayer,
   activeShapeToolPanel,
+  shapeSidebarOverlayOpen = false,
+  onCloseShapeSidebarOverlay,
   shapeCatalogMode = "add",
   onShapeCatalogModeChange,
   onShapeToolPanelChange,
@@ -472,7 +483,6 @@ export default function ConstructorSidebarPanel({
   onLayerEditOpen,
   onLayerReorder,
   onAddTextLayer,
-  onAddPresetLayer,
   onAddShapeLayer,
   onDuplicateActiveLayer,
   onRemoveLayer,
@@ -481,7 +491,8 @@ export default function ConstructorSidebarPanel({
   onToggleLayerVisibility,
   onToggleLayerLock,
   handleUploadChange,
-  handleUploadRemove,
+  onAddUploadedFileAsLayer,
+  onRemoveUploadedFile,
   uploadWidthCm,
   uploadHeightCm,
   handleUploadScaleChange,
@@ -511,12 +522,6 @@ export default function ConstructorSidebarPanel({
   onTextShadowOffsetYChange,
   textShadowBlur,
   onTextShadowBlurChange,
-  presetPrints,
-  presetKey,
-  onPresetKeyChange,
-  presetWidthCm,
-  presetHeightCm,
-  onPresetWidthCmChange,
   shapeKey,
   onShapeKeyChange,
   shapeFillMode,
@@ -550,8 +555,14 @@ export default function ConstructorSidebarPanel({
   const [expandedShapeCategoryKey, setExpandedShapeCategoryKey] = useState(null);
   const [activeShapeEffectColorTarget, setActiveShapeEffectColorTarget] = useState("shadow");
   const [draggedLayerId, setDraggedLayerId] = useState(null);
+  const [isUploadDropzoneHovered, setIsUploadDropzoneHovered] = useState(false);
   const currentTextToolPanel = activeTextToolPanel || "font";
   const currentShapeToolPanel = activeShapeToolPanel || "edit";
+  const showTextSidebarOverlay = textSidebarOverlayOpen && Boolean(activeTextLayer) && activeTab !== "text";
+  const showTextPanel = activeTab === "text" || showTextSidebarOverlay;
+  const showTextLayerList = !showTextSidebarOverlay || currentTextToolPanel !== "font";
+  const showShapeSidebarOverlay = shapeSidebarOverlayOpen && Boolean(activeShapeLayer) && activeTab !== "shapes";
+  const showShapesPanel = activeTab === "shapes" || showShapeSidebarOverlay;
   const physicalPrintAreaLabel = `${printArea?.physicalWidthCm || 40} × ${printArea?.physicalHeightCm || 50} см`;
   const fontSearchVariants = buildFontSearchVariants(fontSearch);
   const orderedTextLayers = [...layers].filter((layer) => layer.type === "text").reverse();
@@ -592,6 +603,9 @@ export default function ConstructorSidebarPanel({
   const currentKeyboardFontKey = keyboardVisibleFonts.some((font) => font.key === keyboardFontKey)
     ? keyboardFontKey
     : keyboardVisibleFonts[0]?.key || null;
+  const displayedTextLayers = showTextSidebarOverlay
+    ? orderedTextLayers.filter((layer) => layer.id === activeTextLayer?.id)
+    : orderedTextLayers;
 
   useEffect(() => {
     if (!currentKeyboardFontKey) return;
@@ -699,6 +713,8 @@ export default function ConstructorSidebarPanel({
     : currentShapeEffectColorTarget === "distort-b"
       ? shapeDistortionColorB
       : shapeEffectColor;
+  const safeShapeWidthCm = Number.isFinite(Number(shapeWidthCm)) ? Number(shapeWidthCm) : 0;
+  const safeShapeHeightCm = Number.isFinite(Number(shapeHeightCm)) ? Number(shapeHeightCm) : 0;
   const handleShapeEffectColorChange = (nextColor) => {
     if (currentShapeEffectColorTarget === "distort-a") {
       onShapeDistortionColorAChange(nextColor);
@@ -713,7 +729,34 @@ export default function ConstructorSidebarPanel({
     onShapeEffectColorChange(nextColor);
   };
 
-  if (activeTab === "textile") {
+  const textPanelTitle = currentTextToolPanel === "color"
+    ? "Цвет текста"
+    : currentTextToolPanel === "intervals"
+      ? "Интервалы текста"
+      : currentTextToolPanel === "effects"
+        ? "Эффекты текста"
+        : "Текст";
+
+  const handleCloseTextPanel = () => {
+    onCloseTextSidebarOverlay?.();
+  };
+
+  const shapePanelTitle = currentShapeToolPanel === "color"
+    ? "Цвет фигуры"
+    : currentShapeToolPanel === "stroke-color"
+      ? "Цвет обводки"
+      : currentShapeToolPanel === "effects"
+        ? "Эффекты фигуры"
+        : "Фигуры";
+
+  const handleCloseShapePanel = () => {
+    setExpandedShapeCategoryKey(null);
+    onShapeCatalogModeChange?.("add");
+    onShapeToolPanelChange("edit");
+    onCloseShapeSidebarOverlay?.();
+  };
+
+  if (activeTab === "textile" && !showShapesPanel && !showTextPanel) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 10, minWidth: 0 }}>
         <SidebarFieldRow label="Текстиль" minHeight={96}>
@@ -830,18 +873,15 @@ export default function ConstructorSidebarPanel({
     );
   }
 
-  if (activeTab === "layers") {
+  if (activeTab === "layers" && !showShapesPanel && !showTextPanel) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
         <SidebarTitle>Слои</SidebarTitle>
-        <div style={{ fontSize: 13, lineHeight: 1.55, color: "rgba(240,238,245,.42)" }}>
-          Один клик выделяет слой для перемещения в превью, Shift + клик добавляет его к текущему выделению, двойной клик открывает его раздел.
-        </div>
         {layers.length ? (
           <div style={{ display: "grid", gap: 10 }}>
             {orderedLayers.map((layer) => {
               const active = selectedLayerIds.includes(layer.id);
-              const layerTitle = getLayerCardTitle(layer, presetPrints);
+              const layerTitle = getLayerCardTitle(layer);
 
               return (
                 <div
@@ -882,7 +922,7 @@ export default function ConstructorSidebarPanel({
                     >
                       <div style={{ minHeight: 62, display: "flex", alignItems: "center", justifyContent: "center", minWidth: 0 }}>
                         <div style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", minWidth: 0 }}>
-                          <LayerPreview layer={layer} presetPrints={presetPrints} />
+                          <LayerPreview layer={layer} />
                         </div>
                       </div>
                     </button>
@@ -900,7 +940,7 @@ export default function ConstructorSidebarPanel({
             })}
           </div>
         ) : (
-          <EmptyLayerState title="Слои пока пустые" description="Добавьте текст, принт или макет. После этого каждый элемент появится отдельным слоем с собственными настройками." actionLabel="Добавить текст" onAction={onAddTextLayer} />
+          <EmptyLayerState title="Слои пока пустые" description="Добавьте текст, фигуру или макет. После этого каждый элемент появится отдельным слоем с собственными настройками." actionLabel="Добавить текст" onAction={onAddTextLayer} />
         )}
         <SidebarFieldRow label="Активный слой" minHeight={120}>
           {isMultiSelection ? (
@@ -914,7 +954,7 @@ export default function ConstructorSidebarPanel({
             </div>
           ) : activeLayer ? (
             <div style={{ display: "grid", gap: 10 }}>
-              <div style={{ fontSize: 15, fontWeight: 600, color: "#f0eef5" }}>{getLayerCardTitle(activeLayer, presetPrints)}</div>
+              <div style={{ fontSize: 15, fontWeight: 600, color: "#f0eef5" }}>{getLayerCardTitle(activeLayer)}</div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <ActionButton onClick={() => onToggleLayerVisibility(activeLayer.id)}>{activeLayer.visible ? "Скрыть" : "Показать"}</ActionButton>
                 <ActionButton onClick={() => onToggleLayerLock(activeLayer.id)}>{activeLayer.locked ? "Разблокировать" : "Заблокировать"}</ActionButton>
@@ -937,31 +977,137 @@ export default function ConstructorSidebarPanel({
     );
   }
 
-  if (activeTab === "upload") {
+  if (activeTab === "upload" && !showShapesPanel && !showTextPanel) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
         <SidebarTitle>Загрузить</SidebarTitle>
-        <label style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, minHeight: 220, borderRadius: 20, border: "1.5px dashed rgba(255,255,255,.12)", background: "rgba(255,255,255,.02)", cursor: "pointer", textAlign: "center", padding: 20 }}>
-          <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={handleUploadChange} style={{ display: "none" }} />
-          <div style={{ fontSize: 16, fontWeight: 500 }}>Добавить новый слой-макет</div>
-          <div style={{ fontSize: 14, color: "rgba(240,238,245,.45)", maxWidth: 320 }}>PNG, JPG, WEBP или SVG. Каждый загруженный файл становится отдельным слоем и появляется в центре превью.</div>
+        <label
+          onPointerEnter={() => setIsUploadDropzoneHovered(true)}
+          onPointerLeave={() => setIsUploadDropzoneHovered(false)}
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 6,
+            minHeight: 112,
+            borderRadius: 16,
+            border: isUploadDropzoneHovered ? "1.5px solid rgba(232,67,147,.52)" : "1.5px dashed rgba(255,255,255,.12)",
+            backgroundColor: "rgba(255,255,255,.02)",
+            backgroundImage: isUploadDropzoneHovered
+              ? "linear-gradient(135deg, rgba(232,67,147,.24), rgba(108,92,231,.24))"
+              : "none",
+            backgroundSize: "100% 100%",
+            backgroundPosition: "0 0",
+            boxShadow: isUploadDropzoneHovered
+              ? "0 18px 36px rgba(232,67,147,.2), inset 0 1px 0 rgba(255,255,255,.14)"
+              : "inset 0 1px 0 rgba(255,255,255,.04)",
+            cursor: "pointer",
+            textAlign: "center",
+            padding: 12,
+            transition: "background .24s ease, border-color .24s ease, box-shadow .24s ease, transform .24s ease",
+            transform: isUploadDropzoneHovered ? "translateY(-1px)" : "translateY(0)",
+            overflow: "hidden",
+          }}
+        >
+          <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" multiple onChange={handleUploadChange} style={{ display: "none" }} />
+          <div style={{ fontSize: 15, fontWeight: 500, color: isUploadDropzoneHovered ? "#fff7ff" : "#f0eef5", transition: "color .24s ease" }}>Загрузить файлы</div>
+          <div style={{ fontSize: 12, color: isUploadDropzoneHovered ? "rgba(255,247,255,.82)" : "rgba(240,238,245,.45)", maxWidth: 320, transition: "color .24s ease" }}>PNG, JPG, WEBP или SVG.</div>
         </label>
-        {activeUploadLayer ? <><SidebarFieldRow label="Активный слой"><div style={{ display: "grid", gap: 8 }}><div style={{ fontSize: 15, fontWeight: 600 }}>{activeUploadLayer.name}</div><div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}><span style={{ fontSize: 14, color: "rgba(240,238,245,.75)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0, flex: "1 1 160px" }}>{activeUploadLayer.uploadName}</span><button type="button" onClick={handleUploadRemove} className="bo" style={{ padding: "8px 14px", fontSize: 13 }}>Удалить слой</button></div></div></SidebarFieldRow><SidebarFieldRow label="Ширина печати"><div style={{ display: "grid", gap: 8 }}><div style={{ display: "flex", alignItems: "center", gap: 14 }}><input type="range" min="1" max={printArea?.physicalWidthCm || 40} step="0.1" value={uploadWidthCm} onChange={handleUploadScaleChange} style={{ width: "100%" }} /><span style={{ minWidth: 72, textAlign: "right", fontSize: 13, color: "rgba(240,238,245,.6)" }}>{uploadWidthCm.toFixed(1)} см</span></div><div style={{ fontSize: 12, color: "rgba(240,238,245,.48)" }}>Высота пересчитывается автоматически по пропорциям файла: {uploadHeightCm.toFixed(1)} см. Максимальная зона для стороны «{side === "front" ? "Спереди" : "Сзади"}» — {physicalPrintAreaLabel}.</div></div></SidebarFieldRow><SidebarFieldRow label="Позиция"><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}><span style={{ fontSize: 13, color: "rgba(240,238,245,.48)", overflowWrap: "anywhere" }}>Перетаскивайте слой мышкой прямо в зоне печати или верните его в центр одной кнопкой.</span><button type="button" onClick={centerActiveLayerPosition} className="bo" style={{ padding: "8px 14px", fontSize: 13 }}>По центру</button></div></SidebarFieldRow></> : <EmptyLayerState title="Нет активного слоя-макета" description="Сначала добавьте файл или выберите уже существующий слой во вкладке «Слои»." actionLabel="Открыть слои" onAction={() => onTabChange("layers")} />}
+        {uploadedFiles.length ? (
+          <SidebarFieldRow label="Загруженные файлы" minHeight={128}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8 }}>
+              {uploadedFiles.map((file) => (
+                <div key={file.id} style={{ display: "grid", gap: 7, padding: 7, borderRadius: 16, border: "1px solid rgba(255,255,255,.08)", background: "rgba(255,255,255,.03)", minWidth: 0 }}>
+                  <div style={{ width: "100%", aspectRatio: "1 / 1", borderRadius: 12, backgroundColor: "rgba(255,255,255,.03)", backgroundImage: `url(${file.src})`, backgroundPosition: "center", backgroundRepeat: "no-repeat", backgroundSize: "contain" }} />
+                  <div style={{ display: "flex", gap: 4, alignItems: "center", flexWrap: "nowrap", minWidth: 0 }}>
+                    <button
+                      type="button"
+                      onClick={() => onAddUploadedFileAsLayer(file.id)}
+                      style={{
+                        flex: "1 1 auto",
+                        minWidth: 0,
+                        padding: "6px 6px",
+                        borderRadius: 10,
+                        border: "1px solid rgba(232,67,147,.32)",
+                        background: "rgba(232,67,147,.08)",
+                        color: "#f0eef5",
+                        fontSize: 10.5,
+                        fontWeight: 500,
+                        lineHeight: 1,
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        cursor: "pointer",
+                        fontFamily: "'Outfit',sans-serif",
+                      }}
+                    >
+                      Добавить
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onRemoveUploadedFile(file.id)}
+                      aria-label={`Удалить ${file.uploadName || file.name || "файл"}`}
+                      title="Удалить"
+                      style={{
+                        flex: "0 0 auto",
+                        width: 30,
+                        height: 30,
+                        padding: 0,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        borderRadius: 10,
+                        border: "1px solid rgba(232,67,147,.22)",
+                        background: "rgba(232,67,147,.08)",
+                        color: "rgba(255,194,222,.86)",
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                      }}
+                    >
+                      <DeleteIcon />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </SidebarFieldRow>
+        ) : (
+          <EmptyLayerState title="Нет загруженных файлов" description="Загрузите один или несколько файлов. Они останутся в этом списке, пока вы не удалите их вручную." />
+        )}
+        {activeUploadLayer ? (
+          <SidebarFieldRow label="Размер печати">
+            <div style={{ display: "grid", gap: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                <input type="range" min="1" max={printArea?.physicalWidthCm || 40} step="0.1" value={uploadWidthCm} onChange={handleUploadScaleChange} style={{ width: "100%" }} />
+                <span style={{ minWidth: 72, textAlign: "right", fontSize: 13, color: "rgba(240,238,245,.6)" }}>{uploadWidthCm.toFixed(1)} см</span>
+              </div>
+              <div style={{ fontSize: 12, color: "rgba(240,238,245,.48)" }}>Размер картинки: {uploadWidthCm.toFixed(1)} × {uploadHeightCm.toFixed(1)} см.</div>
+            </div>
+          </SidebarFieldRow>
+        ) : uploadedFiles.length ? (
+          <div style={{ fontSize: 13, lineHeight: 1.6, color: "rgba(240,238,245,.42)" }}>
+            После добавления слоя выберите его на превью или во вкладке «Слои», чтобы изменить размер печати.
+          </div>
+        ) : null}
       </div>
     );
   }
 
-  if (activeTab === "text") {
+  if (showTextPanel && !showShapesPanel) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
-        <SidebarTitle>Текст</SidebarTitle>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <ActionButton onClick={onAddTextLayer} variant="primary">+ Новый текстовый слой</ActionButton>
-        </div>
-        {orderedTextLayers.length ? (
+        {showTextSidebarOverlay
+          ? <ClosablePanelHeader title={textPanelTitle} onClose={handleCloseTextPanel} closeLabel="Закрыть панель текста" />
+          : <SidebarTitle>Текст</SidebarTitle>}
+        {!showTextSidebarOverlay ? (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <ActionButton onClick={onAddTextLayer} variant="primary">+ Новый текстовый слой</ActionButton>
+          </div>
+        ) : null}
+        {showTextLayerList && displayedTextLayers.length ? (
           <SidebarFieldRow label="Текстовые слои" minHeight={96}>
             <div style={{ display: "grid", gap: 8 }}>
-              {orderedTextLayers.map((layer) => {
+              {displayedTextLayers.map((layer) => {
                 const active = selectedLayerIds.includes(layer.id);
                 const textLayerLabel = getTextLayerDisplayLabel(layer);
 
@@ -1242,14 +1388,14 @@ export default function ConstructorSidebarPanel({
                   <div style={{ display: "grid", gap: 8 }}>
                     <div style={{ fontSize: 12, lineHeight: 1.4, color: "rgba(240,238,245,.42)", textTransform: "uppercase", letterSpacing: 1.1 }}>Межстрочный интервал</div>
                     <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                      <input type="range" min="0.85" max="1.8" step="0.05" value={textLineHeight} onChange={(event) => onTextLineHeightChange(Number(event.target.value))} style={{ width: "100%" }} />
+                      <input type="range" min="0.5" max="2" step="0.05" value={textLineHeight} onChange={(event) => onTextLineHeightChange(Number(event.target.value))} style={{ width: "100%" }} />
                       <span style={{ minWidth: 52, textAlign: "right", fontSize: 13, color: "rgba(240,238,245,.6)" }}>{textLineHeight}</span>
                     </div>
                   </div>
                   <div style={{ display: "grid", gap: 8 }}>
                     <div style={{ fontSize: 12, lineHeight: 1.4, color: "rgba(240,238,245,.42)", textTransform: "uppercase", letterSpacing: 1.1 }}>Межбуквенный интервал</div>
                     <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                      <input type="range" min="-1" max="12" step="0.5" value={textLetterSpacing} onChange={(event) => onTextLetterSpacingChange(Number(event.target.value))} style={{ width: "100%" }} />
+                      <input type="range" min="-1" max="30" step="0.5" value={textLetterSpacing} onChange={(event) => onTextLetterSpacingChange(Number(event.target.value))} style={{ width: "100%" }} />
                       <span style={{ minWidth: 52, textAlign: "right", fontSize: 13, color: "rgba(240,238,245,.6)" }}>{textLetterSpacing}px</span>
                     </div>
                   </div>
@@ -1262,7 +1408,7 @@ export default function ConstructorSidebarPanel({
                 <SidebarFieldRow label="Обводка">
                   <div style={{ display: "grid", gap: 10 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                      <input type="range" min="0" max="6" step="0.5" value={textStrokeWidth} onChange={(event) => onTextStrokeWidthChange(Number(event.target.value))} style={{ width: "100%" }} />
+                      <input type="range" min="0" max="30" step="0.5" value={textStrokeWidth} onChange={(event) => onTextStrokeWidthChange(Number(event.target.value))} style={{ width: "100%" }} />
                       <span style={{ minWidth: 52, textAlign: "right", fontSize: 13, color: "rgba(240,238,245,.6)" }}>{textStrokeWidth}px</span>
                     </div>
                     {renderFreeColorControl({ fieldKey: "stroke", value: textStrokeColor, onChange: onTextStrokeColorChange, helperText: "Выберите цвет обводки через палитру или введите HEX-код." })}
@@ -1306,7 +1452,6 @@ export default function ConstructorSidebarPanel({
               </>
             ) : null}
 
-            <ActionButton onClick={centerActiveLayerPosition}>Поставить текст по центру базовой позиции</ActionButton>
           </>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: 16, borderRadius: 18, border: "1px solid rgba(255,255,255,.08)", background: "rgba(255,255,255,.02)" }}>
@@ -1320,7 +1465,7 @@ export default function ConstructorSidebarPanel({
     );
   }
 
-  if (activeTab === "shapes") {
+  if (showShapesPanel) {
     const handleShapePick = (nextShapeKey) => {
       if (shapeCatalogMode === "replace" && activeShapeLayer) {
         onShapeKeyChange(nextShapeKey);
@@ -1330,16 +1475,29 @@ export default function ConstructorSidebarPanel({
       onAddShapeLayer(nextShapeKey);
     };
 
+    const activeShapeMeta = activeShapeLayer ? getConstructorShape(activeShapeLayer.shapeKey) : null;
+    const activeShapeIsLine = activeShapeMeta?.category === "lines";
+
     const renderShapeSizeControl = () => (
       activeShapeLayer ? (
         <SidebarFieldRow label="Размер печати">
           <div style={{ display: "grid", gap: 10 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-              <input type="range" min="1" max={printArea?.physicalWidthCm || 40} step="0.1" value={shapeWidthCm} onChange={(event) => onShapeWidthCmChange(Number(event.target.value))} style={{ width: "100%" }} />
-              <span style={{ minWidth: 72, textAlign: "right", fontSize: 13, color: "rgba(240,238,245,.6)" }}>{shapeWidthCm.toFixed(1)} см</span>
-            </div>
-            <div style={{ fontSize: 12, color: "rgba(240,238,245,.48)" }}>Текущий размер фигуры: {shapeWidthCm.toFixed(1)} × {shapeHeightCm.toFixed(1)} см. Максимальная зона — {physicalPrintAreaLabel}.</div>
-            <ActionButton onClick={centerActiveLayerPosition}>Вернуть фигуру в центр</ActionButton>
+            {activeShapeIsLine ? (
+              <>
+                <div style={{ padding: "8px 10px", borderRadius: 12, background: "rgba(255,255,255,.03)", border: "1px solid rgba(255,255,255,.08)" }}>
+                  <div style={{ fontSize: 10, lineHeight: 1.2, letterSpacing: ".08em", textTransform: "uppercase", color: "rgba(240,238,245,.38)", marginBottom: 4 }}>Фактический размер линии</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#f0eef5", whiteSpace: "nowrap" }}>{safeShapeWidthCm.toFixed(1)} × {safeShapeHeightCm.toFixed(1)} см</div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                  <input type="range" min="1" max={printArea?.physicalWidthCm || 40} step="0.1" value={safeShapeWidthCm} onChange={(event) => onShapeWidthCmChange(Number(event.target.value))} style={{ width: "100%" }} />
+                  <span style={{ minWidth: 72, textAlign: "right", fontSize: 13, color: "rgba(240,238,245,.6)" }}>{safeShapeWidthCm.toFixed(1)} см</span>
+                </div>
+                <div style={{ fontSize: 12, color: "rgba(240,238,245,.48)" }}>Текущий размер фигуры: {safeShapeWidthCm.toFixed(1)} × {safeShapeHeightCm.toFixed(1)} см. Максимальная зона — {physicalPrintAreaLabel}.</div>
+              </>
+            )}
           </div>
         </SidebarFieldRow>
       ) : null
@@ -1347,16 +1505,14 @@ export default function ConstructorSidebarPanel({
 
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
-        {currentShapeToolPanel === "edit"
+        {currentShapeToolPanel === "edit" && !showShapeSidebarOverlay
           ? <SidebarTitle>Фигуры</SidebarTitle>
-          : <ClosableShapePanelHeader title="Фигуры" onClose={() => {
-            setExpandedShapeCategoryKey(null);
-            onShapeCatalogModeChange?.("add");
-            onShapeToolPanelChange("edit");
-          }} />}
+          : <ClosablePanelHeader title={shapePanelTitle} onClose={handleCloseShapePanel} closeLabel="Закрыть панель фигуры" />}
 
         {currentShapeToolPanel === "edit" ? (
           <>
+            {renderShapeSizeControl()}
+
             {expandedShapeCategory ? (
               <div style={{ display: "grid", gap: 12 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -1377,8 +1533,6 @@ export default function ConstructorSidebarPanel({
                 {shapeCategoryGroups.map((category) => <ShapeCategoryStrip key={category.key} category={category} shapes={category.items} activeShapeKey={shapeCatalogMode === "replace" && activeShapeLayer ? shapeKey : null} onShapePick={handleShapePick} onShowAll={() => setExpandedShapeCategoryKey(category.key)} />)}
               </div>
             )}
-
-            {renderShapeSizeControl()}
           </>
         ) : null}
 
@@ -1536,12 +1690,8 @@ export default function ConstructorSidebarPanel({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
-      <SidebarTitle>Готовые принты</SidebarTitle>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <ActionButton onClick={onAddPresetLayer}>Новый слой-принт</ActionButton>
-        <ActionButton onClick={() => onTabChange("layers")}>Управление слоями</ActionButton>
-      </div>
-      {activePresetLayer ? <><SidebarFieldRow label="Активный слой"><div style={{ display: "grid", gap: 6 }}><div style={{ fontSize: 15, fontWeight: 600 }}>{activePresetLayer.name}</div><div style={{ fontSize: 13, color: "rgba(240,238,245,.46)" }}>Каждый принт живёт в своём слое и может занимать собственную позицию и размер в сантиметрах.</div></div></SidebarFieldRow><div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr)", gap: 12 }}>{presetPrints.map((item) => { const active = presetKey === item.key; return <button key={item.key} type="button" onClick={() => onPresetKeyChange(item.key)} style={{ width: "100%", padding: 12, borderRadius: 18, border: active ? "1px solid rgba(232,67,147,.3)" : "1px solid rgba(255,255,255,.06)", background: active ? "linear-gradient(135deg,rgba(232,67,147,.14),rgba(108,92,231,.14))" : "rgba(255,255,255,.03)", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}><img src={item.src} alt={item.label} draggable={false} style={{ width: "100%", aspectRatio: "1 / 1", borderRadius: 14, objectFit: "cover", display: "block" }} /><div style={{ fontSize: 14, fontWeight: 500, color: "#f0eef5", marginTop: 10 }}>{item.label}</div></button>; })}</div><SidebarFieldRow label="Размер печати"><div style={{ display: "grid", gap: 8 }}><div style={{ display: "flex", alignItems: "center", gap: 14 }}><input type="range" min="1" max={printArea?.physicalWidthCm || 40} step="0.1" value={presetWidthCm} onChange={(event) => onPresetWidthCmChange(Number(event.target.value))} style={{ width: "100%" }} /><span style={{ minWidth: 72, textAlign: "right", fontSize: 13, color: "rgba(240,238,245,.6)" }}>{presetWidthCm.toFixed(1)} см</span></div><div style={{ fontSize: 12, color: "rgba(240,238,245,.48)" }}>Текущий размер принта: {presetWidthCm.toFixed(1)} × {presetHeightCm.toFixed(1)} см. Максимальная зона — {physicalPrintAreaLabel}.</div></div></SidebarFieldRow><ActionButton onClick={centerActiveLayerPosition}>Вернуть принт в центр</ActionButton></> : <EmptyLayerState title="Нет активного слоя-принта" description="Создайте новый слой с готовым принтом или выберите уже существующий слой во вкладке «Слои»." actionLabel="Добавить слой-принт" onAction={onAddPresetLayer} />}
+      <SidebarTitle>Слои</SidebarTitle>
+        <EmptyLayerState title="Выберите вкладку" description="Откройте слои, макеты, текст или фигуры, чтобы продолжить настройку изделия." actionLabel="Открыть слои" onAction={() => onTabChange("layers")} />
     </div>
   );
 }

@@ -17,13 +17,12 @@
 Назначение:
 
 - подключение страницы конструктора
-- подготовка constructor products и preset prints
+- подготовка constructor products
 - передача constructor-данных в constructor page
 
 Constructor-related элементы:
 
 - CONSTRUCTOR_PRODUCTS
-- CONSTRUCTOR_PRESET_PRINTS
 - импорт ConstructorPage.jsx
 
 ### src/components/constructor/ConstructorPage.jsx
@@ -49,7 +48,6 @@ Constructor-related элементы:
 
 - onBack
 - products
-- presetPrints
 
 Зависимости конструктора:
 
@@ -107,7 +105,6 @@ Constructor-related элементы:
 Вход:
 
 - products
-- presetPrints
 - buildPreviewSrc
 - buildTelegramLink
 - readFileAsDataUrl
@@ -128,6 +125,9 @@ Constructor-related элементы:
 - layer ordering, visibility, lock state
 - size and quantity
 - upload processing
+- default positions for new layers, including initial text placement slightly above the print-area center
+- default text-layer box width for creation, normalization and derived sidebar state
+- persistent uploadedFiles library for the Upload tab with manual add/remove actions before a file becomes a preview layer
 - active layer drag-and-drop
 - text layer state
 - shape layer state
@@ -138,7 +138,6 @@ Constructor-related элементы:
 - smart guides/snapping state for drag and resize against print-area and other visible layers
 - text line-height, stroke and soft shadow effects
 - text alignment and letter spacing
-- preset layer state
 - shape categories, category-browser state для overview/detail-экрана, active shape, основной цвет, stroke state с отдельным style/color workflow и взаимоисключающие shape-эффекты
 - order summary data
 
@@ -158,7 +157,6 @@ Constructor-related элементы:
 - CONSTRUCTOR_SHAPES
 - CONSTRUCTOR_SHAPE_BASIC_COLORS
 - buildConstructorProducts(...)
-- createConstructorPresetPrints(...)
 - buildConstructorShapeSvg(...)
 - buildConstructorTelegramLink(...)
 - readFileAsDataUrl(...)
@@ -188,21 +186,21 @@ Props:
 - layers
 - upload
 - text
-- preset prints
 - shapes
 
 Тип ответственности:
 
 - presentational
 - event forwarding
+- upload tab stores a persistent miniature library of uploaded files and exposes manual actions to add a new upload-layer or delete the source file from the list
 - компактный менеджер слоёв с single-click выбором, double-click переходом к нужной вкладке редактирования, centered layer-content, live drag-and-drop reorder и постоянными action-кнопками скрытия/удаления справа
 - side-aware layer model: front/back хранят независимые наборы слоёв, а manager/preview показывают только слои текущей стороны
-- physical print model for oversize black XS/S mockups: front/back PNG plus print-area 40 × 50 см; upload, preset и shape-layer хранят widthCm/heightCm вместо абстрактного scale
+- physical print model for oversize black XS/S mockups: front/back PNG plus print-area 40 × 50 см; upload и обычные shape-layer хранят widthCm/heightCm, а line-shape дополнительно хранит lineWidthPx/lineHeightPx в логических px холста и конвертирует factual size в см на лету
 - primary CTA для создания текстового слоя, fallback-подпись «Текст N» до ввода, короткие фрагменты текста после ввода, быстрые действия скрытия/удаления text-layer и переключение активного text-layer из боковой панели
 - одна активная панель текстовых настроек под списком слоёв для режимов «Шрифт», «Цвет», «Интервалы» и «Эффекты»
 - отдельная вкладка фигур для выбора shape-layer
 - отдельная вкладка фигур с overview-каталогом категорий, горизонтальными лентами превью и отдельным экраном выбранной категории; по умолчанию каталог добавляет новый shape-layer, замена фигуры текущего слоя идёт через отдельную кнопку «Редактировать», подсветка этой кнопки означает active replace-режим, а single-click по другому слою или по пустому месту превью возвращает каталог в add-режим
-- отдельные левые панели для shape color/stroke color/effects, открываемые из sticky shape-toolbar над превью
+- отдельные левые панели для shape color/stroke color/effects, открываемые из sticky shape-toolbar над превью; вне вкладки «Фигуры» эти панели временно подменяют содержимое текущей вкладки и закрываются по крестику или клику в пустое место превью
 
 ### src/components/constructor/ConstructorPreviewPanel.jsx
 
@@ -216,15 +214,17 @@ Props:
 - side switcher
 - print area overlay
 - render stack of visible layers only for the active side
-- upload/preset/shape rendering via layer widthCm/heightCm mapped into physical print-area
+- upload/regular-shape rendering via layer widthCm/heightCm mapped into physical print-area, while line-shape rendering via lineWidthPx/lineHeightPx maps into ту же print-area как logical canvas pixels
 - active layer highlight
 - active text box guide overlay for a single working text container
-- 8 resize handles for active upload/preset/shape/text layer: for text side handles change container width and wrapping, corner handles scale the text box and font together
+- 8 resize handles for active upload/shape/text layer: for text side handles change container width and wrapping, corner handles scale the text box and font together
 - smart guides overlay for drag/resize snapping to print-area and other visible layers
 - direct text editing inside the active text layer on preview
 - solid and gradient text fill rendering
 - SVG shape-layer rendering with основной фигурой, внутренней обводкой, падающей тенью и двойным искажением через цветовые offset-копии
-- active layer resize handles with proportional corner scaling and one-axis edge stretching for non-text layers, при этом corner-resize для upload/preset/shape остаётся uniform
+- SVG shape-layer rendering with tight SVG bounds and outer frame, учитывающим тень, искажение и обводку, чтобы эффекты не обрезались preview-box'ом
+- line-shapes use dynamic SVG geometry tied to the current horizontal ratio, so side resize changes line length from the actual line endpoints while keeping visual thickness and segment density stable; dragging one endpoint may also change the line angle while the opposite endpoint stays fixed, line-shapes clamp to a geometry-based minimum length derived from strokeWidth and endpoint decorations, keep endpoint arrows and decorative caps scaled with the current thickness, hide the left-panel size slider and show only factual dimensions plus left/right resize-handles
+- active layer resize handles with proportional corner scaling and one-axis edge stretching for non-text layers, при этом corner-resize для upload/shape остаётся uniform с опорой на противоположный угол, а боковые маркеры фиксируют противоположную сторону; у shape-layer дополнительно меняется базовая геометрия вместе с tight bounds
 - для активного text-layer preview измеряет DOM-габариты текста и text-box, переводит их в сантиметры относительно physical print-area и отдаёт в sidebar
 - пустой text-layer остаётся видимым как рабочий контейнер с placeholder
 - у активного слоя есть preview-кнопка удаления
@@ -243,7 +243,7 @@ Props:
 
 - sticky text-toolbar под переключателем стороны
 - синхронизацию toolbar с активной левой панелью текста
-- sticky text-toolbar и sticky shape-toolbar под переключателем стороны, плюс синхронизацию text/shape toolbar с активными левыми панелями; для shape-toolbar также отдельные режимы add/replace каталога фигур, кнопку «Редактировать» с подсветкой только в replace-режиме и переходом на вкладку «Фигуры», показ toolbar для активного shape-layer даже вне вкладки «Фигуры», сброс replace-режима по выбору другого слоя или пустого места превью, якорный quick-popover «Обводка» и переключение между панелями «Редактирование», «Цвет», «Цвет обводки» и «Эффекты"
+- sticky text-toolbar и sticky shape-toolbar под переключателем стороны, плюс синхронизацию text/shape toolbar с активными левыми панелями; text-toolbar показывается для активного text-layer вне зависимости от текущей вкладки и временно подменяет левую колонку text-панелью по кнопкам toolbar с закрытием по крестику или клику в пустое место превью; для shape-toolbar также отдельные режимы add/replace каталога фигур, кнопку «Редактировать» с подсветкой только в replace-режиме и переходом на вкладку «Фигуры», показ toolbar для активного shape-layer даже вне вкладки «Фигуры», временную подмену текущей левой вкладки shape-панелью по кнопкам toolbar с закрытием по крестику или клику в пустое место превью, сброс replace-режима по выбору другого слоя или пустого места превью, якорный quick-popover «Обводка» и переключение между панелями «Редактирование», «Цвет», «Цвет обводки» и «Эффекты"
 - side-aware orchestration: при переключении стороны активный слой и preview/sidebar синхронизируются с независимым front/back набором, а summary заказа считает слои по обеим сторонам отдельно
 - выбор реального previewSrc: PNG-мокапы только для чёрной oversize-модели размеров XS/S и SVG fallback для остальных сочетаний размера/модели/цвета
 
@@ -266,7 +266,7 @@ Props:
 
 ## Поток данных
 
-1. App.jsx собирает constructor products и preset prints
+1. App.jsx собирает constructor products
 2. App.jsx рендерит ConstructorPage.jsx и передает app-level зависимости
 3. ConstructorPage.jsx вызывает useConstructorState(...)
 4. useConstructorState(...) возвращает state, derived values, handlers
@@ -299,7 +299,7 @@ Props:
 ### useConstructorState.js зависит от:
 
 - constructor products
-- preset prints
+- constructor products
 - file/image helpers
 - preview builder
 - telegram link builder

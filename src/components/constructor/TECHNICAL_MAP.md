@@ -127,6 +127,7 @@ Constructor-related элементы:
 - upload processing
 - default positions for new layers, including initial text placement slightly above the print-area center
 - default text-layer box width for creation, normalization and derived sidebar state
+- default line-shape stroke style derived from selected shape `defaultLineStyle` so the stroke popover highlights the matching mode after add/replace
 - persistent uploadedFiles library for the Upload tab with manual add/remove actions before a file becomes a preview layer
 - active layer drag-and-drop
 - text layer state

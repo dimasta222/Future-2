@@ -338,6 +338,10 @@ export default function useConstructorState({
   };
 
   const getDefaultTextColor = (nextColor = resolvedColor) => (nextColor === "Белый" ? "#111111" : "#ffffff");
+  const getDefaultShapeStrokeStyle = (shapeKey) => {
+    const resolvedShape = getConstructorShape(shapeKey);
+    return resolvedShape.category === "lines" ? (resolvedShape.defaultLineStyle || "single") : "none";
+  };
 
   const getLayerDefaultPosition = (layerType) => (layerType === "text" ? { x: 50, y: 28 } : { x: 50, y: 50 });
   const getPhysicalPrintArea = (targetSide = side) => {
@@ -729,7 +733,7 @@ export default function useConstructorState({
       fillMode: "solid",
       color: getDefaultTextColor(),
       gradientKey: DEFAULT_TEXT_GRADIENT.key,
-      strokeStyle: "none",
+      strokeStyle: getDefaultShapeStrokeStyle(resolvedShapeKey),
       strokeWidth: resolvedStrokeWidth,
       strokeColor: getDefaultTextColor() === "#ffffff" ? "#111111" : "#ffffff",
       effectType: "none",
@@ -1665,6 +1669,7 @@ export default function useConstructorState({
     if (!activeShapeLayer) return;
     pushHistoryCheckpoint();
     const resolvedShapeKey = getConstructorShape(nextShapeKey).key;
+    const nextDefaultStrokeStyle = getDefaultShapeStrokeStyle(resolvedShapeKey);
     updateActiveShapeLayer((layer) => {
       const layerSide = getLayerSide(layer);
       const nextStrokeWidth = isLineShapeKey(resolvedShapeKey)
@@ -1679,6 +1684,7 @@ export default function useConstructorState({
         return normalizeLineShapeLayer({
           ...layer,
           shapeKey: resolvedShapeKey,
+          strokeStyle: nextDefaultStrokeStyle,
           strokeWidth: nextStrokeWidth,
           lineWidthPx: nextLineWidthPx,
           lineHeightPx: getLineHeightPxFromStrokeWidth(nextStrokeWidth, layerSide),
@@ -1688,6 +1694,7 @@ export default function useConstructorState({
       return {
         ...layer,
         shapeKey: resolvedShapeKey,
+        strokeStyle: nextDefaultStrokeStyle,
         strokeWidth: nextStrokeWidth,
         lineWidthPx: null,
         lineHeightPx: null,

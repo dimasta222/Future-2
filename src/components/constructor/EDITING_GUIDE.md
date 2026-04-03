@@ -106,6 +106,7 @@
 - src/hooks/useConstructorState.js
   - если нужно поменять shape-layer props
   - если нужно поменять создание, дублирование, summary, размеры upload/shape в сантиметрах, библиотеку uploadedFiles, ручное добавление upload-layer из загруженного файла, line-shape размеры в логических px холста и их factual-конвертацию в сантиметры, геометрический minimum length линии от толщины/декора концов, endpoint-based line angle change с фиксацией противоположного конца, aspect-ratio фигуры при добавлении и ширинном resize, выбор активной фигуры, стартовое смещение новых слоёв, привязку слоя к стороне «Спереди/Сзади» или параметры эффектов
+  - стартовый активный режим в popover «Обводка» для line-shape тоже задаётся здесь: buildShapeLayer(...) и setShapeKey(...) берут его из `defaultLineStyle` выбранной линии
   - стартовая позиция нового text-layer задаётся в getLayerDefaultPosition(...): по умолчанию текст появляется немного выше центра print-area
   - стартовая ширина нового text-layer задаётся в buildTextLayer(...) и fallback-значениях normalize/derived state; сейчас это 60% ширины print-area
   - если нужно поменять поведение каталога фигур по умолчанию на добавление нового слоя или логику замены фигуры в активном shape-layer

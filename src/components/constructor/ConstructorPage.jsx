@@ -4,10 +4,9 @@ import ConstructorOrderPanel from "./ConstructorOrderPanel.jsx";
 import ConstructorPreviewPanel from "./ConstructorPreviewPanel.jsx";
 import ConstructorSidebarPanel from "./ConstructorSidebarPanel.jsx";
 import ConstructorTabsNav from "./ConstructorTabsNav.jsx";
-import { buildConstructorTelegramLink, CONSTRUCTOR_TABS, getConstructorShape, getConstructorTextGradient, readFileAsDataUrl, readImageSize } from "./constructorConfig.js";
+import { buildConstructorTelegramLink, CONSTRUCTOR_TABS, getConstructorShape, getConstructorTextGradient, readFileAsDataUrl, readImageSize, resolveConstructorMockupSrc } from "./constructorConfig.js";
 import useConstructorState from "../../hooks/useConstructorState.js";
 import STYLES from "../../shared/appStyles.js";
-import { normalizeColorName } from "../../shared/textileHelpers.js";
 import { resolveColorSwatch } from "../../shared/textileHelpers.js";
 import { buildTshirtMockupSvg, svgToDataUri } from "../../shared/textilePreviewHelpers.js";
 
@@ -20,6 +19,7 @@ function ToolChip({ active = false, onClick, children, disabled = false, minWidt
     <button
       type="button"
       onClick={onClick}
+      onPointerUp={(event) => event.currentTarget.blur()}
       disabled={disabled}
       style={{
         width: fullWidth ? "100%" : "auto",
@@ -42,6 +42,7 @@ function ToolChip({ active = false, onClick, children, disabled = false, minWidt
         fontFamily: "inherit",
         fontSize: 12,
         transition: "border-color .2s ease, background .2s ease, box-shadow .2s ease, transform .2s ease",
+        outline: "none",
       }}
     >
       {children}
@@ -57,6 +58,7 @@ function ToolbarToggleButton({ active = false, onClick, children, tooltip, disab
     <button
       type="button"
       onClick={blocked ? undefined : onClick}
+      onPointerUp={(event) => event.currentTarget.blur()}
       disabled={disabled}
       aria-label={tooltip}
       aria-pressed={blocked ? false : active}
@@ -87,6 +89,7 @@ function ToolbarToggleButton({ active = false, onClick, children, tooltip, disab
         cursor: blocked ? "not-allowed" : "pointer",
         fontFamily: "inherit",
         opacity: blocked ? 0.62 : 1,
+        outline: "none",
       }}
     >
       {showTooltip ? (
@@ -206,6 +209,18 @@ function ShapeEffectsIcon() {
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M7 7h9v9H7z" />
       <path d="M10 10h9v9h-9" opacity=".75" />
+    </svg>
+  );
+}
+
+function ShapeCornersIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M7 8a1 1 0 0 1 1-1h4" />
+      <path d="M16 8a1 1 0 0 0-1-1h-1" opacity=".7" />
+      <path d="M17 12v4a1 1 0 0 1-1 1h-4" />
+      <path d="M8 17a1 1 0 0 1-1-1v-1" opacity=".7" />
+      <path d="M7 12V8a1 1 0 0 1 1-1" opacity=".85" />
     </svg>
   );
 }
@@ -392,9 +407,13 @@ function ShapeQuickToolbar({
   onShapeToolPanelChange,
   shapeCatalogMode,
   activeShapeIsLine = false,
+  showCornerControl = false,
   shapeColor,
   shapeStrokeStyle,
   shapeStrokeColor,
+  cornerPopoverAnchorRef,
+  onToggleCornerPopover,
+  isCornerPopoverOpen,
   strokePopoverAnchorRef,
   onToggleStrokePopover,
   isStrokePopoverOpen,
@@ -421,6 +440,17 @@ function ShapeQuickToolbar({
           <span>Цвет</span>
         </span>
       </ToolChip>
+
+      {showCornerControl && !activeShapeIsLine ? (
+        <div ref={cornerPopoverAnchorRef} style={{ display: "inline-flex" }}>
+          <ToolChip active={isCornerPopoverOpen} onClick={onToggleCornerPopover} disabled={disabled} minWidth={88}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <ShapeCornersIcon />
+              <span>Углы</span>
+            </span>
+          </ToolChip>
+        </div>
+      ) : null}
 
       {shapeStrokeStyle !== "none" && !activeShapeIsLine ? (
         <ToolChip active={activeShapeToolPanel === "stroke-color"} onClick={() => onShapeToolPanelChange("stroke-color")} disabled={disabled} minWidth={40}>
@@ -529,6 +559,20 @@ function ShapeStrokePopover({ shapeStrokeStyle, onShapeStrokeStyleChange, shapeS
   );
 }
 
+function ShapeCornerPopover({ shapeCornerRoundness, onShapeCornerRoundnessChange, popoverLeft = 0 }) {
+  return (
+    <div className="constructor-shape-popover" style={{ position: "absolute", left: popoverLeft, top: "calc(100% + 8px)", zIndex: 12, width: 332, maxWidth: "min(100%, 332px)", padding: 12, borderRadius: 16, border: "1px solid rgba(255,255,255,.08)", background: "rgba(16,16,22,.96)", boxShadow: "0 18px 44px rgba(0,0,0,.26)" }}>
+      <div style={{ display: "grid", gap: 8 }}>
+        <div style={{ fontSize: 12, color: "rgba(240,238,245,.72)", textTransform: "uppercase", letterSpacing: ".08em" }}>Округленность углов</div>
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 56px", gap: 10, alignItems: "center" }}>
+          <input type="range" min="0" max="100" step="1" value={shapeCornerRoundness} onChange={(event) => onShapeCornerRoundnessChange(Number(event.target.value))} style={{ width: "100%" }} />
+          <div style={{ minHeight: 34, display: "inline-flex", alignItems: "center", justifyContent: "center", borderRadius: 10, border: "1px solid rgba(255,255,255,.08)", background: "rgba(255,255,255,.03)", fontSize: 13, color: "#f0eef5" }}>{shapeCornerRoundness}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ConstructorPage({ onBack, products }) {
   const [activeTextMetricsCm, setActiveTextMetricsCm] = useState(null);
   const {
@@ -627,8 +671,12 @@ export default function ConstructorPage({ onBack, products }) {
     setShapeDistortionColorA,
     shapeDistortionColorB,
     setShapeDistortionColorB,
+    shapeCornerRoundness,
+    setShapeCornerRoundness,
+    shapeSupportsCornerRoundness,
     shapeWidthCm,
     shapeHeightCm,
+    activeShapeVisualMetricsCm,
     setShapeWidthCm,
     printAreaRef,
     product,
@@ -670,12 +718,11 @@ export default function ConstructorPage({ onBack, products }) {
   } = useConstructorState({
     products,
     buildPreviewSrc: ({ product: currentProduct, color: currentColor, side: currentSide, size: currentSize }) => {
-      const sizeSupportsRealMockup = currentProduct.printAreas?.[currentSide]?.mockupSizes?.includes(currentSize);
-      const canUseRealMockup = currentProduct.model === "oversize"
-        && normalizeColorName(currentColor) === "черный"
-        && sizeSupportsRealMockup;
-      return canUseRealMockup && currentProduct.printAreas?.[currentSide]?.mockupSrc
-        ? currentProduct.printAreas[currentSide].mockupSrc
+      const resolvedMockupSrc = currentProduct.model === "oversize"
+        ? resolveConstructorMockupSrc(currentProduct.printAreas, currentSide, currentSize, currentColor)
+        : "";
+      return resolvedMockupSrc
+        ? resolvedMockupSrc
         : svgToDataUri(buildTshirtMockupSvg({ model: currentProduct.model, colorName: currentColor, view: currentSide, showViewLabel: false, showHeader: false }));
     },
     buildTelegramLink: buildConstructorTelegramLink,
@@ -687,11 +734,14 @@ export default function ConstructorPage({ onBack, products }) {
   const [activeShapeToolPanel, setActiveShapeToolPanel] = useState("edit");
   const [shapeCatalogMode, setShapeCatalogMode] = useState("add");
   const [showShapeStrokePopover, setShowShapeStrokePopover] = useState(false);
+  const [showShapeCornerPopover, setShowShapeCornerPopover] = useState(false);
   const [textSidebarOverlayOpen, setTextSidebarOverlayOpen] = useState(false);
   const [shapeSidebarOverlayOpen, setShapeSidebarOverlayOpen] = useState(false);
   const shapeToolbarOverlayRef = useRef(null);
   const shapeStrokeButtonRef = useRef(null);
+  const shapeCornerButtonRef = useRef(null);
   const [shapeStrokePopoverLeft, setShapeStrokePopoverLeft] = useState(0);
+  const [shapeCornerPopoverLeft, setShapeCornerPopoverLeft] = useState(0);
   const showTextQuickToolbar = Boolean(activeTextLayer);
   const showShapeQuickToolbar = Boolean(activeShapeLayer);
   const textToolPanelVisible = activeTab === "text" || textSidebarOverlayOpen;
@@ -702,6 +752,7 @@ export default function ConstructorPage({ onBack, products }) {
   const resetShapeReplaceMode = ({ showShapeCatalog = false } = {}) => {
     setShapeCatalogMode("add");
     setShowShapeStrokePopover(false);
+    setShowShapeCornerPopover(false);
 
     if (showShapeCatalog) {
       setActiveShapeToolPanel("edit");
@@ -711,6 +762,7 @@ export default function ConstructorPage({ onBack, products }) {
   const closeShapeSidebarOverlay = ({ resetToolPanel = true } = {}) => {
     setShapeSidebarOverlayOpen(false);
     setShowShapeStrokePopover(false);
+    setShowShapeCornerPopover(false);
 
     if (resetToolPanel && activeTab !== "shapes") {
       setActiveShapeToolPanel("edit");
@@ -729,6 +781,7 @@ export default function ConstructorPage({ onBack, products }) {
     setTextSidebarOverlayOpen(false);
     setShapeSidebarOverlayOpen(false);
     setShowShapeStrokePopover(false);
+    setShowShapeCornerPopover(false);
 
     if (nextTab !== "text") {
       setActiveTextToolPanel("font");
@@ -743,6 +796,7 @@ export default function ConstructorPage({ onBack, products }) {
 
   const handleShapeToolbarPanelChange = (nextPanel) => {
     setShowShapeStrokePopover(false);
+    setShowShapeCornerPopover(false);
 
     if (nextPanel === "edit") {
       setShapeSidebarOverlayOpen(false);
@@ -977,14 +1031,31 @@ export default function ConstructorPage({ onBack, products }) {
         onShapeToolPanelChange={handleShapeToolbarPanelChange}
         shapeCatalogMode={effectiveShapeCatalogMode}
         activeShapeIsLine={activeShapeIsLine}
+        showCornerControl={shapeSupportsCornerRoundness}
         shapeColor={shapeColor}
         shapeStrokeStyle={shapeStrokeStyle}
         shapeStrokeColor={shapeStrokeColor}
+        cornerPopoverAnchorRef={shapeCornerButtonRef}
+        onToggleCornerPopover={() => {
+          setShowShapeStrokePopover(false);
+          setShowShapeCornerPopover((currentValue) => !currentValue);
+        }}
+        isCornerPopoverOpen={showShapeCornerPopover}
         strokePopoverAnchorRef={shapeStrokeButtonRef}
-        onToggleStrokePopover={() => setShowShapeStrokePopover((currentValue) => !currentValue)}
+        onToggleStrokePopover={() => {
+          setShowShapeCornerPopover(false);
+          setShowShapeStrokePopover((currentValue) => !currentValue);
+        }}
         isStrokePopoverOpen={showShapeStrokePopover}
         disabled={false}
       />
+      {showShapeCornerPopover ? (
+        <ShapeCornerPopover
+          shapeCornerRoundness={shapeCornerRoundness}
+          onShapeCornerRoundnessChange={setShapeCornerRoundness}
+          popoverLeft={shapeCornerPopoverLeft}
+        />
+      ) : null}
       {showShapeStrokePopover ? (
         <ShapeStrokePopover
           shapeStrokeStyle={shapeStrokeStyle}
@@ -1025,6 +1096,33 @@ export default function ConstructorPage({ onBack, products }) {
     };
   }, [showShapeStrokePopover]);
 
+  useEffect(() => {
+    if (!showShapeCornerPopover) return undefined;
+
+    const syncCornerPopoverPosition = () => {
+      if (!shapeToolbarOverlayRef.current || !shapeCornerButtonRef.current) return;
+
+      const overlayWidth = shapeToolbarOverlayRef.current.offsetWidth || 0;
+      const buttonLeft = shapeCornerButtonRef.current.offsetLeft || 0;
+      const maxLeft = Math.max(0, overlayWidth - 332);
+      setShapeCornerPopoverLeft(Math.min(buttonLeft, maxLeft));
+    };
+
+    syncCornerPopoverPosition();
+
+    const handlePointerDownOutside = (event) => {
+      if (shapeToolbarOverlayRef.current?.contains(event.target)) return;
+      setShowShapeCornerPopover(false);
+    };
+
+    window.addEventListener("resize", syncCornerPopoverPosition);
+    window.addEventListener("pointerdown", handlePointerDownOutside);
+    return () => {
+      window.removeEventListener("resize", syncCornerPopoverPosition);
+      window.removeEventListener("pointerdown", handlePointerDownOutside);
+    };
+  }, [showShapeCornerPopover]);
+
   return (
     <div style={{ fontFamily: "'Outfit',sans-serif", background: "#08080c", color: "#f0eef5", minHeight: "100vh" }}>
       <style>{STYLES}</style>
@@ -1036,8 +1134,7 @@ export default function ConstructorPage({ onBack, products }) {
         </button>
 
         <div style={{ textAlign: "center", margin: "34px auto 28px", maxWidth: 860 }}>
-          <span style={{ fontSize: 12, fontWeight: 500, letterSpacing: 4, color: "#6c5ce7", textTransform: "uppercase" }}>Новая страница</span>
-          <h1 style={{ fontSize: "clamp(28px,4vw,46px)", fontWeight: 200, marginTop: 12 }}>
+          <h1 style={{ fontSize: "clamp(28px,4vw,46px)", fontWeight: 200, marginTop: 0 }}>
             Конструктор <span style={{ fontWeight: 600, background: "linear-gradient(135deg,#e84393,#6c5ce7)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>футболок</span>
           </h1>
           <p style={{ color: "rgba(240,238,245,.45)", fontWeight: 300, fontSize: 15, marginTop: 10, lineHeight: 1.75 }}>
@@ -1045,13 +1142,13 @@ export default function ConstructorPage({ onBack, products }) {
           </p>
         </div>
 
-        <div className="constructor-shell" style={{ display: "grid", gridTemplateColumns: "minmax(236px,272px) minmax(0,1fr) minmax(236px,288px)", gap: 18, alignItems: "start", width: "100%", padding: 0, boxSizing: "border-box" }}>
+        <div className="constructor-shell" style={{ display: "grid", gridTemplateColumns: "minmax(236px,272px) minmax(0,1fr) minmax(236px,288px)", gap: 18, alignItems: "start", width: "100%", padding: "0 0 96px", boxSizing: "border-box" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 12, justifySelf: "start", width: "100%", minWidth: 0 }}>
             <ConstructorTabsNav tabs={CONSTRUCTOR_TABS} activeTab={activeTab} onTabChange={handleSidebarTabChange} />
-            <ConstructorSidebarPanel activeTab={activeTab} onTabChange={handleSidebarTabChange} printArea={printArea} products={products} product={product} productKey={productKey} onProductChange={handleProductChange} size={size} onSizeChange={setSize} qty={qty} onQtyChange={setQty} color={color} onColorChange={handleColorChange} resolveColorSwatch={resolveColorSwatch} layers={sideLayers} activeLayer={activeLayer} activeLayerId={activeLayerId} selectedLayerIds={selectedLayerIds} isMultiSelection={isMultiSelection} uploadedFiles={uploadedFiles} activeUploadLayer={activeUploadLayer} activeTextLayer={activeTextLayer} activeTextMetricsCm={activeTextMetricsCm} activeTextToolPanel={activeTextToolPanel} textSidebarOverlayOpen={textSidebarOverlayOpen} onCloseTextSidebarOverlay={() => closeTextSidebarOverlay({ resetToolPanel: true })} activeShapeLayer={activeShapeLayer} activeShapeToolPanel={activeShapeToolPanel} shapeSidebarOverlayOpen={shapeSidebarOverlayOpen} onCloseShapeSidebarOverlay={() => closeShapeSidebarOverlay({ resetToolPanel: true })} shapeCatalogMode={effectiveShapeCatalogMode} onShapeCatalogModeChange={setShapeCatalogMode} onShapeToolPanelChange={setActiveShapeToolPanel} onLayerSelect={handleLayerEditOpen} onLayerActivate={handleLayerActivate} onLayerEditOpen={handleLayerEditOpen} onLayerReorder={(nextLayerIds) => reorderLayers(nextLayerIds, side)} onAddTextLayer={addTextLayer} onAddShapeLayer={addShapeLayer} onDuplicateActiveLayer={duplicateActiveLayer} onRemoveLayer={handleRemoveLayer} onRemoveActiveLayer={handleRemoveActiveLayer} onMoveLayer={moveActiveLayer} onToggleLayerVisibility={toggleLayerVisibility} onToggleLayerLock={toggleLayerLock} handleUploadChange={handleUploadChange} onAddUploadedFileAsLayer={addUploadedFileAsLayer} onRemoveUploadedFile={removeUploadedFile} uploadWidthCm={uploadWidthCm} uploadHeightCm={uploadHeightCm} handleUploadScaleChange={handleUploadScaleChange} centerActiveLayerPosition={centerActiveLayerPosition} textFillMode={textFillMode} textColor={textColor} onTextColorChange={setTextColor} textGradientKey={textGradientKey} onTextGradientKeyChange={setTextGradientKey} textFontKey={textFontKey} onTextFontKeyChange={setTextFontKey} textLineHeight={textLineHeight} onTextLineHeightChange={setTextLineHeight} textLetterSpacing={textLetterSpacing} onTextLetterSpacingChange={setTextLetterSpacing} textStrokeWidth={textStrokeWidth} onTextStrokeWidthChange={setTextStrokeWidth} textStrokeColor={textStrokeColor} onTextStrokeColorChange={setTextStrokeColor} textShadowEnabled={textShadowEnabled} onTextShadowEnabledChange={setTextShadowEnabled} textShadowColor={textShadowColor} onTextShadowColorChange={setTextShadowColor} textShadowOffsetX={textShadowOffsetX} onTextShadowOffsetXChange={setTextShadowOffsetX} textShadowOffsetY={textShadowOffsetY} onTextShadowOffsetYChange={setTextShadowOffsetY} textShadowBlur={textShadowBlur} onTextShadowBlurChange={setTextShadowBlur} shapeKey={shapeKey} onShapeKeyChange={setShapeKey} shapeFillMode={shapeFillMode} shapeColor={shapeColor} onShapeColorChange={setShapeColor} shapeGradientKey={shapeGradientKey} onShapeGradientKeyChange={setShapeGradientKey} shapeStrokeStyle={shapeStrokeStyle} onShapeStrokeStyleChange={setShapeStrokeStyle} shapeStrokeWidth={shapeStrokeWidth} onShapeStrokeWidthChange={setShapeStrokeWidth} shapeStrokeColor={shapeStrokeColor} onShapeStrokeColorChange={setShapeStrokeColor} shapeEffectType={shapeEffectType} onShapeEffectTypeChange={setShapeEffectType} shapeEffectAngle={shapeEffectAngle} onShapeEffectAngleChange={setShapeEffectAngle} shapeEffectDistance={shapeEffectDistance} onShapeEffectDistanceChange={setShapeEffectDistance} shapeEffectColor={shapeEffectColor} onShapeEffectColorChange={setShapeEffectColor} shapeDistortionColorA={shapeDistortionColorA} onShapeDistortionColorAChange={setShapeDistortionColorA} shapeDistortionColorB={shapeDistortionColorB} onShapeDistortionColorBChange={setShapeDistortionColorB} shapeWidthCm={shapeWidthCm} shapeHeightCm={shapeHeightCm} onShapeWidthCmChange={setShapeWidthCm} />
+            <ConstructorSidebarPanel activeTab={activeTab} onTabChange={handleSidebarTabChange} printArea={printArea} products={products} product={product} productKey={productKey} onProductChange={handleProductChange} size={size} onSizeChange={setSize} qty={qty} onQtyChange={setQty} color={color} onColorChange={handleColorChange} resolveColorSwatch={resolveColorSwatch} layers={sideLayers} activeLayer={activeLayer} activeLayerId={activeLayerId} selectedLayerIds={selectedLayerIds} isMultiSelection={isMultiSelection} uploadedFiles={uploadedFiles} activeUploadLayer={activeUploadLayer} activeTextLayer={activeTextLayer} activeTextMetricsCm={activeTextMetricsCm} activeTextToolPanel={activeTextToolPanel} textSidebarOverlayOpen={textSidebarOverlayOpen} onCloseTextSidebarOverlay={() => closeTextSidebarOverlay({ resetToolPanel: true })} activeShapeLayer={activeShapeLayer} activeShapeVisualMetricsCm={activeShapeVisualMetricsCm} activeShapeToolPanel={activeShapeToolPanel} shapeSidebarOverlayOpen={shapeSidebarOverlayOpen} onCloseShapeSidebarOverlay={() => closeShapeSidebarOverlay({ resetToolPanel: true })} shapeCatalogMode={effectiveShapeCatalogMode} onShapeCatalogModeChange={setShapeCatalogMode} onShapeToolPanelChange={setActiveShapeToolPanel} onLayerSelect={handleLayerEditOpen} onLayerActivate={handleLayerActivate} onLayerEditOpen={handleLayerEditOpen} onLayerReorder={(nextLayerIds) => reorderLayers(nextLayerIds, side)} onAddTextLayer={addTextLayer} onAddShapeLayer={addShapeLayer} onDuplicateActiveLayer={duplicateActiveLayer} onRemoveLayer={handleRemoveLayer} onRemoveActiveLayer={handleRemoveActiveLayer} onMoveLayer={moveActiveLayer} onToggleLayerVisibility={toggleLayerVisibility} onToggleLayerLock={toggleLayerLock} handleUploadChange={handleUploadChange} onAddUploadedFileAsLayer={addUploadedFileAsLayer} onRemoveUploadedFile={removeUploadedFile} uploadWidthCm={uploadWidthCm} uploadHeightCm={uploadHeightCm} handleUploadScaleChange={handleUploadScaleChange} centerActiveLayerPosition={centerActiveLayerPosition} textFillMode={textFillMode} textColor={textColor} onTextColorChange={setTextColor} textGradientKey={textGradientKey} onTextGradientKeyChange={setTextGradientKey} textFontKey={textFontKey} onTextFontKeyChange={setTextFontKey} textLineHeight={textLineHeight} onTextLineHeightChange={setTextLineHeight} textLetterSpacing={textLetterSpacing} onTextLetterSpacingChange={setTextLetterSpacing} textStrokeWidth={textStrokeWidth} onTextStrokeWidthChange={setTextStrokeWidth} textStrokeColor={textStrokeColor} onTextStrokeColorChange={setTextStrokeColor} textShadowEnabled={textShadowEnabled} onTextShadowEnabledChange={setTextShadowEnabled} textShadowColor={textShadowColor} onTextShadowColorChange={setTextShadowColor} textShadowOffsetX={textShadowOffsetX} onTextShadowOffsetXChange={setTextShadowOffsetX} textShadowOffsetY={textShadowOffsetY} onTextShadowOffsetYChange={setTextShadowOffsetY} textShadowBlur={textShadowBlur} onTextShadowBlurChange={setTextShadowBlur} shapeKey={shapeKey} onShapeKeyChange={setShapeKey} shapeFillMode={shapeFillMode} shapeColor={shapeColor} onShapeColorChange={setShapeColor} shapeGradientKey={shapeGradientKey} onShapeGradientKeyChange={setShapeGradientKey} shapeStrokeStyle={shapeStrokeStyle} onShapeStrokeStyleChange={setShapeStrokeStyle} shapeStrokeWidth={shapeStrokeWidth} onShapeStrokeWidthChange={setShapeStrokeWidth} shapeStrokeColor={shapeStrokeColor} onShapeStrokeColorChange={setShapeStrokeColor} shapeEffectType={shapeEffectType} onShapeEffectTypeChange={setShapeEffectType} shapeEffectAngle={shapeEffectAngle} onShapeEffectAngleChange={setShapeEffectAngle} shapeEffectDistance={shapeEffectDistance} onShapeEffectDistanceChange={setShapeEffectDistance} shapeEffectColor={shapeEffectColor} onShapeEffectColorChange={setShapeEffectColor} shapeDistortionColorA={shapeDistortionColorA} onShapeDistortionColorAChange={setShapeDistortionColorA} shapeDistortionColorB={shapeDistortionColorB} onShapeDistortionColorBChange={setShapeDistortionColorB} shapeWidthCm={shapeWidthCm} shapeHeightCm={shapeHeightCm} onShapeWidthCmChange={setShapeWidthCm} />
           </div>
 
-          <div style={{ minWidth: 0, position: "sticky", top: 18, alignSelf: "start" }}>
+          <div style={{ minWidth: 0, position: "relative", alignSelf: "start" }}>
             <ConstructorPreviewPanel side={side} onSideChange={handleSideChange} topOverlay={previewTopOverlay} previewSrc={previewSrc} productName={product.name} color={color} printAreaRef={printAreaRef} printArea={printArea} layers={sideLayers} activeLayerId={activeLayerId} selectedLayerIds={selectedLayerIds} draggingLayerId={draggingLayerId} activeSnapGuides={activeSnapGuides} editingTextLayerId={editingTextLayerId} onLayerPointerDown={handlePreviewLayerPointerDown} onLayerEditOpen={handleLayerEditOpen} onPreviewBackgroundPointerDown={handlePreviewBackgroundPointerDown} onMarqueeSelectLayerIds={handlePreviewMarqueeSelectLayerIds} onActiveTextValueChange={setTextValue} onEditingTextLayerChange={setEditingTextLayerId} onLayerResize={applyLayerResize} onActiveTextMetricsChange={setActiveTextMetricsCm} onRemoveLayer={handleRemoveLayer} getShapeByKey={getShapeByKey} getTextGradientByKey={getConstructorTextGradient} />
           </div>
 

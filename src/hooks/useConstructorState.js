@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { getConstructorLineMinAspectRatio, getConstructorLineVisualMetrics, getConstructorShape, getConstructorShapeTightBounds, getConstructorTextFont, getConstructorTextGradient, readImageContentBounds } from "../components/constructor/constructorConfig.js";
+import { getConstructorLineMinAspectRatio, getConstructorLineVisualMetrics, getConstructorShape, getConstructorShapeTightBounds, getConstructorTextFont, getConstructorTextGradient, readImageContentBounds, resolveConstructorPrintArea, supportsConstructorShapeCornerRoundness } from "../components/constructor/constructorConfig.js";
 import { getShapeFrameMetricsPx } from "../utils/constructor/shapeFrame.js";
 
 const FALLBACK_PRODUCT = {
@@ -209,7 +209,7 @@ export default function useConstructorState({
   const [productKey, setProductKey] = useState(initialProduct.key || "");
   const [side, setSide] = useState("front");
   const [color, setColor] = useState(initialProduct.colors?.[0] || "Чёрный");
-  const [size, setSize] = useState("");
+  const [size, setSizeState] = useState("");
   const [qty, setQty] = useState(1);
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const [layers, setLayers] = useState([]);
@@ -236,7 +236,11 @@ export default function useConstructorState({
     if (layer.type === "shape") return Boolean(layer.shapeKey);
     return false;
   };
-  const printArea = product.printAreas?.[side] || product.printAreas?.front || FALLBACK_PRODUCT.printAreas.front;
+  const getResolvedPrintArea = (targetSide = side, targetSize = size) => {
+    const resolvedArea = resolveConstructorPrintArea(product.printAreas, targetSide, targetSize);
+    return resolvedArea || resolveConstructorPrintArea(FALLBACK_PRODUCT.printAreas, targetSide, targetSize);
+  };
+  const printArea = getResolvedPrintArea(side);
   const previewSrc = buildPreviewSrc({ product, color: resolvedColor, side, size });
   const sideLayers = layers.filter((layer) => getLayerSide(layer) === side);
   const rawActiveLayer = layers.find((layer) => layer.id === activeLayerId) || null;
@@ -344,14 +348,14 @@ export default function useConstructorState({
   };
 
   const getLayerDefaultPosition = (layerType) => (layerType === "text" ? { x: 50, y: 28 } : { x: 50, y: 50 });
-  const getPhysicalPrintArea = (targetSide = side) => {
-    const targetArea = product.printAreas?.[targetSide] || product.printAreas?.front || FALLBACK_PRODUCT.printAreas.front;
+  const getPhysicalPrintArea = (targetSide = side, targetSize = size) => {
+    const targetArea = getResolvedPrintArea(targetSide, targetSize);
     return {
       widthCm: targetArea?.physicalWidthCm || 40,
       heightCm: targetArea?.physicalHeightCm || 50,
     };
   };
-  const getPrintAreaPixelSize = (targetSide = side) => {
+  const getPrintAreaPixelSize = (targetSide = side, targetSize = size) => {
     if (targetSide === side && printAreaRef.current) {
       const bounds = printAreaRef.current.getBoundingClientRect();
       if (bounds.width > 0 && bounds.height > 0) {
@@ -362,7 +366,7 @@ export default function useConstructorState({
       }
     }
 
-    const targetArea = product.printAreas?.[targetSide] || product.printAreas?.front || FALLBACK_PRODUCT.printAreas.front;
+    const targetArea = getResolvedPrintArea(targetSide, targetSize);
     return {
       widthPx: Math.max(1, Number(targetArea?.width) || 1),
       heightPx: Math.max(1, Number(targetArea?.height) || 1),
@@ -379,36 +383,36 @@ export default function useConstructorState({
   };
   const isBasicShapeKey = (shapeKey) => getConstructorShape(shapeKey).category === "basic-shapes";
   const isLineShapeKey = (shapeKey) => getConstructorShape(shapeKey).category === "lines";
-  const getLogicalPrintAreaSize = (layerSide = side) => {
-    const { widthCm, heightCm } = getPhysicalPrintArea(layerSide);
+  const getLogicalPrintAreaSize = (layerSide = side, targetSize = size) => {
+    const { widthCm, heightCm } = getPhysicalPrintArea(layerSide, targetSize);
     return {
       widthPx: Math.max(MIN_LINE_LENGTH_PX, convertCmToCanvasPx(widthCm || 1)),
       heightPx: Math.max(MIN_LINE_HEIGHT_PX, convertCmToCanvasPx(heightCm || 1)),
     };
   };
-  const getLogicalLineMaxLengthPx = (layerSide = side) => {
-    const { widthPx, heightPx } = getLogicalPrintAreaSize(layerSide);
+  const getLogicalLineMaxLengthPx = (layerSide = side, targetSize = size) => {
+    const { widthPx, heightPx } = getLogicalPrintAreaSize(layerSide, targetSize);
     return roundCanvasPx(Math.max(MIN_LINE_LENGTH_PX, Math.hypot(widthPx, heightPx)));
   };
-  const getPhysicalLineMaxLengthCm = (layerSide = side) => {
-    const { widthCm, heightCm } = getPhysicalPrintArea(layerSide);
+  const getPhysicalLineMaxLengthCm = (layerSide = side, targetSize = size) => {
+    const { widthCm, heightCm } = getPhysicalPrintArea(layerSide, targetSize);
     return Number(Math.max(0.2, Math.hypot(widthCm, heightCm)).toFixed(3));
   };
-  const clampLineWidthPx = (value, layerSide = side, minWidthPx = MIN_LINE_LENGTH_PX) => {
-    const maxWidthPx = getLogicalLineMaxLengthPx(layerSide);
+  const clampLineWidthPx = (value, layerSide = side, minWidthPx = MIN_LINE_LENGTH_PX, targetSize = size) => {
+    const maxWidthPx = getLogicalLineMaxLengthPx(layerSide, targetSize);
     return roundCanvasPx(Math.min(maxWidthPx, Math.max(minWidthPx, Number(value) || minWidthPx)));
   };
-  const clampLineHeightPx = (value, layerSide = side) => {
-    const { heightPx: maxHeightPx } = getLogicalPrintAreaSize(layerSide);
+  const clampLineHeightPx = (value, layerSide = side, targetSize = size) => {
+    const { heightPx: maxHeightPx } = getLogicalPrintAreaSize(layerSide, targetSize);
     return roundCanvasPx(Math.min(maxHeightPx, Math.max(MIN_LINE_HEIGHT_PX, Number(value) || MIN_LINE_HEIGHT_PX)));
   };
-  const getLineHeightPxFromStrokeWidth = (strokeWidth, layerSide = side) => {
+  const getLineHeightPxFromStrokeWidth = (strokeWidth, layerSide = side, targetSize = size) => {
     const rawHeightPx = Math.max(MIN_LINE_HEIGHT_PX, (Number(strokeWidth) || DEFAULT_LINE_STROKE_WIDTH) * LINE_HEIGHT_PER_STROKE_UNIT_PX);
-    return clampLineHeightPx(rawHeightPx, layerSide);
+    return clampLineHeightPx(rawHeightPx, layerSide, targetSize);
   };
-  const getLineDimensionsCmFromPx = (layer, { lineWidthPx, lineHeightPx }, layerSide = side) => {
-    const { heightCm: maxHeightCm } = getPhysicalPrintArea(layerSide);
-    const maxLineLengthCm = getPhysicalLineMaxLengthCm(layerSide);
+  const getLineDimensionsCmFromPx = (layer, { lineWidthPx, lineHeightPx }, layerSide = side, targetSize = size) => {
+    const { heightCm: maxHeightCm } = getPhysicalPrintArea(layerSide, targetSize);
+    const maxLineLengthCm = getPhysicalLineMaxLengthCm(layerSide, targetSize);
     const lineAspectRatio = Math.max(0.2, (Number(lineWidthPx) || MIN_LINE_LENGTH_PX) / Math.max(1, Number(lineHeightPx) || MIN_LINE_HEIGHT_PX));
     const visualMetrics = getConstructorLineVisualMetrics(layer?.shapeKey, layer?.strokeWidth, lineAspectRatio);
     const visibleWidthPx = (Number(lineWidthPx) || 0) * (visualMetrics.visibleWidthPx / Math.max(1, visualMetrics.layoutWidthPx));
@@ -419,17 +423,17 @@ export default function useConstructorState({
       heightCm: clampShapeCm(convertCanvasPxToCm(visibleHeightPx), maxHeightCm),
     };
   };
-  const getShapeCmAspectRatio = (shapeKey, layerSide = side) => {
+  const getShapeCmAspectRatio = (shapeKey, layerSide = side, targetSize = size) => {
     const intrinsicAspectRatio = getShapeIntrinsicAspectRatio(shapeKey);
-    const { widthCm: printAreaWidthCm, heightCm: printAreaHeightCm } = getPhysicalPrintArea(layerSide);
-    const { widthPx: printAreaWidthPx, heightPx: printAreaHeightPx } = getPrintAreaPixelSize(layerSide);
+    const { widthCm: printAreaWidthCm, heightCm: printAreaHeightCm } = getPhysicalPrintArea(layerSide, targetSize);
+    const { widthPx: printAreaWidthPx, heightPx: printAreaHeightPx } = getPrintAreaPixelSize(layerSide, targetSize);
     const scaleX = printAreaWidthPx / Math.max(0.001, printAreaWidthCm);
     const scaleY = printAreaHeightPx / Math.max(0.001, printAreaHeightCm);
     return Math.max(0.05, intrinsicAspectRatio * (scaleY / Math.max(0.001, scaleX)));
   };
-  const getShapeDimensionsFromWidthCm = (shapeKey, nextWidthCm, layerSide = side) => {
-    const { widthCm: maxWidthCm, heightCm: maxHeightCm } = getPhysicalPrintArea(layerSide);
-    const aspectRatioCm = getShapeCmAspectRatio(shapeKey, layerSide);
+  const getShapeDimensionsFromWidthCm = (shapeKey, nextWidthCm, layerSide = side, targetSize = size) => {
+    const { widthCm: maxWidthCm, heightCm: maxHeightCm } = getPhysicalPrintArea(layerSide, targetSize);
+    const aspectRatioCm = getShapeCmAspectRatio(shapeKey, layerSide, targetSize);
     const widthCm = clampShapeCm(nextWidthCm, maxWidthCm);
     const heightCm = Number((widthCm / aspectRatioCm).toFixed(3));
 
@@ -443,8 +447,8 @@ export default function useConstructorState({
       heightCm: fittedHeightCm,
     };
   };
-  const getShapeDisplayDimensionsCm = (shapeKey, nextWidthCm, layerSide = side) => {
-    const { widthCm: maxWidthCm, heightCm: maxHeightCm } = getPhysicalPrintArea(layerSide);
+  const getShapeDisplayDimensionsCm = (shapeKey, nextWidthCm, layerSide = side, targetSize = size) => {
+    const { widthCm: maxWidthCm, heightCm: maxHeightCm } = getPhysicalPrintArea(layerSide, targetSize);
     const intrinsicAspectRatio = getShapeIntrinsicAspectRatio(shapeKey);
     const widthCm = clampShapeCm(nextWidthCm, maxWidthCm);
     const heightCm = Number((widthCm / intrinsicAspectRatio).toFixed(3));
@@ -459,11 +463,11 @@ export default function useConstructorState({
       heightCm: fittedHeightCm,
     };
   };
-  const getDefaultShapeDimensionsCm = (shapeKey, layerSide = side) => {
-    const { widthCm: maxWidthCm, heightCm: maxHeightCm } = getPhysicalPrintArea(layerSide);
+  const getDefaultShapeDimensionsCm = (shapeKey, layerSide = side, targetSize = size) => {
+    const { widthCm: maxWidthCm, heightCm: maxHeightCm } = getPhysicalPrintArea(layerSide, targetSize);
     const preferredWidthCm = Math.max(4, maxWidthCm * 0.4);
     const preferredHeightCm = Math.max(4, maxHeightCm * 0.4);
-    const aspectRatioCm = getShapeCmAspectRatio(shapeKey, layerSide);
+    const aspectRatioCm = getShapeCmAspectRatio(shapeKey, layerSide, targetSize);
 
     let widthCm = preferredWidthCm;
     let heightCm = Number((widthCm / aspectRatioCm).toFixed(3));
@@ -482,13 +486,14 @@ export default function useConstructorState({
     const minAspectRatio = getConstructorLineMinAspectRatio(layer?.shapeKey, layer?.strokeWidth);
     return Math.max(MIN_LINE_LENGTH_PX, roundCanvasPx(Math.max(1, Number(lineHeightPx) || MIN_LINE_HEIGHT_PX) * minAspectRatio));
   };
-  const getStoredLineCanvasDimensions = (layer, layerSide = side) => {
+  const getStoredLineCanvasDimensions = (layer, layerSide = side, targetSize = size) => {
     const fallbackHeightPx = Number.isFinite(Number(layer?.heightCm))
       ? convertCmToCanvasPx(layer.heightCm)
-      : getLineHeightPxFromStrokeWidth(layer?.strokeWidth, layerSide);
+      : getLineHeightPxFromStrokeWidth(layer?.strokeWidth, layerSide, targetSize);
     const lineHeightPx = clampLineHeightPx(
       Number.isFinite(Number(layer?.lineHeightPx)) ? layer.lineHeightPx : fallbackHeightPx,
       layerSide,
+      targetSize,
     );
     const minLineWidthPx = getLineMinWidthPx(layer, lineHeightPx);
 
@@ -497,23 +502,24 @@ export default function useConstructorState({
         Number.isFinite(Number(layer?.lineWidthPx)) ? layer.lineWidthPx : convertCmToCanvasPx(layer?.widthCm ?? 12),
         layerSide,
         minLineWidthPx,
+        targetSize,
       ),
       lineHeightPx,
     };
   };
-  const getLineCanvasDimensions = (layer, layerSide = side) => {
+  const getLineCanvasDimensions = (layer, layerSide = side, targetSize = size) => {
     if (Number.isFinite(Number(layer?.lineWidthPx)) || Number.isFinite(Number(layer?.widthCm))) {
-      return getStoredLineCanvasDimensions(layer, layerSide);
+      return getStoredLineCanvasDimensions(layer, layerSide, targetSize);
     }
 
-    const fallbackWidthCm = getDefaultShapeDimensionsCm(layer?.shapeKey || getConstructorShape().key, layerSide).widthCm;
-    return getStoredLineCanvasDimensions({ ...layer, widthCm: fallbackWidthCm }, layerSide);
+    const fallbackWidthCm = getDefaultShapeDimensionsCm(layer?.shapeKey || getConstructorShape().key, layerSide, targetSize).widthCm;
+    return getStoredLineCanvasDimensions({ ...layer, widthCm: fallbackWidthCm }, layerSide, targetSize);
   };
-  const normalizeLineShapeLayer = (layer, layerSide = side) => {
+  const normalizeLineShapeLayer = (layer, layerSide = side, targetSize = size) => {
     if (!isLineShapeKey(layer?.shapeKey)) return layer;
 
-    const { lineWidthPx, lineHeightPx } = getLineCanvasDimensions(layer, layerSide);
-    const lineDimensionsCm = getLineDimensionsCmFromPx(layer, { lineWidthPx, lineHeightPx }, layerSide);
+    const { lineWidthPx, lineHeightPx } = getLineCanvasDimensions(layer, layerSide, targetSize);
+    const lineDimensionsCm = getLineDimensionsCmFromPx(layer, { lineWidthPx, lineHeightPx }, layerSide, targetSize);
 
     return {
       ...layer,
@@ -546,12 +552,10 @@ export default function useConstructorState({
       const shape = getConstructorShape(layer.shapeKey);
       const shapeDimensionsCm = isLineShapeKey(layer.shapeKey)
         ? getLineDimensionsCmFromPx(layer, getStoredLineCanvasDimensions(layer, getLayerSide(layer)), getLayerSide(layer))
-        : isBasicShapeKey(layer.shapeKey)
-          ? getShapeDisplayDimensionsCm(layer.shapeKey, layer.widthCm ?? 0, getLayerSide(layer))
-          : {
-            widthCm: layer.widthCm ?? 0,
-            heightCm: layer.heightCm ?? 0,
-          };
+        : {
+          widthCm: layer.widthCm ?? 0,
+          heightCm: layer.heightCm ?? 0,
+        };
       const fillSummary = layer.fillMode === "gradient"
         ? `градиент ${getConstructorTextGradient(layer.gradientKey).label}`
         : `цвет ${layer.color}`;
@@ -622,11 +626,6 @@ export default function useConstructorState({
   };
   const getDefaultUploadDimensionsCm = ({ width, height, layerSide = side }) => {
     const { widthCm: maxWidthCm, heightCm: maxHeightCm } = getPhysicalPrintArea(layerSide);
-    const targetArea = product.printAreas?.[layerSide] || product.printAreas?.front || FALLBACK_PRODUCT.printAreas.front;
-    // Upload dimensions are stored in cm, but preview layout uses percent axes with different physical scales.
-    // We normalize area units by physical axis scales so initial width/height preserve bitmap aspect ratio in preview.
-    const areaWidthUnits = Math.max(1, (Number(targetArea?.width) || 1) * maxWidthCm);
-    const areaHeightUnits = Math.max(1, (Number(targetArea?.height) || 1) * maxHeightCm);
     const naturalWidth = Number(width);
     const naturalHeight = Number(height);
 
@@ -637,24 +636,24 @@ export default function useConstructorState({
       };
     }
 
-    const maxAllowedWidthUnits = areaWidthUnits * 0.7;
-    const maxAllowedHeightUnits = areaHeightUnits * 0.7;
-    const scaleX = maxAllowedWidthUnits / naturalWidth;
-    const scaleY = maxAllowedHeightUnits / naturalHeight;
-    const scaleRatio = Math.min(scaleX, scaleY, 1);
-    const finalWidthUnits = naturalWidth * scaleRatio;
-    const finalHeightUnits = naturalHeight * scaleRatio;
-    const widthPercent = (finalWidthUnits / areaWidthUnits) * 100;
-    const heightPercent = (finalHeightUnits / areaHeightUnits) * 100;
+    const sourceRatio = naturalWidth / naturalHeight;
+    const previewAspectRatioCm = getAssetCmAspectRatio(sourceRatio, layerSide);
+    const maxAllowedWidthCm = Number((maxWidthCm * 0.7).toFixed(3));
+    const maxAllowedHeightCm = Number((maxHeightCm * 0.7).toFixed(3));
 
-    const widthCm = Number(((maxWidthCm * widthPercent) / 100).toFixed(3));
-    const heightCm = Number(((maxHeightCm * heightPercent) / 100).toFixed(3));
+    let widthCm = maxAllowedWidthCm;
+    let heightCm = Number((widthCm / previewAspectRatioCm).toFixed(3));
+
+    if (heightCm > maxAllowedHeightCm) {
+      heightCm = maxAllowedHeightCm;
+      widthCm = Number((heightCm * previewAspectRatioCm).toFixed(3));
+    }
 
     if (import.meta.env.DEV) {
-      const sourceRatio = naturalWidth / naturalHeight;
-      const previewWidthUnits = (widthCm / maxWidthCm) * areaWidthUnits;
-      const previewHeightUnits = (heightCm / maxHeightCm) * areaHeightUnits;
-      const previewRatio = previewHeightUnits > 0 ? (previewWidthUnits / previewHeightUnits) : sourceRatio;
+      const { widthPx: printAreaWidthPx, heightPx: printAreaHeightPx } = getPrintAreaPixelSize(layerSide);
+      const previewWidthPx = (widthCm / maxWidthCm) * printAreaWidthPx;
+      const previewHeightPx = (heightCm / maxHeightCm) * printAreaHeightPx;
+      const previewRatio = previewHeightPx > 0 ? (previewWidthPx / previewHeightPx) : sourceRatio;
       const normalizedDelta = sourceRatio > 0 ? Math.abs(previewRatio - sourceRatio) / sourceRatio : 0;
 
       if (normalizedDelta > UPLOAD_RATIO_TOLERANCE) {
@@ -761,6 +760,7 @@ export default function useConstructorState({
       effectColor: "#824ef0",
       distortionColorA: "#ed5bb7",
       distortionColorB: "#1cb8d8",
+      cornerRoundness: 0,
       rotationDeg: 0,
       widthCm: defaultDimensions.widthCm,
       heightCm: defaultDimensions.heightCm,
@@ -1150,10 +1150,20 @@ export default function useConstructorState({
     if (!nextProduct) return;
     pushHistoryCheckpoint();
     setProductKey(nextProductKey);
-    setSize("");
+    setSizeState("");
     if (!nextProduct.colors.includes(resolvedColor)) {
       setColor(nextProduct.colors[0]);
     }
+  };
+
+  const handleSizeChange = (nextSize) => {
+    const resolvedNextSize = String(nextSize || "").trim().toUpperCase();
+    if (resolvedNextSize === size) return;
+
+    pushHistoryCheckpoint();
+    const previousSize = size;
+    setSizeState(resolvedNextSize);
+    setLayers((currentLayers) => currentLayers.map((layer) => normalizeLayerForSizeChange(layer, previousSize, resolvedNextSize)));
   };
 
   const handleColorChange = (nextColor) => {
@@ -1195,7 +1205,10 @@ export default function useConstructorState({
     if (!uploadedFile) return;
 
     pushHistoryCheckpoint();
-    const nextLayer = buildUploadLayer(uploadedFile);
+    const nextLayer = buildUploadLayer({
+      ...uploadedFile,
+      renderFrame: null,
+    });
     addLayer(nextLayer, "upload");
   };
 
@@ -1220,6 +1233,67 @@ export default function useConstructorState({
       widthCm: Number((safeWidth * ratio).toFixed(3)),
       heightCm: Number((safeHeight * ratio).toFixed(3)),
     };
+  };
+
+  const fitUniformLayerToAreaForSize = (layer, requestedWidthCm, requestedHeightCm, targetSize) => {
+    const { widthCm: maxWidthCm, heightCm: maxHeightCm } = getPhysicalPrintArea(getLayerSide(layer), targetSize);
+    const safeWidth = Math.max(0.2, Number(requestedWidthCm) || layer.widthCm || 0.2);
+    const safeHeight = Math.max(0.2, Number(requestedHeightCm) || layer.heightCm || 0.2);
+    const ratio = Math.min(maxWidthCm / safeWidth, maxHeightCm / safeHeight, 1);
+    return {
+      widthCm: Number((safeWidth * ratio).toFixed(3)),
+      heightCm: Number((safeHeight * ratio).toFixed(3)),
+    };
+  };
+
+  const normalizeLayerForSizeChange = (layer, previousSize, nextSize) => {
+    const layerSide = getLayerSide(layer);
+    const previousArea = getPhysicalPrintArea(layerSide, previousSize);
+    const nextArea = getPhysicalPrintArea(layerSide, nextSize);
+    const widthRatio = nextArea.widthCm / Math.max(0.001, previousArea.widthCm || 1);
+    const heightRatio = nextArea.heightCm / Math.max(0.001, previousArea.heightCm || 1);
+
+    if (layer.type === "upload") {
+      return {
+        ...layer,
+        ...fitUniformLayerToAreaForSize(
+          layer,
+          (Number(layer.widthCm) || 0) * widthRatio,
+          (Number(layer.heightCm) || 0) * heightRatio,
+          nextSize,
+        ),
+      };
+    }
+
+    if (layer.type === "shape") {
+      if (isLineShapeKey(layer.shapeKey)) {
+        const lineDimensions = getStoredLineCanvasDimensions(layer, layerSide);
+        return normalizeLineShapeLayer({
+          ...layer,
+          lineWidthPx: roundCanvasPx(lineDimensions.lineWidthPx * widthRatio),
+          lineHeightPx: roundCanvasPx(lineDimensions.lineHeightPx * heightRatio),
+        }, layerSide, nextSize);
+      }
+
+      const nextDimensions = fitUniformLayerToAreaForSize(
+        layer,
+        (Number(layer.widthCm) || 0) * widthRatio,
+        (Number(layer.heightCm) || 0) * heightRatio,
+        nextSize,
+      );
+
+      return {
+        ...layer,
+        widthCm: clampShapeCm(nextDimensions.widthCm, nextArea.widthCm),
+        heightCm: clampShapeCm(nextDimensions.heightCm, nextArea.heightCm),
+      };
+    }
+
+    if (layer.type === "text") {
+      return normalizeTextLayerState(layer, layer);
+    }
+
+    return layer;
   };
 
   const removeUploadedFile = (uploadedFileId) => {
@@ -1760,6 +1834,10 @@ export default function useConstructorState({
   const setShapeEffectColor = (nextEffectColor) => { pushHistoryCheckpoint(); updateActiveShapeLayer({ effectColor: nextEffectColor }); };
   const setShapeDistortionColorA = (nextColor) => { pushHistoryCheckpoint(); updateActiveShapeLayer({ distortionColorA: nextColor }); };
   const setShapeDistortionColorB = (nextColor) => { pushHistoryCheckpoint(); updateActiveShapeLayer({ distortionColorB: nextColor }); };
+  const setShapeCornerRoundness = (nextCornerRoundness) => {
+    pushHistoryCheckpoint();
+    updateActiveShapeLayer({ cornerRoundness: Math.min(100, Math.max(0, Math.round(nextCornerRoundness))) });
+  };
   const setShapeWidthCm = (nextWidthCm) => {
     if (!activeShapeLayer) return;
     pushHistoryCheckpoint();
@@ -1785,12 +1863,51 @@ export default function useConstructorState({
   const telegramLink = buildTelegramLink(currentOrderLines);
   const activeShapeDimensionsCm = activeShapeLayer && isLineShapeKey(activeShapeLayer.shapeKey)
     ? getLineDimensionsCmFromPx(activeShapeLayer, getStoredLineCanvasDimensions(activeShapeLayer, getLayerSide(activeShapeLayer)), getLayerSide(activeShapeLayer))
-    : activeShapeLayer && isBasicShapeKey(activeShapeLayer.shapeKey)
-      ? getShapeDisplayDimensionsCm(activeShapeLayer.shapeKey, activeShapeLayer.widthCm || 16, getLayerSide(activeShapeLayer))
-      : {
-        widthCm: activeShapeLayer?.widthCm || 16,
-        heightCm: activeShapeLayer?.heightCm || 16,
-      };
+    : {
+      widthCm: activeShapeLayer?.widthCm || 16,
+      heightCm: activeShapeLayer?.heightCm || 16,
+    };
+  const activeShapeVisualMetricsCm = (() => {
+    if (!activeShapeLayer) return null;
+
+    const layerSide = getLayerSide(activeShapeLayer);
+    const isLineShape = isLineShapeKey(activeShapeLayer.shapeKey);
+    const visualBaseWidthCm = Number(activeShapeLayer.widthCm) || 16;
+    const expectedIntrinsicStateDimensions = isLineShape
+      ? null
+      : getShapeDimensionsFromWidthCm(activeShapeLayer.shapeKey, visualBaseWidthCm, layerSide);
+    const expectedIntrinsicHeightCm = Number(expectedIntrinsicStateDimensions?.heightCm) || 0;
+    const storedHeightCm = Number(activeShapeLayer.heightCm) || 16;
+    const isIntrinsicShapeState = !isLineShape && Math.abs(storedHeightCm - expectedIntrinsicHeightCm) <= 0.02;
+    const visualBaseHeightCm = isLineShape
+      ? storedHeightCm
+      : isIntrinsicShapeState
+        ? (getShapeDisplayDimensionsCm(activeShapeLayer.shapeKey, visualBaseWidthCm, layerSide).heightCm || storedHeightCm)
+        : storedHeightCm;
+    const baseWidthPx = isLineShape
+      ? getStoredLineCanvasDimensions(activeShapeLayer, layerSide).lineWidthPx
+      : visualBaseWidthCm * LOGICAL_PRINT_PX_PER_CM;
+    const baseHeightPx = isLineShape
+      ? getStoredLineCanvasDimensions(activeShapeLayer, layerSide).lineHeightPx
+      : visualBaseHeightCm * LOGICAL_PRINT_PX_PER_CM;
+    const frameMetrics = getShapeFrameMetricsPx(activeShapeLayer, {
+      baseWidthPx,
+      baseHeightPx,
+    });
+    const normalizedRotationDeg = normalizeRotationDeg(activeShapeLayer.rotationDeg ?? 0);
+    const rotationRadians = (normalizedRotationDeg * Math.PI) / 180;
+    const rotatedWidthPx = normalizedRotationDeg
+      ? (Math.abs(frameMetrics.frameWidthPx * Math.cos(rotationRadians)) + Math.abs(frameMetrics.frameHeightPx * Math.sin(rotationRadians)))
+      : frameMetrics.frameWidthPx;
+    const rotatedHeightPx = normalizedRotationDeg
+      ? (Math.abs(frameMetrics.frameWidthPx * Math.sin(rotationRadians)) + Math.abs(frameMetrics.frameHeightPx * Math.cos(rotationRadians)))
+      : frameMetrics.frameHeightPx;
+
+    return {
+      widthCm: Number((rotatedWidthPx / LOGICAL_PRINT_PX_PER_CM).toFixed(3)),
+      heightCm: Number((rotatedHeightPx / LOGICAL_PRINT_PX_PER_CM).toFixed(3)),
+    };
+  })();
 
   return {
     activeTab,
@@ -1800,7 +1917,7 @@ export default function useConstructorState({
     setSide: handleSideChange,
     color: resolvedColor,
     size,
-    setSize,
+    setSize: handleSizeChange,
     qty,
     setQty,
     layers,
@@ -1894,8 +2011,12 @@ export default function useConstructorState({
     setShapeDistortionColorA,
     shapeDistortionColorB: activeShapeLayer?.distortionColorB || "#1cb8d8",
     setShapeDistortionColorB,
+    shapeCornerRoundness: activeShapeLayer?.cornerRoundness ?? 0,
+    setShapeCornerRoundness,
+    shapeSupportsCornerRoundness: supportsConstructorShapeCornerRoundness(activeShapeLayer?.shapeKey || null),
     shapeWidthCm: activeShapeDimensionsCm.widthCm,
     shapeHeightCm: activeShapeDimensionsCm.heightCm,
+    activeShapeVisualMetricsCm,
     setShapeWidthCm,
     printAreaRef,
     product,

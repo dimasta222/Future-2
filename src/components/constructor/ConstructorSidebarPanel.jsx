@@ -87,6 +87,7 @@ function ActionButton({ children, onClick, disabled = false, variant = "default"
     <button
       type="button"
       onClick={onClick}
+      onPointerUp={(event) => event.currentTarget.blur()}
       disabled={disabled}
       style={{
         padding: primary ? "10px 14px" : "8px 12px",
@@ -103,6 +104,7 @@ function ActionButton({ children, onClick, disabled = false, variant = "default"
         fontSize: primary ? 14 : 13,
         fontWeight: primary ? 600 : 500,
         fontFamily: "inherit",
+        outline: "none",
       }}
     >
       {children}
@@ -173,6 +175,7 @@ function LayerIconButton({ onClick, ariaLabel, title, children, variant = "defau
         event.stopPropagation();
         onClick();
       }}
+      onPointerUp={(event) => event.currentTarget.blur()}
       aria-label={ariaLabel}
       title={title}
       style={{
@@ -189,6 +192,7 @@ function LayerIconButton({ onClick, ariaLabel, title, children, variant = "defau
         cursor: "pointer",
         fontFamily: "inherit",
         flex: "0 0 auto",
+        outline: "none",
       }}
     >
       {children}
@@ -204,10 +208,17 @@ function LayerPreview({ layer }) {
       innerWidthPercent: 100,
       innerHeightPercent: 100,
     };
+    const layerWidth = Math.max(1, Number(layer.widthCm) || 1);
+    const layerHeight = Math.max(1, Number(layer.heightCm) || 1);
+    const maxLayerSide = Math.max(layerWidth, layerHeight);
+    const previewWidthPercent = (layerWidth / maxLayerSide) * 100;
+    const previewHeightPercent = (layerHeight / maxLayerSide) * 100;
 
     return (
-      <div style={{ position: "relative", width: 72, height: 72, overflow: "hidden", flex: "0 0 auto" }}>
-        <img src={layer.src} alt={layer.uploadName || layer.name} draggable={false} style={{ position: "absolute", left: `${renderFrame.innerOffsetXPercent}%`, top: `${renderFrame.innerOffsetYPercent}%`, width: `${renderFrame.innerWidthPercent}%`, height: `${renderFrame.innerHeightPercent}%`, maxWidth: "none", maxHeight: "none", objectFit: "fill", display: "block", filter: layer.visible ? "none" : "grayscale(1) opacity(.6)" }} />
+      <div style={{ position: "relative", width: 72, height: 72, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ position: "relative", width: `${previewWidthPercent}%`, height: `${previewHeightPercent}%`, overflow: "hidden" }}>
+          <img src={layer.src} alt={layer.uploadName || layer.name} draggable={false} style={{ position: "absolute", left: `${renderFrame.innerOffsetXPercent}%`, top: `${renderFrame.innerOffsetYPercent}%`, width: `${renderFrame.innerWidthPercent}%`, height: `${renderFrame.innerHeightPercent}%`, maxWidth: "none", maxHeight: "none", objectFit: "fill", display: "block", filter: layer.visible ? "none" : "grayscale(1) opacity(.6)" }} />
+        </div>
       </div>
     );
   }
@@ -218,7 +229,7 @@ function LayerPreview({ layer }) {
     return (
       <div style={{ width: "min(156px, 100%)", maxWidth: "100%", height: 64, display: "flex", alignItems: "center", justifyContent: "center" }}>
         <ShapeOptionPreview
-          shape={shape}
+          shape={{ ...shape, cornerRoundness: layer.cornerRoundness ?? 0 }}
           fillMode={layer.fillMode || "solid"}
           color={layer.color || "#ffffff"}
           gradientKey={layer.gradientKey || "future-pulse"}
@@ -319,9 +330,10 @@ function ShapeOptionPreview({ shape, fillMode = "solid", color = "#ffffff", grad
     strokeStyle,
     strokeColor,
     strokeWidth,
+    cornerRoundness: shape?.cornerRoundness ?? 0,
   }));
 
-  return <img src={shapeSrc} alt={shape.label} draggable={false} style={{ width: plain ? "auto" : "100%", height: plain ? "100%" : "auto", maxWidth: "100%", aspectRatio: plain ? "auto" : "1 / 1", borderRadius: plain ? 0 : 14, objectFit: "contain", display: "block", margin: "0 auto", background: plain ? "transparent" : "radial-gradient(circle at top, rgba(255,255,255,.08), rgba(255,255,255,.02))" }} />;
+  return <img src={shapeSrc} alt={shape.label} draggable={false} style={{ width: plain ? "auto" : "100%", height: plain ? "100%" : "auto", maxWidth: "100%", aspectRatio: plain ? "auto" : "1 / 1", borderRadius: 0, objectFit: "contain", display: "block", margin: "0 auto", background: plain ? "transparent" : "radial-gradient(circle at top, rgba(255,255,255,.08), rgba(255,255,255,.02))" }} />;
 }
 
 function CirclePalette({ colors, value, onChange }) {
@@ -472,6 +484,7 @@ export default function ConstructorSidebarPanel({
   textSidebarOverlayOpen = false,
   onCloseTextSidebarOverlay,
   activeShapeLayer,
+  activeShapeVisualMetricsCm,
   activeShapeToolPanel,
   shapeSidebarOverlayOpen = false,
   onCloseShapeSidebarOverlay,
@@ -564,6 +577,8 @@ export default function ConstructorSidebarPanel({
   const showShapeSidebarOverlay = shapeSidebarOverlayOpen && Boolean(activeShapeLayer) && activeTab !== "shapes";
   const showShapesPanel = activeTab === "shapes" || showShapeSidebarOverlay;
   const physicalPrintAreaLabel = `${printArea?.physicalWidthCm || 40} × ${printArea?.physicalHeightCm || 50} см`;
+  const safeShapeVisualWidthCm = Math.max(0.1, Number(activeShapeVisualMetricsCm?.widthCm) || 0.1);
+  const safeShapeVisualHeightCm = Math.max(0.1, Number(activeShapeVisualMetricsCm?.heightCm) || 0.1);
   const fontSearchVariants = buildFontSearchVariants(fontSearch);
   const orderedTextLayers = [...layers].filter((layer) => layer.type === "text").reverse();
   const orderedLayers = [...layers].reverse();
@@ -1023,7 +1038,10 @@ export default function ConstructorSidebarPanel({
                   <div style={{ display: "flex", gap: 4, alignItems: "center", flexWrap: "nowrap", minWidth: 0 }}>
                     <button
                       type="button"
-                      onClick={() => onAddUploadedFileAsLayer(file.id)}
+                      onClick={(event) => {
+                        onAddUploadedFileAsLayer(file.id);
+                        event.currentTarget.blur();
+                      }}
                       style={{
                         flex: "1 1 auto",
                         minWidth: 0,
@@ -1039,13 +1057,17 @@ export default function ConstructorSidebarPanel({
                         overflow: "hidden",
                         cursor: "pointer",
                         fontFamily: "'Outfit',sans-serif",
+                        outline: "none",
                       }}
                     >
                       Добавить
                     </button>
                     <button
                       type="button"
-                      onClick={() => onRemoveUploadedFile(file.id)}
+                      onClick={(event) => {
+                        onRemoveUploadedFile(file.id);
+                        event.currentTarget.blur();
+                      }}
                       aria-label={`Удалить ${file.uploadName || file.name || "файл"}`}
                       title="Удалить"
                       style={{
@@ -1062,6 +1084,7 @@ export default function ConstructorSidebarPanel({
                         color: "rgba(255,194,222,.86)",
                         cursor: "pointer",
                         fontFamily: "inherit",
+                        outline: "none",
                       }}
                     >
                       <DeleteIcon />
@@ -1491,11 +1514,15 @@ export default function ConstructorSidebarPanel({
               </>
             ) : (
               <>
+                <div style={{ padding: "8px 10px", borderRadius: 12, background: "rgba(255,255,255,.03)", border: "1px solid rgba(255,255,255,.08)" }}>
+                  <div style={{ fontSize: 10, lineHeight: 1.2, letterSpacing: ".08em", textTransform: "uppercase", color: "rgba(240,238,245,.38)", marginBottom: 4 }}>Фактический размер фигуры</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#f0eef5", whiteSpace: "nowrap" }}>{safeShapeVisualWidthCm.toFixed(1)} × {safeShapeVisualHeightCm.toFixed(1)} см</div>
+                </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                   <input type="range" min="1" max={printArea?.physicalWidthCm || 40} step="0.1" value={safeShapeWidthCm} onChange={(event) => onShapeWidthCmChange(Number(event.target.value))} style={{ width: "100%" }} />
                   <span style={{ minWidth: 72, textAlign: "right", fontSize: 13, color: "rgba(240,238,245,.6)" }}>{safeShapeWidthCm.toFixed(1)} см</span>
                 </div>
-                <div style={{ fontSize: 12, color: "rgba(240,238,245,.48)" }}>Текущий размер фигуры: {safeShapeWidthCm.toFixed(1)} × {safeShapeHeightCm.toFixed(1)} см. Максимальная зона — {physicalPrintAreaLabel}.</div>
+                <div style={{ fontSize: 12, color: "rgba(240,238,245,.48)" }}>Базовый размер фигуры: {safeShapeWidthCm.toFixed(1)} × {safeShapeHeightCm.toFixed(1)} см. Фактический размер выше уже учитывает обводку, тень и дополнительные shape-эффекты. Максимальная зона — {physicalPrintAreaLabel}.</div>
               </>
             )}
           </div>

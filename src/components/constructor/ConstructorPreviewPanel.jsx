@@ -8,6 +8,7 @@ const DEFAULT_TEXT_SHADOW = {
   dark: "0 2px 14px rgba(0,0,0,.32)",
 };
 
+const PREVIEW_TOP_OVERLAY_SLOT_HEIGHT = 62;
 const LOGICAL_PRINT_PX_PER_CM = 10;
 const MIN_MARQUEE_DRAG_DISTANCE = 4;
 const RESIZE_HANDLE_SIZE = 12;
@@ -30,6 +31,9 @@ const RESIZE_HANDLES = [
 const TEXT_RESIZE_HANDLE_KEYS = new Set(["nw", "ne", "se", "sw", "e", "w"]);
 const LINE_SHAPE_HANDLE_KEYS = new Set(["e", "w"]);
 const MIDDLE_RESIZE_HANDLE_KEYS = new Set(["n", "e", "s", "w"]);
+const DEFAULT_TEXT_LINE_HEIGHT = 1.05;
+const textMeasureCanvas = typeof document !== "undefined" ? document.createElement("canvas") : null;
+const textMeasureContext = textMeasureCanvas?.getContext("2d") || null;
 
 function getResizeHandleAnchorStyle(handleKey, anchorPoint) {
   if (!anchorPoint) return null;
@@ -75,28 +79,119 @@ function getDirectionalOffset(angle, distance) {
   };
 }
 
-function measureTextSelectionBounds(node) {
-  if (!node) return null;
+function getTextVisualPaddingPx({
+  strokeWidth = 0,
+  shadowOffsetX = 0,
+  shadowOffsetY = 0,
+  shadowBlur = 0,
+  underline = false,
+  fontSize = 0,
+}) {
+  const strokePaddingPx = Math.max(0, Number(strokeWidth) || 0);
+  const blurPaddingPx = Math.max(0, Number(shadowBlur) || 0);
+  const offsetX = Number(shadowOffsetX) || 0;
+  const offsetY = Number(shadowOffsetY) || 0;
+  const underlinePaddingPx = underline ? Math.max(0, (Number(fontSize) || 0) * 0.22) : 0;
 
-  const textValue = String(node.textContent || "").replace(/\r/g, "");
-  if (!textValue.trim().length) return null;
-
-  const doc = node.ownerDocument;
-  if (!doc?.createRange) return null;
-
-  const range = doc.createRange();
-  range.selectNodeContents(node);
-  const rects = Array.from(range.getClientRects()).filter((rect) => rect.width > 0 || rect.height > 0);
-  if (!rects.length) return null;
-
-  const left = Math.min(...rects.map((rect) => rect.left));
-  const right = Math.max(...rects.map((rect) => rect.right));
-  const top = Math.min(...rects.map((rect) => rect.top));
-  const bottom = Math.max(...rects.map((rect) => rect.bottom));
+  const leftShadowPaddingPx = Math.max(0, blurPaddingPx - offsetX);
+  const rightShadowPaddingPx = Math.max(0, blurPaddingPx + offsetX);
+  const topShadowPaddingPx = Math.max(0, blurPaddingPx - offsetY);
+  const bottomShadowPaddingPx = Math.max(0, blurPaddingPx + offsetY, underlinePaddingPx);
 
   return {
-    width: Math.max(0, right - left),
-    height: Math.max(0, bottom - top),
+    leftPaddingPx: Math.max(strokePaddingPx, leftShadowPaddingPx),
+    rightPaddingPx: Math.max(strokePaddingPx, rightShadowPaddingPx),
+    topPaddingPx: Math.max(strokePaddingPx, topShadowPaddingPx),
+    bottomPaddingPx: Math.max(strokePaddingPx, bottomShadowPaddingPx),
+  };
+}
+
+function measureCanvasTextWidth(text, letterSpacing = 0) {
+  if (!textMeasureContext) return 0;
+
+  const value = String(text || "");
+  if (!value.length) return 0;
+
+  return textMeasureContext.measureText(value).width + Math.max(0, value.length - 1) * letterSpacing;
+}
+
+function wrapTextToWidth(text, maxWidthPx, letterSpacing = 0) {
+  const manualLines = String(text || "").replace(/\r/g, "").split("\n");
+  const lines = [];
+  const safeMaxWidthPx = Math.max(1, maxWidthPx);
+
+  manualLines.forEach((manualLine) => {
+    if (!manualLine.length) {
+      lines.push("");
+      return;
+    }
+
+    let currentLine = "";
+
+    for (const character of manualLine) {
+      const candidate = `${currentLine}${character}`;
+      const candidateWidth = measureCanvasTextWidth(candidate, letterSpacing);
+
+      if (currentLine && candidateWidth > safeMaxWidthPx) {
+        lines.push(currentLine);
+        currentLine = character;
+        continue;
+      }
+
+      currentLine = candidate;
+    }
+
+    lines.push(currentLine);
+  });
+
+  return lines.length ? lines : [""];
+}
+
+function getTextContentMetricsPx({
+  text,
+  fontFamily,
+  fontSize,
+  fontWeight,
+  fontStyle,
+  lineHeight,
+  letterSpacing,
+  boxWidthPx,
+}) {
+  const safeFontSize = Math.max(1, Number(fontSize) || 1);
+  const safeLineHeight = Math.max(0.5, Number(lineHeight) || DEFAULT_TEXT_LINE_HEIGHT);
+  const safeBoxWidthPx = Math.max(1, Number(boxWidthPx) || 1);
+  const resolvedText = String(text || "");
+  
+  if (!textMeasureContext) {
+    const fallbackWidth = resolvedText.length
+      ? Math.min(safeBoxWidthPx, resolvedText.length * safeFontSize * 0.56)
+      : 0;
+    const fallbackHeight = resolvedText.length
+      ? Math.max(1, safeFontSize)
+      : 0;
+
+    return {
+      contentWidthPx: Number(fallbackWidth.toFixed(2)),
+      contentHeightPx: Number(fallbackHeight.toFixed(2)),
+    };
+  }
+
+  textMeasureContext.font = `${fontStyle} ${fontWeight} ${safeFontSize}px ${fontFamily}`;
+  const lines = wrapTextToWidth(resolvedText, safeBoxWidthPx, letterSpacing);
+  const lineWidths = lines.map((line) => measureCanvasTextWidth(line, letterSpacing));
+  const sampleMetrics = textMeasureContext.measureText(resolvedText || "Hg");
+  const glyphHeightPx = Math.max(1, (sampleMetrics.actualBoundingBoxAscent || safeFontSize * 0.72) + (sampleMetrics.actualBoundingBoxDescent || safeFontSize * 0.18));
+  const lineHeightPx = safeFontSize * safeLineHeight;
+  const contentWidthPx = resolvedText.length
+    ? Math.min(safeBoxWidthPx, Math.max(...lineWidths, 0))
+    : 0;
+  const contentHeightPx = resolvedText.length
+    ? Math.max(1, glyphHeightPx + Math.max(0, lines.length - 1) * lineHeightPx)
+    : 0;
+
+  return {
+    contentWidthPx: Number(contentWidthPx.toFixed(2)),
+    contentHeightPx: Number(contentHeightPx.toFixed(2)),
   };
 }
 
@@ -110,6 +205,19 @@ function selectAllEditableText(target) {
   range.selectNodeContents(target);
   selection.removeAllRanges();
   selection.addRange(range);
+}
+
+function focusElementWithoutScroll(target) {
+  if (!target) return;
+
+  if (typeof target.focus === "function") {
+    try {
+      target.focus({ preventScroll: true });
+      return;
+    } catch {
+      target.focus();
+    }
+  }
 }
 
 function isSelectAllShortcut(event) {
@@ -238,7 +346,7 @@ export default function ConstructorPreviewPanel({
     }
 
     if (document.activeElement !== node) {
-      node.focus();
+      focusElementWithoutScroll(node);
     }
 
     if (lastFocusedEditingLayerIdRef.current !== editingTextLayerId) {
@@ -267,9 +375,8 @@ export default function ConstructorPreviewPanel({
     const frame = window.requestAnimationFrame(() => {
       const printAreaBounds = printAreaRef.current?.getBoundingClientRect();
       const textLayerNode = textLayerRefs.current[activeTextLayer.id];
-      const textContentNode = textContentLayerRefs.current[activeTextLayer.id];
 
-      if (!printAreaBounds?.width || !printAreaBounds?.height || !textLayerNode || !textContentNode) {
+      if (!printAreaBounds?.width || !printAreaBounds?.height || !textLayerNode) {
         if (activeTextMetricsRef.current) {
           activeTextMetricsRef.current = null;
           onActiveTextMetricsChange?.(null);
@@ -278,17 +385,49 @@ export default function ConstructorPreviewPanel({
       }
 
       const textLayerBounds = textLayerNode.getBoundingClientRect();
-      const textSelectionBounds = measureTextSelectionBounds(textContentNode);
       const boxWidthPx = Number(textLayerBounds.width.toFixed(2));
       const boxHeightPx = Number(Math.max(textLayerBounds.height, 1).toFixed(2));
-      const contentWidthPx = Number(Math.min(boxWidthPx, Math.max(textSelectionBounds?.width || 0, 0)).toFixed(2));
-      const contentHeightPx = Number(Math.max(textSelectionBounds?.height || 0, 0).toFixed(2));
+      const layerFont = getConstructorTextFont(activeTextLayer.fontKey);
+      const fontWeight = layerFont.supportsBold ? activeTextLayer.weight : (layerFont.regularWeight ?? 400);
+      const fontStyle = layerFont.supportsItalic && activeTextLayer.italic ? "italic" : "normal";
+      const displayText = activeTextLayer.uppercase ? String(activeTextLayer.value || "").toUpperCase() : String(activeTextLayer.value || "");
+      const textMetrics = getTextContentMetricsPx({
+        text: displayText,
+        fontFamily: activeTextLayer.fontFamily || layerFont.family,
+        fontSize: activeTextLayer.size,
+        fontWeight,
+        fontStyle,
+        lineHeight: activeTextLayer.lineHeight,
+        letterSpacing: activeTextLayer.letterSpacing,
+        boxWidthPx,
+      });
+      const defaultShadow = color === "Белый"
+        ? { offsetX: 0, offsetY: 2, blur: 14 }
+        : { offsetX: 0, offsetY: 2, blur: 14 };
+      const visualPadding = getTextVisualPaddingPx({
+        strokeWidth: activeTextLayer.strokeWidth,
+        shadowOffsetX: activeTextLayer.shadowEnabled ? activeTextLayer.shadowOffsetX : defaultShadow.offsetX,
+        shadowOffsetY: activeTextLayer.shadowEnabled ? activeTextLayer.shadowOffsetY : defaultShadow.offsetY,
+        shadowBlur: activeTextLayer.shadowEnabled ? activeTextLayer.shadowBlur : defaultShadow.blur,
+        underline: activeTextLayer.underline,
+        fontSize: activeTextLayer.size,
+      });
+      const contentWidthPx = Number(Math.min(
+        printAreaBounds.width,
+        textMetrics.contentWidthPx + visualPadding.leftPaddingPx + visualPadding.rightPaddingPx,
+      ).toFixed(2));
+      const contentHeightPx = Number(Math.min(
+        printAreaBounds.height,
+        textMetrics.contentHeightPx + visualPadding.topPaddingPx + visualPadding.bottomPaddingPx,
+      ).toFixed(2));
       const nextValue = {
         layerId: activeTextLayer.id,
         boxWidthPx,
         boxHeightPx,
         contentWidthPx,
         contentHeightPx,
+        physicalWidthCm,
+        physicalHeightCm,
       };
       const currentValue = activeTextMetricsRef.current;
       if (
@@ -297,6 +436,8 @@ export default function ConstructorPreviewPanel({
         && currentValue?.boxHeightPx === nextValue.boxHeightPx
         && currentValue?.contentWidthPx === nextValue.contentWidthPx
         && currentValue?.contentHeightPx === nextValue.contentHeightPx
+        && currentValue?.physicalWidthCm === nextValue.physicalWidthCm
+        && currentValue?.physicalHeightCm === nextValue.physicalHeightCm
       ) {
         return;
       }
@@ -655,14 +796,14 @@ export default function ConstructorPreviewPanel({
   };
 
   return (
-    <div className="constructor-preview" style={{ minWidth: 0, position: "relative" }}>
+    <div className="constructor-preview" style={{ minWidth: 0, position: "relative", overflowAnchor: "none" }}>
       <div style={{ display: "flex", justifyContent: "center", marginBottom: 18 }}>
         <div style={{ display: "inline-flex", gap: 8, padding: 6, borderRadius: 999, background: "rgba(255,255,255,.03)", border: "1px solid rgba(255,255,255,.06)" }}>
-          {[["front", "Спереди"], ["back", "Спина"]].map(([key, label]) => <button key={label} type="button" onClick={() => onSideChange(key)} className={`tb ${side === key ? "ta" : "ti"}`} style={{ padding: "10px 20px", minWidth: 128 }}>{label}</button>)}
+          {[["front", "Спереди"], ["back", "Спина"]].map(([key, label]) => <button key={label} type="button" onClick={() => onSideChange(key)} onPointerUp={(event) => event.currentTarget.blur()} className={`tb ${side === key ? "ta" : "ti"}`} style={{ padding: "10px 20px", minWidth: 128, outline: "none" }}>{label}</button>)}
         </div>
       </div>
 
-      <div style={{ position: "relative", minHeight: 640 }} onPointerDown={handlePreviewBackgroundPointerDown}>
+      <div style={{ position: "relative", minHeight: 640, overflowAnchor: "none" }} onPointerDown={handlePreviewBackgroundPointerDown}>
         {topOverlay ? (
           <div
             data-constructor-interactive="true"
@@ -772,6 +913,7 @@ export default function ConstructorPreviewPanel({
                 strokeStyle: layer.strokeStyle,
                 strokeColor: layer.strokeColor,
                 strokeWidth: layer.strokeWidth,
+                cornerRoundness: layer.cornerRoundness,
                 preserveAspectRatio: shapePreserveAspectRatio,
                 lineAspectRatio,
               });
@@ -785,6 +927,7 @@ export default function ConstructorPreviewPanel({
                   strokeStyle: layer.strokeStyle,
                   strokeColor: "#ff5ca8",
                   strokeWidth: layer.strokeWidth,
+                  cornerRoundness: layer.cornerRoundness,
                   preserveAspectRatio: shapePreserveAspectRatio,
                   lineAspectRatio,
                 })
@@ -798,6 +941,7 @@ export default function ConstructorPreviewPanel({
                 strokeStyle: layer.strokeStyle,
                 strokeColor: "transparent",
                 strokeWidth: layer.strokeWidth,
+                cornerRoundness: layer.cornerRoundness,
                 preserveAspectRatio: shapePreserveAspectRatio,
                 lineAspectRatio,
               });
@@ -809,6 +953,7 @@ export default function ConstructorPreviewPanel({
                 strokeStyle: layer.strokeStyle,
                 strokeColor: "transparent",
                 strokeWidth: layer.strokeWidth,
+                cornerRoundness: layer.cornerRoundness,
                 preserveAspectRatio: shapePreserveAspectRatio,
                 lineAspectRatio,
               });
@@ -820,6 +965,7 @@ export default function ConstructorPreviewPanel({
                 strokeStyle: layer.strokeStyle,
                 strokeColor: "transparent",
                 strokeWidth: layer.strokeWidth,
+                cornerRoundness: layer.cornerRoundness,
                 preserveAspectRatio: shapePreserveAspectRatio,
                 lineAspectRatio,
               });

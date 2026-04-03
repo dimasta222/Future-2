@@ -24,14 +24,13 @@ function getShapeStrokePaddingPx(layer, shape, baseWidthPx, baseHeightPx) {
     return { x: 0, y: 0 };
   }
 
+  // Constructor shape stroke is treated as an inner stroke for factual sizing,
+  // so it must not expand the outer visual bounds of the shape frame.
   if (resolvedShape.category === "lines") {
     return { x: 0, y: 0 };
   }
 
-  return {
-    x: rawStrokeWidth * (safeBaseWidthPx / safeBoundsWidth),
-    y: rawStrokeWidth * (safeBaseHeightPx / safeBoundsHeight),
-  };
+  return { x: 0, y: 0 };
 }
 
 export function getShapeFrameMetricsPx(layer, { baseWidthPx, baseHeightPx }) {

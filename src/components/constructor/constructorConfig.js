@@ -1,9 +1,84 @@
+import { normalizeColorName } from "../../shared/textileHelpers.js";
+
 const PUBLIC_BASE_URL = import.meta.env.BASE_URL || "/";
 
 function resolvePublicAssetPath(path) {
   const normalizedPath = String(path || "").replace(/^\/+/, "");
   return `${PUBLIC_BASE_URL}${normalizedPath}`;
 }
+
+function buildOversizeMockupAssetSet(side) {
+  const resolvedSide = side === "back" ? "back" : "front";
+
+  return {
+    mockupSrc: resolvePublicAssetPath(`mockups/oversize-black-${resolvedSide}.png`),
+    guideSrc: resolvePublicAssetPath(`mockups/oversize-black-${resolvedSide}-guide.png`),
+  };
+}
+
+const OVERSIZE_REAL_MOCKUP_COLOR_SLUGS = {
+  "черный": "black",
+  "белый": "white",
+  "розовый": "pink",
+  "бежевый": "beige",
+  "серый": "gray",
+  "темно-серый": "gray",
+  "тёмно-серый": "gray",
+};
+
+function resolveOversizeMockupSrc(side, colorName = "") {
+  const resolvedSide = side === "back" ? "back" : "front";
+  const colorSlug = OVERSIZE_REAL_MOCKUP_COLOR_SLUGS[normalizeColorName(colorName)];
+
+  if (!colorSlug) {
+    return "";
+  }
+
+  return resolvePublicAssetPath(`mockups/oversize-${colorSlug}-${resolvedSide}.png`);
+}
+
+const OVERSIZE_PRINT_AREA_GEOMETRY = {
+  front: {
+    left: 49.8,
+    top: 55.4,
+    width: 52.6,
+    height: 79.6,
+  },
+  back: {
+    left: 50.0,
+    top: 53.8,
+    width: 52.6,
+    height: 79.4,
+  },
+};
+
+const OVERSIZE_PRINT_AREA_PHYSICAL_SIZES = {
+  XS: { physicalWidthCm: 41, physicalHeightCm: 52 },
+  S: { physicalWidthCm: 43, physicalHeightCm: 54 },
+  M: { physicalWidthCm: 46, physicalHeightCm: 53 },
+  L: { physicalWidthCm: 47, physicalHeightCm: 55 },
+  XL: { physicalWidthCm: 49, physicalHeightCm: 57 },
+  "2XL": { physicalWidthCm: 51, physicalHeightCm: 62 },
+  "3XL": { physicalWidthCm: 54, physicalHeightCm: 63 },
+};
+
+function buildOversizePrintAreaSizeOverrides(side) {
+  return Object.fromEntries(
+    Object.entries(OVERSIZE_PRINT_AREA_PHYSICAL_SIZES).map(([size, physicalSize]) => [
+      size,
+      {
+        ...OVERSIZE_PRINT_AREA_GEOMETRY[side === "back" ? "back" : "front"],
+        ...physicalSize,
+        ...buildOversizeMockupAssetSet(side),
+      },
+    ])
+  );
+}
+
+const OVERSIZE_PRINT_AREA_SIZE_OVERRIDES = {
+  front: buildOversizePrintAreaSizeOverrides("front"),
+  back: buildOversizePrintAreaSizeOverrides("back"),
+};
 
 export const CONSTRUCTOR_PRINT_AREAS = {
   classic: {
@@ -18,9 +93,7 @@ export const CONSTRUCTOR_PRINT_AREAS = {
       height: 68.2,
       physicalWidthCm: 40,
       physicalHeightCm: 50,
-      mockupSrc: resolvePublicAssetPath("mockups/oversize-black-front.png"),
-      guideSrc: resolvePublicAssetPath("mockups/oversize-black-front-guide.png"),
-      mockupSizes: ["XS", "S"],
+      sizeOverrides: OVERSIZE_PRINT_AREA_SIZE_OVERRIDES.front,
     },
     back: {
       left: 49.5,
@@ -29,19 +102,57 @@ export const CONSTRUCTOR_PRINT_AREAS = {
       height: 69.0,
       physicalWidthCm: 40,
       physicalHeightCm: 50,
-      mockupSrc: resolvePublicAssetPath("mockups/oversize-black-back.png"),
-      guideSrc: resolvePublicAssetPath("mockups/oversize-black-back-guide.png"),
-      mockupSizes: ["XS", "S"],
+      sizeOverrides: OVERSIZE_PRINT_AREA_SIZE_OVERRIDES.back,
     },
   },
 };
 
+export function resolveConstructorPrintArea(printAreas, side = "front", size = "") {
+  const resolvedSide = side === "back" ? "back" : "front";
+  const fallbackArea = CONSTRUCTOR_PRINT_AREAS.classic[resolvedSide] || CONSTRUCTOR_PRINT_AREAS.classic.front;
+  const baseArea = printAreas?.[resolvedSide] || printAreas?.front || fallbackArea;
+
+  if (!baseArea) {
+    return fallbackArea;
+  }
+
+  const { sizeOverrides, ...baseAreaWithoutOverrides } = baseArea;
+  const normalizedSize = String(size || "").trim().toUpperCase();
+  const sizeOverride = normalizedSize ? sizeOverrides?.[normalizedSize] : null;
+
+  return sizeOverride
+    ? { ...baseAreaWithoutOverrides, ...sizeOverride }
+    : baseAreaWithoutOverrides;
+}
+
+export function resolveConstructorMockupSrc(printAreas, side = "front", size = "", colorName = "") {
+  const resolvedMockupSrc = resolveConstructorPrintArea(printAreas, side, size)?.mockupSrc || "";
+  const resolvedOversizeMockupSrc = resolveOversizeMockupSrc(side, colorName);
+
+  if (resolvedOversizeMockupSrc) {
+    return resolvedOversizeMockupSrc;
+  }
+
+  if (!resolvedMockupSrc) {
+    return "";
+  }
+
+  const normalizedColor = normalizeColorName(colorName);
+  const isOversizeBlackMockup = /(^|\/)mockups\/oversize-black-/.test(resolvedMockupSrc);
+
+  if (isOversizeBlackMockup && normalizedColor && normalizedColor !== "черный") {
+    return "";
+  }
+
+  return resolvedMockupSrc;
+}
+
 export const CONSTRUCTOR_TABS = [
   { key: "textile", label: "Текстиль" },
-  { key: "layers", label: "Слои" },
-  { key: "upload", label: "Загрузить" },
   { key: "text", label: "Текст" },
   { key: "shapes", label: "Фигуры" },
+  { key: "upload", label: "Загрузить" },
+  { key: "layers", label: "Слои" },
 ];
 
 export const CONSTRUCTOR_TEXT_FONTS = [
@@ -131,6 +242,173 @@ function buildShapeCirclePart({ cx = SHAPE_CENTER, cy = SHAPE_CENTER, r }) {
 
 function buildShapePolygonMarkup(points) {
   return buildShapePathPart({ d: buildShapePathData(points) });
+}
+
+function clampShapeValue(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function getPointDistance(pointA, pointB) {
+  return Math.hypot(pointB[0] - pointA[0], pointB[1] - pointA[1]);
+}
+
+function buildRoundedPolygonPathData(points, roundness = 0) {
+  if (!Array.isArray(points) || points.length < 3) {
+    return buildShapePathData(points || []);
+  }
+
+  const normalizedRoundness = clampShapeValue((Number(roundness) || 0) / 100, 0, 1);
+
+  if (normalizedRoundness <= 0) {
+    return buildShapePathData(points);
+  }
+
+  const corners = points.map((point, index) => {
+    const previousPoint = points[(index - 1 + points.length) % points.length];
+    const nextPoint = points[(index + 1) % points.length];
+    const previousLength = getPointDistance(point, previousPoint);
+    const nextLength = getPointDistance(point, nextPoint);
+    const maxRadius = Math.max(0, Math.min(previousLength, nextLength) * 0.5 - 0.01);
+    const radius = maxRadius * normalizedRoundness;
+
+    if (radius <= 0) {
+      return {
+        vertex: point,
+        start: point,
+        end: point,
+      };
+    }
+
+    const start = [
+      point[0] + ((previousPoint[0] - point[0]) / previousLength) * radius,
+      point[1] + ((previousPoint[1] - point[1]) / previousLength) * radius,
+    ];
+    const end = [
+      point[0] + ((nextPoint[0] - point[0]) / nextLength) * radius,
+      point[1] + ((nextPoint[1] - point[1]) / nextLength) * radius,
+    ];
+
+    return {
+      vertex: point,
+      start,
+      end,
+    };
+  });
+
+  const parts = [`M ${formatShapeNumber(corners[0].start[0])} ${formatShapeNumber(corners[0].start[1])}`];
+
+  corners.forEach((corner, index) => {
+    parts.push(`Q ${formatShapeNumber(corner.vertex[0])} ${formatShapeNumber(corner.vertex[1])} ${formatShapeNumber(corner.end[0])} ${formatShapeNumber(corner.end[1])}`);
+
+    const nextCorner = corners[(index + 1) % corners.length];
+    parts.push(`L ${formatShapeNumber(nextCorner.start[0])} ${formatShapeNumber(nextCorner.start[1])}`);
+  });
+
+  parts.push("Z");
+  return parts.join(" ");
+}
+
+const ROUNDABLE_SHAPE_RECT_CONFIG = {
+  "basic-square": { x: 88, y: 88, width: 336, height: 336 },
+};
+
+function parseSimplePolygonPathData(pathData) {
+  const tokens = String(pathData || "").match(/[A-Za-z]|-?\d*\.?\d+/g) || [];
+  const points = [];
+  let currentCommand = null;
+  let index = 0;
+
+  while (index < tokens.length) {
+    const token = tokens[index];
+
+    if (/^[A-Za-z]$/.test(token)) {
+      currentCommand = token.toUpperCase();
+      index += 1;
+
+      if (currentCommand === "Z") {
+        continue;
+      }
+
+      if (currentCommand !== "M" && currentCommand !== "L") {
+        return null;
+      }
+
+      continue;
+    }
+
+    if (currentCommand !== "M" && currentCommand !== "L") {
+      return null;
+    }
+
+    const x = Number(tokens[index]);
+    const y = Number(tokens[index + 1]);
+
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      return null;
+    }
+
+    points.push([x, y]);
+    index += 2;
+  }
+
+  return points.length >= 3 ? points : null;
+}
+
+function getShapePathDataFromMarkup(markup) {
+  const match = String(markup || "").match(/<path\s+[^>]*d="([^"]+)"/i);
+  return match ? match[1] : null;
+}
+
+function getRoundableShapePolygonPoints(shape) {
+  const pathData = getShapePathDataFromMarkup(shape?.markup);
+
+  if (!pathData) {
+    return null;
+  }
+
+  return parseSimplePolygonPathData(pathData);
+}
+
+function buildShapeRoundedRectMarkup({ x, y, width, height }, roundness) {
+  const radius = clampShapeValue((Math.min(width, height) / 2) * ((Number(roundness) || 0) / 100), 0, Math.min(width, height) / 2);
+  return buildShapeRectPart({ x, y, width, height, rx: radius, ry: radius });
+}
+
+function buildShapeRoundedPolygonMarkup(points, roundness) {
+  return buildShapePathPart({ d: buildRoundedPolygonPathData(points, roundness) });
+}
+
+function buildShapeMarkupWithCornerRoundness(shape, cornerRoundness = 0) {
+  const resolvedShape = shape || CONSTRUCTOR_SHAPES[0];
+
+  if (!supportsConstructorShapeCornerRoundness(resolvedShape, cornerRoundness)) {
+    return resolvedShape.markup;
+  }
+
+  const rectConfig = ROUNDABLE_SHAPE_RECT_CONFIG[resolvedShape.key];
+  if (rectConfig) {
+    return buildShapeRoundedRectMarkup(rectConfig, cornerRoundness);
+  }
+
+  const polygonPoints = getRoundableShapePolygonPoints(resolvedShape);
+  if (polygonPoints) {
+    return buildShapeRoundedPolygonMarkup(polygonPoints, cornerRoundness);
+  }
+
+  return resolvedShape.markup;
+}
+
+export function supportsConstructorShapeCornerRoundness(shapeOrKey, cornerRoundness = null) {
+  const resolvedShape = typeof shapeOrKey === "string" ? CONSTRUCTOR_SHAPES.find((shape) => shape.key === shapeOrKey) : shapeOrKey;
+  const shapeKey = resolvedShape?.key;
+  const hasSupportedShape = Boolean(
+    (shapeKey && ROUNDABLE_SHAPE_RECT_CONFIG[shapeKey])
+    || (resolvedShape && resolvedShape.category !== "lines" && getRoundableShapePolygonPoints(resolvedShape))
+  );
+
+  if (!hasSupportedShape) return false;
+  if (cornerRoundness === null) return true;
+  return clampShapeValue(Number(cornerRoundness) || 0, 0, 100) > 0;
 }
 
 function buildShapeRegularPolygonPoints(sides, { radius = 172, rotation = -90, cx = SHAPE_CENTER, cy = SHAPE_CENTER } = {}) {
@@ -1264,6 +1542,7 @@ export function buildConstructorShapeSvg({
   strokeStyle = "none",
   strokeColor = "transparent",
   strokeWidth = 0,
+  cornerRoundness = 0,
   preserveAspectRatio = "xMidYMid meet",
   lineAspectRatio = null,
 }) {
@@ -1285,6 +1564,7 @@ export function buildConstructorShapeSvg({
   const resolvedStrokeWidth = Math.max(0, Number(strokeWidth) || 0);
   const fill = fillMode === "gradient" && gradient?.stops?.length ? "url(#shapeGradient)" : color;
   const viewBox = buildShapeViewBox(resolvedShape);
+  const shapeMarkup = buildShapeMarkupWithCornerRoundness(resolvedShape, cornerRoundness);
   const dashedDashArray = `${Math.max(34, Math.round(resolvedStrokeWidth * 4.8))} ${Math.max(16, Math.round(resolvedStrokeWidth * 2.9))}`;
   const dottedDashArray = `${Math.max(4, Math.round(resolvedStrokeWidth * 0.52))} ${Math.max(20, Math.round(resolvedStrokeWidth * 3.1))}`;
   const defsParts = [];
@@ -1301,12 +1581,12 @@ export function buildConstructorShapeSvg({
   }
 
   if (strokeStyle !== "none" && resolvedStrokeWidth > 0) {
-    defsParts.push(`<clipPath id="shapeClip">${resolvedShape.markup.replaceAll("{{fill}}", "#ffffff").replaceAll("{{stroke}}", "transparent").replaceAll("{{strokeWidth}}", "0")}</clipPath>`);
+    defsParts.push(`<clipPath id="shapeClip">${shapeMarkup.replaceAll("{{fill}}", "#ffffff").replaceAll("{{stroke}}", "transparent").replaceAll("{{strokeWidth}}", "0")}</clipPath>`);
   }
 
   const defs = defsParts.length ? `<defs>${defsParts.join("")}</defs>` : "";
   const buildMarkup = ({ fillValue, strokeValue, strokeWidthValue, scaleValue = 1, dashArray = "", lineCap = "round", lineJoin = "round" }) => {
-    const baseMarkup = resolvedShape.markup
+    const baseMarkup = shapeMarkup
       .replaceAll("{{fill}}", fillValue)
       .replaceAll("{{stroke}}", strokeValue)
       .replaceAll("{{strokeWidth}}", String(strokeWidthValue))
@@ -1323,8 +1603,10 @@ export function buildConstructorShapeSvg({
   const strokeLayers = [];
 
   const fillLayer = buildMarkup({ fillValue: fill, strokeValue: "transparent", strokeWidthValue: 0 });
+  const seamStrokeWidth = Math.max(1, Math.min(2, resolvedStrokeWidth * 0.4));
 
   if (strokeStyle === "single" && resolvedStrokeWidth > 0) {
+    strokeLayers.push(buildMarkup({ fillValue: "transparent", strokeValue: strokeColor, strokeWidthValue: seamStrokeWidth, lineCap: "square", lineJoin: "miter" }));
     strokeLayers.push(`<g clip-path="url(#shapeClip)">${buildMarkup({ fillValue: "transparent", strokeValue: strokeColor, strokeWidthValue: resolvedStrokeWidth * 2, lineCap: "square", lineJoin: "miter" })}</g>`);
   }
 

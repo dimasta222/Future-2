@@ -99,7 +99,8 @@ export function resizeImageLayer({
     const nextRight = handle.x > 0
       ? Math.max(startBoundsLeft + MIN_ASSET_WIDTH_PX, localPointerX)
       : startBoundsRight;
-    const nextWidthPx = Math.max(MIN_ASSET_WIDTH_PX, nextRight - nextLeft);
+    const requestedWidthPx = Math.max(MIN_ASSET_WIDTH_PX, nextRight - nextLeft);
+    const nextWidthPx = Math.max(MIN_ASSET_WIDTH_PX, requestedWidthPx);
 
     return {
       widthCm: toWidthCm(nextWidthPx),
@@ -117,7 +118,8 @@ export function resizeImageLayer({
     const nextBottom = handle.y > 0
       ? Math.max(startBoundsTop + MIN_ASSET_HEIGHT_PX, localPointerY)
       : startBoundsBottom;
-    const nextHeightPx = Math.max(MIN_ASSET_HEIGHT_PX, nextBottom - nextTop);
+    const requestedHeightPx = Math.max(MIN_ASSET_HEIGHT_PX, nextBottom - nextTop);
+    const nextHeightPx = Math.max(MIN_ASSET_HEIGHT_PX, requestedHeightPx);
 
     return {
       heightCm: toHeightCm(nextHeightPx),

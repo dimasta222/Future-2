@@ -128,7 +128,11 @@ Constructor-related элементы:
 - default positions for new layers, including initial text placement slightly above the print-area center
 - default text-layer box width for creation, normalization and derived sidebar state
 - default line-shape stroke style derived from selected shape `defaultLineStyle` so the stroke popover highlights the matching mode after add/replace
+- size-aware oversize print area resolution: выбранный размер управляет real mockup source, координатами preview print-area и физическими лимитами размеров; если у размера или цвета нет PNG, используется SVG fallback
+- size change normalization: при выборе нового размера конструктор пересчитывает physical print-area label и автоматически нормализует upload/shape/line слои под новую максимальную зону, сохраняя их относительный масштаб в превью
 - physical size readout for `basic-shapes` derived from intrinsic SVG proportions rather than preview-axis compensation
+- active shape factual size separates intrinsic width-derived geometry from manual side deformation for regular shapes: symmetric figures keep symmetric factual dimensions on initial state, while manual vertical stretch still clamps to the selected physical print-area limit
+- `cornerRoundness` support for sharp-corner polygon/rect figures across the catalog, with toolbar popover state managed in page-layer and rounded SVG generation in constructorConfig
 - persistent uploadedFiles library for the Upload tab with manual add/remove actions before a file becomes a preview layer
 - active layer drag-and-drop
 - marquee multi-selection in preview for the current side with subsequent group delete through existing Backspace/Delete flow
@@ -155,7 +159,10 @@ Constructor-related элементы:
 Экспорты:
 
 - CONSTRUCTOR_PRINT_AREAS
+- resolveConstructorPrintArea(...)
+- resolveConstructorMockupSrc(...)
 - CONSTRUCTOR_TABS
+	- current sidebar tab order: «Текстиль» → «Текст» → «Фигуры» → «Загрузить» → «Слои»
 - CONSTRUCTOR_SHAPE_CATEGORIES
 - CONSTRUCTOR_SHAPES
 - CONSTRUCTOR_SHAPE_BASIC_COLORS
@@ -199,6 +206,7 @@ Props:
 - компактный менеджер слоёв с single-click выбором, double-click переходом к нужной вкладке редактирования, centered layer-content, live drag-and-drop reorder и постоянными action-кнопками скрытия/удаления справа
 - side-aware layer model: front/back хранят независимые наборы слоёв, а manager/preview показывают только слои текущей стороны
 - physical print model for oversize black XS/S mockups: front/back PNG plus print-area 40 × 50 см; upload и обычные shape-layer хранят widthCm/heightCm, а line-shape дополнительно хранит lineWidthPx/lineHeightPx в логических px холста и конвертирует factual size в см на лету
+- size-aware physical print model for oversize: базовая конфигурация может иметь `sizeOverrides` по каждому размеру, и весь state читает уже резолвленную зону печати, а не статический `printAreas[side]`
 - primary CTA для создания текстового слоя, fallback-подпись «Текст N» до ввода, короткие фрагменты текста после ввода, быстрые действия скрытия/удаления text-layer и переключение активного text-layer из боковой панели
 - одна активная панель текстовых настроек под списком слоёв для режимов «Шрифт», «Цвет», «Интервалы» и «Эффекты»
 - отдельная вкладка фигур для выбора shape-layer
@@ -224,12 +232,17 @@ Props:
 - 8 resize handles for active upload/shape/text layer: for text side handles change container width and wrapping, corner handles scale the text box and font together
 - smart guides overlay for drag/resize snapping to print-area and other visible layers
 - direct text editing inside the active text layer on preview
+- active text factual metrics include visual padding from stroke/shadow/underline and are clamped to the current physical print-area bounds before converting to centimeters for the sidebar
+- active text factual metrics cache also includes current physical print-area dimensions, so switching XS/S/M updates centimeter values even when the preview pixel geometry stays unchanged
+- upload layers preserve original bitmap aspect ratio on add/resize; preview rendering uses plain contain-fit instead of render-frame stretching, so uploaded files no longer deform on insertion
+- upload layer resize is fully aspect-ratio-safe on all handles: corner drag stays uniform and side drag now also rescales the second axis instead of creating a stretched container around a contained image
 - solid and gradient text fill rendering
 - SVG shape-layer rendering with основной фигурой, внутренней обводкой, падающей тенью и двойным искажением через цветовые offset-копии
 - SVG shape-layer rendering with tight SVG bounds and outer frame, учитывающим тень, искажение и обводку, чтобы эффекты не обрезались preview-box'ом
 - line-shapes use dynamic SVG geometry tied to the current horizontal ratio, so side resize changes line length from the actual line endpoints while keeping visual thickness and segment density stable; dragging one endpoint may also change the line angle while the opposite endpoint stays fixed, line-shapes clamp to a geometry-based minimum length derived from strokeWidth and endpoint decorations, keep endpoint arrows and decorative caps scaled with the current thickness, hide the left-panel size slider and show only factual dimensions plus left/right resize-handles
 - active layer resize handles with proportional corner scaling and one-axis edge stretching for non-text layers, при этом corner-resize для upload/shape остаётся uniform с опорой на противоположный угол, а боковые маркеры фиксируют противоположную сторону; у shape-layer дополнительно меняется базовая геометрия вместе с tight bounds
-- для активного text-layer preview измеряет DOM-габариты текста и text-box, переводит их в сантиметры относительно physical print-area и отдаёт в sidebar
+- для активного text-layer preview измеряет визуальные габариты текста и text-box, переводит их в сантиметры относительно physical print-area и отдаёт в sidebar с учетом stroke/shadow-прибавки
+- для активного shape-layer sidebar отдельно получает фактический визуальный размер по внешней frame-рамке, включая drop-shadow/distort и rotation; внутренняя обводка обычной фигуры не расширяет внешний фактический размер, а расчет идет не через screen-px превью, а через логические физические единицы, чтобы пропорции фигур оставались корректными
 - пустой text-layer остаётся видимым как рабочий контейнер с placeholder
 - у активного слоя есть preview-кнопка удаления
 - text effect rendering for line-height, stroke and shadow
@@ -248,8 +261,9 @@ Props:
 - sticky text-toolbar под переключателем стороны
 - синхронизацию toolbar с активной левой панелью текста
 - sticky text-toolbar и sticky shape-toolbar под переключателем стороны, плюс синхронизацию text/shape toolbar с активными левыми панелями; text-toolbar показывается для активного text-layer вне зависимости от текущей вкладки и временно подменяет левую колонку text-панелью по кнопкам toolbar с закрытием по крестику или клику в пустое место превью; для shape-toolbar также отдельные режимы add/replace каталога фигур, кнопку «Редактировать» с подсветкой только в replace-режиме и переходом на вкладку «Фигуры», показ toolbar для активного shape-layer даже вне вкладки «Фигуры», временную подмену текущей левой вкладки shape-панелью по кнопкам toolbar с закрытием по крестику или клику в пустое место превью, сброс replace-режима по выбору другого слоя или пустого места превью, якорный quick-popover «Обводка» и переключение между панелями «Редактирование», «Цвет», «Цвет обводки» и «Эффекты"
+- preview-колонка рендерится в обычном потоке без sticky-позиционирования, чтобы высота активного toolbar не вызывала вертикальный сдвиг мокапа и side-toggle кнопок внутри viewport
 - side-aware orchestration: при переключении стороны активный слой и preview/sidebar синхронизируются с независимым front/back набором, а summary заказа считает слои по обеим сторонам отдельно
-- выбор реального previewSrc: PNG-мокапы только для чёрной oversize-модели размеров XS/S и SVG fallback для остальных сочетаний размера/модели/цвета
+- выбор реального previewSrc: PNG-мокапы для чёрной, белой, розовой, бежевой и серой oversize-модели и SVG fallback для остальных сочетаний размера/модели/цвета
 
 ### src/components/constructor/ConstructorOrderPanel.jsx
 

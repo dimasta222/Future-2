@@ -40,7 +40,7 @@
   - если нужно поменять переключение стороны печати
   - если нужно поменять отображение зоны печати
   - если нужно поменять рендер текста, фигур или макетов
-  - если нужно поменять рамки слоя, порядок, drag-поведение или resize-handles на превью
+  - если нужно поменять рамки слоя, порядок, drag-поведение, mouse marquee-selection по пустому месту превью или resize-handles на превью
 
 Если нужно поменять сами данные для превью:
 
@@ -51,7 +51,7 @@
   - если нужно изменить mockup SVG или общую preview helper-логику
 
 - src/components/constructor/ConstructorPage.jsx
-  - если нужно поменять, как preview builder и preview props подключаются
+  - если нужно поменять, как preview builder, marquee-selection callbacks и preview props подключаются
 
 ## Если нужно поменять правую панель заказа
 
@@ -155,7 +155,7 @@
   - если нужно поменять text box модель текста, drag-handles, перенос внутри контейнера, smart guides/snapping, preview delete-button и canva-подобный resize текста
 
 - src/components/constructor/ConstructorPage.jsx
-  - если нужно поменять удаление активного слоя по Backspace/Delete или состав preview props
+  - если нужно поменять удаление активного слоя или группы слоёв по Backspace/Delete, а также состав preview props
 
 - src/components/constructor/constructorConfig.js
   - если нужно поменять список шрифтов, solid colors или gradient presets для текста

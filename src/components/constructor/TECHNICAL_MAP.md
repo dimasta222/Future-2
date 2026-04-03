@@ -130,6 +130,7 @@ Constructor-related элементы:
 - default line-shape stroke style derived from selected shape `defaultLineStyle` so the stroke popover highlights the matching mode after add/replace
 - persistent uploadedFiles library for the Upload tab with manual add/remove actions before a file becomes a preview layer
 - active layer drag-and-drop
+- marquee multi-selection in preview for the current side with subsequent group delete through existing Backspace/Delete flow
 - text layer state
 - shape layer state
 - empty initial text value for newly created text layers with preview placeholder
@@ -217,6 +218,7 @@ Props:
 - render stack of visible layers only for the active side
 - upload/regular-shape rendering via layer widthCm/heightCm mapped into physical print-area, while line-shape rendering via lineWidthPx/lineHeightPx maps into ту же print-area как logical canvas pixels
 - active layer highlight
+- marquee-selection rectangle across the full preview surface and selected-layer highlighting for preview multi-select
 - active text box guide overlay for a single working text container
 - 8 resize handles for active upload/shape/text layer: for text side handles change container width and wrapping, corner handles scale the text box and font together
 - smart guides overlay for drag/resize snapping to print-area and other visible layers

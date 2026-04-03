@@ -9,6 +9,7 @@ const DEFAULT_TEXT_SHADOW = {
 };
 
 const LOGICAL_PRINT_PX_PER_CM = 10;
+const MIN_MARQUEE_DRAG_DISTANCE = 4;
 const RESIZE_HANDLE_SIZE = 12;
 const RESIZE_HANDLE_HALF_OFFSET = 6;
 const RESIZE_MIDDLE_HANDLE_LONG_SIDE = 14;
@@ -116,6 +117,42 @@ function isSelectAllShortcut(event) {
   return key === "a" && (event.metaKey || event.ctrlKey) && !event.altKey;
 }
 
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function buildClampedSelectionRect(startPoint, currentPoint, bounds) {
+  const startX = clamp(startPoint.x, bounds.left, bounds.right);
+  const startY = clamp(startPoint.y, bounds.top, bounds.bottom);
+  const currentX = clamp(currentPoint.x, bounds.left, bounds.right);
+  const currentY = clamp(currentPoint.y, bounds.top, bounds.bottom);
+
+  const left = Math.min(startX, currentX);
+  const right = Math.max(startX, currentX);
+  const top = Math.min(startY, currentY);
+  const bottom = Math.max(startY, currentY);
+
+  return {
+    left,
+    right,
+    top,
+    bottom,
+    width: Math.max(0, right - left),
+    height: Math.max(0, bottom - top),
+  };
+}
+
+function rectsIntersect(firstRect, secondRect) {
+  if (!firstRect || !secondRect) return false;
+
+  return !(
+    firstRect.right < secondRect.left
+    || firstRect.left > secondRect.right
+    || firstRect.bottom < secondRect.top
+    || firstRect.top > secondRect.bottom
+  );
+}
+
 
 export default function ConstructorPreviewPanel({
   side,
@@ -128,12 +165,14 @@ export default function ConstructorPreviewPanel({
   printArea,
   layers,
   activeLayerId,
+  selectedLayerIds = [],
   draggingLayerId,
   activeSnapGuides = [],
   editingTextLayerId,
   onLayerPointerDown,
   onLayerEditOpen,
   onPreviewBackgroundPointerDown,
+  onMarqueeSelectLayerIds,
   onActiveTextValueChange,
   onEditingTextLayerChange,
   onLayerResize,
@@ -143,8 +182,10 @@ export default function ConstructorPreviewPanel({
 }) {
   const [resizingLayerId, setResizingLayerId] = useState(null);
   const [hoveredLayerId, setHoveredLayerId] = useState(null);
+  const [marqueeSelection, setMarqueeSelection] = useState(null);
   const [printAreaPixelSize, setPrintAreaPixelSize] = useState({ width: 0, height: 0 });
   const editableTextLayerRefs = useRef({});
+  const layerNodeRefs = useRef({});
   const textContentLayerRefs = useRef({});
   const textLayerRefs = useRef({});
   const lastFocusedEditingLayerIdRef = useRef(null);
@@ -519,11 +560,86 @@ export default function ConstructorPreviewPanel({
   const handlePreviewBackgroundPointerDown = (event) => {
     const target = event.target;
     if (target instanceof Element && target.closest('[data-constructor-interactive="true"]')) return;
-    onPreviewBackgroundPointerDown?.();
+
+    if ((event.pointerType && event.pointerType !== "mouse") || (typeof event.button === "number" && event.button !== 0)) {
+      onPreviewBackgroundPointerDown?.();
+      return;
+    }
+
+    const previewBounds = event.currentTarget.getBoundingClientRect();
+
+    event.preventDefault();
+
+    const pointerId = event.pointerId;
+    const previewNode = event.currentTarget;
+    const startPoint = { x: event.clientX, y: event.clientY };
+    const appendSelection = event.shiftKey;
+    let hasDragged = false;
+    let nextSelectedLayerIds = [];
+
+    previewNode.setPointerCapture?.(pointerId);
+
+    const updateMarqueeSelection = (clientX, clientY) => {
+      const selectionRect = buildClampedSelectionRect(startPoint, { x: clientX, y: clientY }, previewBounds);
+      setMarqueeSelection({
+        left: selectionRect.left - previewBounds.left,
+        top: selectionRect.top - previewBounds.top,
+        width: selectionRect.width,
+        height: selectionRect.height,
+      });
+
+      nextSelectedLayerIds = layers
+        .filter((layer) => layer.visible)
+        .filter((layer) => {
+          const layerNode = layerNodeRefs.current[layer.id] || textLayerRefs.current[layer.id];
+          const layerBounds = layerNode?.getBoundingClientRect();
+
+          if (!layerBounds?.width && !layerBounds?.height) return false;
+          return rectsIntersect(selectionRect, layerBounds);
+        })
+        .map((layer) => layer.id);
+    };
+
+    const stopMarqueeSelection = (endEvent) => {
+      if (endEvent.pointerId !== pointerId) return;
+
+      setMarqueeSelection(null);
+      previewNode.releasePointerCapture?.(pointerId);
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", stopMarqueeSelection);
+      window.removeEventListener("pointercancel", stopMarqueeSelection);
+
+      if (!hasDragged) {
+        onPreviewBackgroundPointerDown?.();
+        return;
+      }
+
+      onMarqueeSelectLayerIds?.(nextSelectedLayerIds, {
+        append: appendSelection,
+        preserveExisting: appendSelection && !nextSelectedLayerIds.length,
+      });
+    };
+
+    const handlePointerMove = (moveEvent) => {
+      if (moveEvent.pointerId !== pointerId) return;
+
+      const deltaX = moveEvent.clientX - startPoint.x;
+      const deltaY = moveEvent.clientY - startPoint.y;
+      if (!hasDragged && Math.hypot(deltaX, deltaY) < MIN_MARQUEE_DRAG_DISTANCE) return;
+
+      moveEvent.preventDefault();
+      hasDragged = true;
+      updateMarqueeSelection(moveEvent.clientX, moveEvent.clientY);
+    };
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", stopMarqueeSelection);
+    window.addEventListener("pointercancel", stopMarqueeSelection);
   };
 
-  const getLayerFrameStyle = ({ active = false, hovered = false }) => {
+  const getLayerFrameStyle = ({ active = false, selected = false, hovered = false }) => {
     if (active) return "0 0 0 1px rgba(232,67,147,.82)";
+    if (selected) return "0 0 0 1px rgba(255,255,255,.7)";
     if (hovered) return "0 0 0 1px rgba(232,67,147,.5)";
     return "none";
   };
@@ -594,9 +710,10 @@ export default function ConstructorPreviewPanel({
             if (!layer.visible) return null;
 
             const active = layer.id === activeLayerId;
+            const selected = selectedLayerIds.includes(layer.id);
             const hovered = layer.id === hoveredLayerId;
             const dragging = layer.id === draggingLayerId;
-            const frameStyle = getLayerFrameStyle({ active, hovered });
+            const frameStyle = getLayerFrameStyle({ active, selected, hovered });
 
             if (layer.type === "upload") {
               const uploadFrame = getLayerRenderFrame(layer);
@@ -606,6 +723,9 @@ export default function ConstructorPreviewPanel({
                 <div
                   key={layer.id}
                   data-constructor-interactive="true"
+                  ref={(node) => {
+                    layerNodeRefs.current[layer.id] = node;
+                  }}
                   role="presentation"
                   onPointerEnter={() => setHoveredLayerId(layer.id)}
                   onPointerLeave={() => setHoveredLayerId((currentLayerId) => (currentLayerId === layer.id ? null : currentLayerId))}
@@ -719,12 +839,15 @@ export default function ConstructorPreviewPanel({
                 <div
                   key={layer.id}
                   data-constructor-interactive="true"
+                  ref={(node) => {
+                    layerNodeRefs.current[layer.id] = node;
+                  }}
                   role="presentation"
                   onPointerEnter={() => setHoveredLayerId(layer.id)}
                   onPointerLeave={() => setHoveredLayerId((currentLayerId) => (currentLayerId === layer.id ? null : currentLayerId))}
                   onPointerDown={(event) => onLayerPointerDown(layer.id, event)}
                   onDoubleClick={() => onLayerEditOpen(layer.id)}
-                  style={{ position: "absolute", left: `${layer.position.x}%`, top: `${layer.position.y}%`, transform: `translate(-50%, -50%) rotate(${rotationDeg}deg)`, width: shapeRenderFrame.outerWidth, height: shapeRenderFrame.outerHeight, maxWidth: "none", maxHeight: "none", pointerEvents: "auto", cursor: layer.locked ? "default" : dragging ? "grabbing" : "grab", touchAction: "none", boxShadow: isLineShape ? "none" : frameStyle, borderRadius: 0, zIndex: index + 1, overflow: "visible" }}
+                  style={{ position: "absolute", left: `${layer.position.x}%`, top: `${layer.position.y}%`, transform: `translate(-50%, -50%) rotate(${rotationDeg}deg)`, width: shapeRenderFrame.outerWidth, height: shapeRenderFrame.outerHeight, maxWidth: "none", maxHeight: "none", pointerEvents: "auto", cursor: layer.locked ? "default" : dragging ? "grabbing" : "grab", touchAction: "none", boxShadow: isLineShape ? ((selected && !active) ? frameStyle : "none") : frameStyle, borderRadius: 0, zIndex: index + 1, overflow: "visible" }}
                 >
                   <div style={{ position: "absolute", ...shapeRenderFrame.innerStyle, pointerEvents: "none" }}>
                     {layer.effectType === "drop-shadow" ? (
@@ -791,6 +914,7 @@ export default function ConstructorPreviewPanel({
                 key={layer.id}
                 data-constructor-interactive="true"
                 ref={(node) => {
+                  layerNodeRefs.current[layer.id] = node;
                   textLayerRefs.current[layer.id] = node;
                 }}
                 role="presentation"
@@ -845,6 +969,23 @@ export default function ConstructorPreviewPanel({
             );
           })}
         </div>
+        {marqueeSelection ? (
+          <div
+            aria-hidden="true"
+            style={{
+              position: "absolute",
+              left: marqueeSelection.left,
+              top: marqueeSelection.top,
+              width: marqueeSelection.width,
+              height: marqueeSelection.height,
+              border: "1px solid rgba(255,255,255,.8)",
+              background: "rgba(232,67,147,.16)",
+              boxShadow: "inset 0 0 0 1px rgba(232,67,147,.38)",
+              pointerEvents: "none",
+              zIndex: 8,
+            }}
+          />
+        ) : null}
       </div>
     </div>
   );

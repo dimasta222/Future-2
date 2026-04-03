@@ -863,6 +863,13 @@ export default function ConstructorPage({ onBack, products }) {
     selectLayer(null);
   };
 
+  const handlePreviewMarqueeSelectLayerIds = (layerIds, options = {}) => {
+    closeTextSidebarOverlay({ resetToolPanel: true });
+    closeShapeSidebarOverlay({ resetToolPanel: true });
+    resetShapeReplaceMode({ showShapeCatalog: activeTab === "shapes" || Boolean(activeShapeLayer) });
+    selectLayerIds(layerIds, options);
+  };
+
   useEffect(() => {
     const isTypingTarget = (target) => {
       if (!(target instanceof HTMLElement)) return false;
@@ -1044,7 +1051,7 @@ export default function ConstructorPage({ onBack, products }) {
           </div>
 
           <div style={{ minWidth: 0, position: "sticky", top: 18, alignSelf: "start" }}>
-            <ConstructorPreviewPanel side={side} onSideChange={handleSideChange} topOverlay={previewTopOverlay} previewSrc={previewSrc} productName={product.name} color={color} printAreaRef={printAreaRef} printArea={printArea} layers={sideLayers} activeLayerId={activeLayerId} selectedLayerIds={selectedLayerIds} draggingLayerId={draggingLayerId} activeSnapGuides={activeSnapGuides} editingTextLayerId={editingTextLayerId} onLayerPointerDown={handlePreviewLayerPointerDown} onLayerEditOpen={handleLayerEditOpen} onPreviewBackgroundPointerDown={handlePreviewBackgroundPointerDown} onMarqueeSelectLayerIds={selectLayerIds} onActiveTextValueChange={setTextValue} onEditingTextLayerChange={setEditingTextLayerId} onLayerResize={applyLayerResize} onActiveTextMetricsChange={setActiveTextMetricsCm} onRemoveLayer={handleRemoveLayer} getShapeByKey={getShapeByKey} getTextGradientByKey={getConstructorTextGradient} />
+            <ConstructorPreviewPanel side={side} onSideChange={handleSideChange} topOverlay={previewTopOverlay} previewSrc={previewSrc} productName={product.name} color={color} printAreaRef={printAreaRef} printArea={printArea} layers={sideLayers} activeLayerId={activeLayerId} selectedLayerIds={selectedLayerIds} draggingLayerId={draggingLayerId} activeSnapGuides={activeSnapGuides} editingTextLayerId={editingTextLayerId} onLayerPointerDown={handlePreviewLayerPointerDown} onLayerEditOpen={handleLayerEditOpen} onPreviewBackgroundPointerDown={handlePreviewBackgroundPointerDown} onMarqueeSelectLayerIds={handlePreviewMarqueeSelectLayerIds} onActiveTextValueChange={setTextValue} onEditingTextLayerChange={setEditingTextLayerId} onLayerResize={applyLayerResize} onActiveTextMetricsChange={setActiveTextMetricsCm} onRemoveLayer={handleRemoveLayer} getShapeByKey={getShapeByKey} getTextGradientByKey={getConstructorTextGradient} />
           </div>
 
           <ConstructorOrderPanel currentTotal={currentTotal} orderMeta={orderMeta} canSubmitOrder={canSubmitOrder} telegramLink={telegramLink} />

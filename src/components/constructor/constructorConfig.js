@@ -706,6 +706,111 @@ export const CONSTRUCTOR_SHAPES = [
     markup: buildShapePolygonMarkup([[88, 108], [424, 108], [256, 430]]),
   },
   {
+    key: "basic-plus",
+    label: "Плюс",
+    category: "basic-shapes",
+    markup: buildShapePolygonMarkup([[170, 54], [342, 54], [342, 170], [458, 170], [458, 342], [342, 342], [342, 458], [170, 458], [170, 342], [54, 342], [54, 170], [170, 170]]),
+  },
+  {
+    key: "basic-wide-pentagon",
+    label: "Широкий шестиугольник",
+    category: "basic-shapes",
+    markup: buildShapePolygonMarkup([[102, 138], [256, 106], [410, 138], [410, 378], [256, 410], [102, 378]]),
+  },
+  {
+    key: "basic-ticket-square",
+    label: "Фигурный квадрат",
+    category: "basic-shapes",
+    markup: buildShapePathPart({
+      d: "M 134 54 L 378 54 A 58 58 0 0 0 436 112 L 458 112 L 458 400 L 436 400 A 58 58 0 0 0 378 458 L 134 458 A 58 58 0 0 0 76 400 L 54 400 L 54 112 L 76 112 A 58 58 0 0 0 134 54 Z",
+      lineJoin: "round",
+    }),
+  },
+  {
+    key: "basic-parallelogram-right",
+    label: "Параллелограмм вправо",
+    category: "basic-shapes",
+    markup: buildShapePolygonMarkup([[130, 84], [438, 84], [358, 428], [50, 428]]),
+  },
+  {
+    key: "basic-parallelogram-left",
+    label: "Параллелограмм влево",
+    category: "basic-shapes",
+    markup: buildShapePolygonMarkup([[74, 84], [382, 84], [462, 428], [154, 428]]),
+  },
+  {
+    key: "basic-trapezoid",
+    label: "Трапеция",
+    category: "basic-shapes",
+    markup: buildShapePolygonMarkup([[126, 84], [386, 84], [458, 428], [54, 428]]),
+  },
+  {
+    key: "basic-trapezoid-inverted",
+    label: "Перевёрнутая трапеция",
+    category: "basic-shapes",
+    markup: buildShapePolygonMarkup([[54, 84], [458, 84], [386, 428], [126, 428]]),
+  },
+  {
+    key: "basic-shield-round-bottom",
+    label: "Щит",
+    category: "basic-shapes",
+    markup: buildShapePathPart({
+      d: "M 150 70 L 362 70 L 362 290 A 106 106 0 0 1 150 290 Z",
+      lineJoin: "round",
+    }),
+  },
+  {
+    key: "basic-arch",
+    label: "Арка",
+    category: "basic-shapes",
+    markup: buildShapePathPart({
+      d: "M 104 458 L 104 222 A 152 152 0 0 1 408 222 L 408 458 Z",
+      lineJoin: "round",
+    }),
+  },
+  {
+    key: "basic-right-triangle",
+    label: "Прямоугольный треугольник",
+    category: "basic-shapes",
+    markup: buildShapePolygonMarkup([[62, 72], [62, 430], [420, 430]]),
+  },
+  {
+    key: "basic-semicircle",
+    label: "Полукруг",
+    category: "basic-shapes",
+    markup: buildShapePathPart({
+      d: "M 76 422 A 180 180 0 0 1 436 422 L 76 422 Z",
+      lineJoin: "round",
+    }),
+  },
+  {
+    key: "basic-quarter-circle",
+    label: "Четверть круга",
+    category: "basic-shapes",
+    markup: buildShapePathPart({
+      d: "M 72 430 L 72 78 A 352 352 0 0 1 424 430 Z",
+      lineJoin: "round",
+    }),
+  },
+  {
+    key: "basic-corner-arc",
+    label: "Угловая дуга",
+    category: "basic-shapes",
+    markup: buildShapePathPart({
+      d: "M 74 450 L 74 262 A 188 188 0 0 1 262 74 L 430 74 L 430 182 L 316 182 A 80 80 0 0 0 182 316 L 182 450 Z",
+      lineJoin: "round",
+    }),
+  },
+  {
+    key: "basic-arch-arc",
+    label: "Дуга",
+    category: "basic-shapes",
+    markup: buildShapePathPart({
+      d: "M 92 422 A 164 164 0 0 1 420 422 L 332 422 A 76 76 0 0 0 180 422 Z",
+      lineJoin: "round",
+    }),
+  },
+  {
     key: "line-solid",
     label: "Прямая линия",
     category: "lines",

@@ -128,6 +128,7 @@ Constructor-related элементы:
 - default positions for new layers, including initial text placement slightly above the print-area center
 - default text-layer box width for creation, normalization and derived sidebar state
 - default line-shape stroke style derived from selected shape `defaultLineStyle` so the stroke popover highlights the matching mode after add/replace
+- physical size readout for `basic-shapes` derived from intrinsic SVG proportions rather than preview-axis compensation
 - persistent uploadedFiles library for the Upload tab with manual add/remove actions before a file becomes a preview layer
 - active layer drag-and-drop
 - marquee multi-selection in preview for the current side with subsequent group delete through existing Backspace/Delete flow

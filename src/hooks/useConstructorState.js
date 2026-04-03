@@ -377,6 +377,7 @@ export default function useConstructorState({
     const bounds = getConstructorShapeTightBounds(shapeKey);
     return Math.max(0.05, (Number(bounds?.width) || 1) / Math.max(1, Number(bounds?.height) || 1));
   };
+  const isBasicShapeKey = (shapeKey) => getConstructorShape(shapeKey).category === "basic-shapes";
   const isLineShapeKey = (shapeKey) => getConstructorShape(shapeKey).category === "lines";
   const getLogicalPrintAreaSize = (layerSide = side) => {
     const { widthCm, heightCm } = getPhysicalPrintArea(layerSide);
@@ -439,6 +440,22 @@ export default function useConstructorState({
     const fittedHeightCm = clampShapeCm(maxHeightCm, maxHeightCm);
     return {
       widthCm: Number((fittedHeightCm * aspectRatioCm).toFixed(3)),
+      heightCm: fittedHeightCm,
+    };
+  };
+  const getShapeDisplayDimensionsCm = (shapeKey, nextWidthCm, layerSide = side) => {
+    const { widthCm: maxWidthCm, heightCm: maxHeightCm } = getPhysicalPrintArea(layerSide);
+    const intrinsicAspectRatio = getShapeIntrinsicAspectRatio(shapeKey);
+    const widthCm = clampShapeCm(nextWidthCm, maxWidthCm);
+    const heightCm = Number((widthCm / intrinsicAspectRatio).toFixed(3));
+
+    if (heightCm <= maxHeightCm) {
+      return { widthCm, heightCm };
+    }
+
+    const fittedHeightCm = clampShapeCm(maxHeightCm, maxHeightCm);
+    return {
+      widthCm: Number((fittedHeightCm * intrinsicAspectRatio).toFixed(3)),
       heightCm: fittedHeightCm,
     };
   };
@@ -529,10 +546,12 @@ export default function useConstructorState({
       const shape = getConstructorShape(layer.shapeKey);
       const shapeDimensionsCm = isLineShapeKey(layer.shapeKey)
         ? getLineDimensionsCmFromPx(layer, getStoredLineCanvasDimensions(layer, getLayerSide(layer)), getLayerSide(layer))
-        : {
-          widthCm: layer.widthCm ?? 0,
-          heightCm: layer.heightCm ?? 0,
-        };
+        : isBasicShapeKey(layer.shapeKey)
+          ? getShapeDisplayDimensionsCm(layer.shapeKey, layer.widthCm ?? 0, getLayerSide(layer))
+          : {
+            widthCm: layer.widthCm ?? 0,
+            heightCm: layer.heightCm ?? 0,
+          };
       const fillSummary = layer.fillMode === "gradient"
         ? `градиент ${getConstructorTextGradient(layer.gradientKey).label}`
         : `цвет ${layer.color}`;
@@ -1766,10 +1785,12 @@ export default function useConstructorState({
   const telegramLink = buildTelegramLink(currentOrderLines);
   const activeShapeDimensionsCm = activeShapeLayer && isLineShapeKey(activeShapeLayer.shapeKey)
     ? getLineDimensionsCmFromPx(activeShapeLayer, getStoredLineCanvasDimensions(activeShapeLayer, getLayerSide(activeShapeLayer)), getLayerSide(activeShapeLayer))
-    : {
-      widthCm: activeShapeLayer?.widthCm || 16,
-      heightCm: activeShapeLayer?.heightCm || 16,
-    };
+    : activeShapeLayer && isBasicShapeKey(activeShapeLayer.shapeKey)
+      ? getShapeDisplayDimensionsCm(activeShapeLayer.shapeKey, activeShapeLayer.widthCm || 16, getLayerSide(activeShapeLayer))
+      : {
+        widthCm: activeShapeLayer?.widthCm || 16,
+        heightCm: activeShapeLayer?.heightCm || 16,
+      };
 
   return {
     activeTab,

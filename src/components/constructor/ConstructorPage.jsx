@@ -401,6 +401,7 @@ function ShapeQuickToolbar({
   disabled = false,
 }) {
   const editLabel = activeShapeIsLine ? "Изменить линию" : "Изменить фигуру";
+  const strokeLabel = activeShapeIsLine ? "Стиль штриха" : "Обводка";
 
   return (
     <div className="constructor-shape-toolbar" style={{ display: "flex", alignItems: "stretch", gap: 6, marginBottom: 14, width: "100%", minWidth: 0, flexWrap: "nowrap" }}>
@@ -435,7 +436,7 @@ function ShapeQuickToolbar({
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M4 12h16" />
             </svg>
-            <span>Обводка</span>
+            <span>{strokeLabel}</span>
           </span>
         </ToolChip>
       </div>

@@ -40,7 +40,6 @@ export function resizeImageLayer({
   printAreaBounds,
   dragState,
   physicalWidthCm,
-  physicalHeightCm,
 }) {
   if (!handle || !pointer || !printAreaBounds || !dragState) return null;
 
@@ -55,10 +54,14 @@ export function resizeImageLayer({
 
   const localPointerX = clamp(pointer.x - printAreaBounds.left, 0, printAreaBounds.width);
   const localPointerY = clamp(pointer.y - printAreaBounds.top, 0, printAreaBounds.height);
-  const toWidthCm = (widthPx) => (widthPx / printAreaBounds.width) * physicalWidthCm;
-  const toHeightCm = (heightPx) => (heightPx / printAreaBounds.height) * physicalHeightCm;
+  // Isotropic conversion: rendering uses pxPerCm = pxW / physicalWidthCm for both axes
+  const toCm = (px) => (px / printAreaBounds.width) * physicalWidthCm;
   const toPositionX = (xPx) => (xPx / printAreaBounds.width) * 100;
   const toPositionY = (yPx) => (yPx / printAreaBounds.height) * 100;
+
+  const safeStartWidth = Math.max(MIN_ASSET_WIDTH_PX, startRenderedWidth);
+  const safeStartHeight = Math.max(MIN_ASSET_HEIGHT_PX, startRenderedHeight);
+  const aspectRatio = safeStartWidth / safeStartHeight;
 
   if (isCornerHandle(handle)) {
     const fixedLeft = handle.x > 0 ? startBoundsLeft : null;
@@ -83,8 +86,8 @@ export function resizeImageLayer({
     const nextTop = handle.y > 0 ? fixedTop : fixedBottom - nextHeightPx;
 
     return {
-      widthCm: toWidthCm(nextWidthPx),
-      heightCm: toHeightCm(nextHeightPx),
+      widthCm: toCm(nextWidthPx),
+      heightCm: toCm(nextHeightPx),
       position: {
         x: toPositionX(nextLeft + (nextWidthPx / 2)),
         y: toPositionY(nextTop + (nextHeightPx / 2)),
@@ -92,6 +95,7 @@ export function resizeImageLayer({
     };
   }
 
+  // Side handles: free-form resize (no aspect ratio constraint)
   if (handle.x !== 0) {
     const nextLeft = handle.x > 0
       ? startBoundsLeft
@@ -99,11 +103,10 @@ export function resizeImageLayer({
     const nextRight = handle.x > 0
       ? Math.max(startBoundsLeft + MIN_ASSET_WIDTH_PX, localPointerX)
       : startBoundsRight;
-    const requestedWidthPx = Math.max(MIN_ASSET_WIDTH_PX, nextRight - nextLeft);
-    const nextWidthPx = Math.max(MIN_ASSET_WIDTH_PX, requestedWidthPx);
+    const nextWidthPx = Math.max(MIN_ASSET_WIDTH_PX, nextRight - nextLeft);
 
     return {
-      widthCm: toWidthCm(nextWidthPx),
+      widthCm: toCm(nextWidthPx),
       position: {
         x: toPositionX(nextLeft + (nextWidthPx / 2)),
         y: toPositionY((startBoundsTop + startBoundsBottom) / 2),
@@ -118,11 +121,10 @@ export function resizeImageLayer({
     const nextBottom = handle.y > 0
       ? Math.max(startBoundsTop + MIN_ASSET_HEIGHT_PX, localPointerY)
       : startBoundsBottom;
-    const requestedHeightPx = Math.max(MIN_ASSET_HEIGHT_PX, nextBottom - nextTop);
-    const nextHeightPx = Math.max(MIN_ASSET_HEIGHT_PX, requestedHeightPx);
+    const nextHeightPx = Math.max(MIN_ASSET_HEIGHT_PX, nextBottom - nextTop);
 
     return {
-      heightCm: toHeightCm(nextHeightPx),
+      heightCm: toCm(nextHeightPx),
       position: {
         x: toPositionX((startBoundsLeft + startBoundsRight) / 2),
         y: toPositionY(nextTop + (nextHeightPx / 2)),

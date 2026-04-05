@@ -10,13 +10,21 @@ export default function ConstructorOrderPanel({ currentTotal, orderMeta, canSubm
         </div>
 
         <div style={{ padding: 16, borderRadius: 18, background: "rgba(255,255,255,.03)", border: "1px solid rgba(255,255,255,.05)", minWidth: 0 }}>
-          <div style={{ display: "grid", gap: 10, minWidth: 0 }}>
-            {orderMeta.map(([label, value]) => (
-              <div key={label} className="constructor-order-row" style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: "4px 12px", minWidth: 0 }}>
-                <span className="constructor-order-label" style={{ minWidth: 0, flex: "0 1 auto", fontSize: 12, letterSpacing: 1.1, textTransform: "uppercase", color: "rgba(240,238,245,.36)", whiteSpace: "normal", overflowWrap: "break-word", wordBreak: "normal" }}>{label}</span>
-                <span className="constructor-order-value" style={{ minWidth: 0, flex: "1 1 132px", fontSize: 14, lineHeight: 1.45, fontWeight: 500, color: "#f0eef5", textAlign: "right", overflowWrap: "break-word", wordBreak: "normal" }}>{value}</span>
-              </div>
-            ))}
+          <div style={{ display: "grid", gap: 0, minWidth: 0 }}>
+            {orderMeta.map(([label, value], index) => {
+              if (label === "---") {
+                return <div key={`sep-${index}`} style={{ height: 1, background: "rgba(255,255,255,.06)", margin: "10px 0" }} />;
+              }
+
+              const isTotal = label === "Итого за 1 шт";
+
+              return (
+                <div key={label} className="constructor-order-row" style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: "4px 12px", minWidth: 0, padding: isTotal ? "10px 0 0" : "5px 0" }}>
+                  <span className="constructor-order-label" style={{ minWidth: 0, flex: "1 1 0%", fontSize: isTotal ? 13 : 13, lineHeight: 1.45, color: isTotal ? "rgba(240,238,245,.52)" : "rgba(240,238,245,.55)", whiteSpace: "normal", overflowWrap: "break-word", wordBreak: "normal", fontWeight: isTotal ? 600 : 400 }}>{label}</span>
+                  <span className="constructor-order-value" style={{ minWidth: 0, flexShrink: 0, fontSize: isTotal ? 16 : 14, lineHeight: 1.45, fontWeight: isTotal ? 700 : 500, color: isTotal ? "#f0eef5" : "rgba(240,238,245,.88)", textAlign: "right", whiteSpace: "nowrap" }}>{value}</span>
+                </div>
+              );
+            })}
           </div>
         </div>
 

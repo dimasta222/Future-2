@@ -49,7 +49,7 @@ const DEFAULT_TEXT_SHADOW_COLOR = "#824ef0";
 const MIN_TEXT_FONT_SIZE = 12;
 const MAX_TEXT_FONT_SIZE = 400;
 const MIN_TEXT_BOX_WIDTH_PERCENT = 1;
-const SNAP_THRESHOLD_PX = 4;
+const SNAP_THRESHOLD_PX = 2;
 const UPLOAD_RATIO_TOLERANCE = 0.02;
 const PRINT_SIZE_LABEL_FORMATTER = new Intl.NumberFormat("ru-RU", {
   minimumFractionDigits: 0,
@@ -504,6 +504,14 @@ function getSidePrintPricingSummary(targetSide, sideLayers, physicalPrintArea = 
     formatName: format?.name || "Индивидуально",
     price: Number(format?.price) || 0,
   };
+}
+
+const SMALL_ORDER_QTY_THRESHOLD = 5;
+
+function getFormatExceedsA3Tier(formatName) {
+  if (formatName === "A3++") return 2;
+  if (formatName === "A3+") return 1;
+  return 0;
 }
 
 function getSnapGuidesPx(areaWidth, areaHeight) {
@@ -1370,13 +1378,32 @@ export default function useConstructorState({
     frontPrintPricing ? `спереди ${frontPrintPricing.formatName}` : null,
     backPrintPricing ? `сзади ${backPrintPricing.formatName}` : null,
   ].filter(Boolean).join(" + ");
-  const currentUnitPrice = product.price + (frontPrintPricing?.price || 0) + (backPrintPricing?.price || 0);
+  const isSmallOrder = qty < SMALL_ORDER_QTY_THRESHOLD && activePrintSidesCount > 0;
+  let resolvedFrontPrintPrice = frontPrintPricing?.price || 0;
+  let resolvedBackPrintPrice = backPrintPricing?.price || 0;
+  if (isSmallOrder) {
+    if (activePrintSidesCount === 1) {
+      const singleSide = frontPrintPricing || backPrintPricing;
+      const tier = getFormatExceedsA3Tier(singleSide.formatName);
+      const smallOrderPrice = tier >= 2 ? 800 : tier >= 1 ? 650 : 600;
+      if (frontPrintPricing) resolvedFrontPrintPrice = smallOrderPrice;
+      else resolvedBackPrintPrice = smallOrderPrice;
+    } else {
+      const frontTier = getFormatExceedsA3Tier(frontPrintPricing.formatName);
+      const backTier = getFormatExceedsA3Tier(backPrintPricing.formatName);
+      const frontSurcharge = frontTier >= 2 ? 200 : frontTier >= 1 ? 50 : 0;
+      const backSurcharge = backTier >= 2 ? 200 : backTier >= 1 ? 50 : 0;
+      resolvedFrontPrintPrice = 500 + frontSurcharge;
+      resolvedBackPrintPrice = 500 + backSurcharge;
+    }
+  }
+  const currentPrintTotalPerItem = resolvedFrontPrintPrice + resolvedBackPrintPrice;
+  const currentUnitPrice = product.price + currentPrintTotalPerItem;
   const currentTotal = currentUnitPrice * qty;
-  const currentPrintTotalPerItem = (frontPrintPricing?.price || 0) + (backPrintPricing?.price || 0);
   const currentOrderLines = [
-    { side: "front", layers: meaningfulFrontLayers, printPricing: frontPrintPricing },
-    { side: "back", layers: meaningfulBackLayers, printPricing: backPrintPricing },
-  ].filter(({ layers: nextLayers }) => nextLayers.length > 0).map(({ side: orderSide, layers: nextLayers, printPricing }) => ({
+    { side: "front", layers: meaningfulFrontLayers, printPricing: frontPrintPricing, resolvedPrice: resolvedFrontPrintPrice },
+    { side: "back", layers: meaningfulBackLayers, printPricing: backPrintPricing, resolvedPrice: resolvedBackPrintPrice },
+  ].filter(({ layers: nextLayers }) => nextLayers.length > 0).map(({ side: orderSide, layers: nextLayers, printPricing, resolvedPrice }) => ({
     productName: product.displayName,
     color: resolvedColor,
     size,
@@ -1384,27 +1411,23 @@ export default function useConstructorState({
     side: orderSide,
     printFormatName: printPricing?.formatName || null,
     printSizeLabel: printPricing?.sizeLabel || null,
-    printPrice: printPricing?.price || 0,
+    printPrice: resolvedPrice,
     layerSummary: nextLayers.map(buildLayerSummary),
     total: currentTotal,
   }));
   const orderMeta = [
-    ["Текстиль", product.name],
-    ["Футболка", `${product.price.toLocaleString("ru-RU")} ₽/шт`],
-    ["Материал", product.material || "Уточняется"],
-    ["Плотность", product.densityLabel || "Уточняется"],
+    [`Футболка ${product.name.toLowerCase()}${product.densityLabel ? ` ${product.densityLabel}` : ""}`, `${product.price.toLocaleString("ru-RU")} ₽`],
     ["Цвет", resolvedColor],
     ["Размер", size || "Не выбран"],
     ["Количество", `${qty} шт`],
+    ...(activePrintSidesCount > 0 ? [["---"]] : []),
     ...(frontPrintPricing ? [
-      [frontPrintPricing.isSingleLayer ? "Размер объекта спереди" : "Общий размер печати спереди", frontPrintPricing.isSingleLayer ? (frontPrintPricing.objectSizeLabel || frontPrintPricing.sizeLabel) : frontPrintPricing.sizeLabel],
-      ["Формат печати спереди", frontPrintPricing.formatName],
+      [`Печать спереди • ${frontPrintPricing.formatName} • ${frontPrintPricing.isSingleLayer ? (frontPrintPricing.objectSizeLabel || frontPrintPricing.sizeLabel) : frontPrintPricing.sizeLabel}`, `${resolvedFrontPrintPrice.toLocaleString("ru-RU")} ₽`],
     ] : []),
     ...(backPrintPricing ? [
-      [backPrintPricing.isSingleLayer ? "Размер объекта сзади" : "Общий размер печати сзади", backPrintPricing.isSingleLayer ? (backPrintPricing.objectSizeLabel || backPrintPricing.sizeLabel) : backPrintPricing.sizeLabel],
-      ["Формат печати сзади", backPrintPricing.formatName],
+      [`Печать сзади • ${backPrintPricing.formatName} • ${backPrintPricing.isSingleLayer ? (backPrintPricing.objectSizeLabel || backPrintPricing.sizeLabel) : backPrintPricing.sizeLabel}`, `${resolvedBackPrintPrice.toLocaleString("ru-RU")} ₽`],
     ] : []),
-    [printTypeLabel, printTypeDetails ? `${currentPrintTotalPerItem.toLocaleString("ru-RU")} ₽/шт • ${printTypeDetails}` : `${currentPrintTotalPerItem.toLocaleString("ru-RU")} ₽/шт`],
+    ["---"],
     ["Итого за 1 шт", `${currentUnitPrice.toLocaleString("ru-RU")} ₽`],
     ...debugOrderMetaRows,
   ];
@@ -2707,6 +2730,8 @@ export default function useConstructorState({
     activeShapeLayer,
     draggingLayerId,
     activeSnapGuides,
+    setActiveSnapGuides,
+    getCombinedSnapGuidesPx,
     editingTextLayerId,
     textValue: activeTextLayer?.value || "",
     setTextValue,

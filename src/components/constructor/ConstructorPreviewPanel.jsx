@@ -10,10 +10,11 @@ const DEFAULT_TEXT_SHADOW = {
 
 const LOGICAL_PRINT_PX_PER_CM = 10;
 const MIN_MARQUEE_DRAG_DISTANCE = 4;
-const RESIZE_HANDLE_SIZE = 12;
-const RESIZE_HANDLE_HALF_OFFSET = 6;
+const RESIZE_SNAP_THRESHOLD_PX = 2;
+const RESIZE_HANDLE_SIZE = 8;
+const RESIZE_HANDLE_HALF_OFFSET = 5;
 const RESIZE_MIDDLE_HANDLE_LONG_SIDE = 14;
-const RESIZE_MIDDLE_HANDLE_SHORT_SIDE = 6;
+const RESIZE_MIDDLE_HANDLE_SHORT_SIDE = 4;
 const RESIZE_MIDDLE_HANDLE_SHORT_OFFSET = 3;
 
 const RESIZE_HANDLES = [
@@ -33,6 +34,32 @@ const MIDDLE_RESIZE_HANDLE_KEYS = new Set(["n", "e", "s", "w"]);
 const DEFAULT_TEXT_LINE_HEIGHT = 1.05;
 const textMeasureCanvas = typeof document !== "undefined" ? document.createElement("canvas") : null;
 const textMeasureContext = textMeasureCanvas?.getContext("2d") || null;
+
+function getTextVerticalCenterPadding({ fontFamily, fontSize, fontWeight, fontStyle, lineHeight }) {
+  if (!textMeasureContext) return { top: 0, bottom: 0 };
+
+  textMeasureContext.font = `${fontStyle} ${fontWeight} ${fontSize}px ${fontFamily}`;
+  const metrics = textMeasureContext.measureText("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghjkpqy");
+  const fontAscent = metrics.fontBoundingBoxAscent;
+  const fontDescent = metrics.fontBoundingBoxDescent;
+  if (fontAscent == null || fontDescent == null) return { top: 0, bottom: 0 };
+
+  const emHeight = fontAscent + fontDescent;
+  const lineBoxHeight = fontSize * lineHeight;
+  const halfLeading = (lineBoxHeight - emHeight) / 2;
+  const actualAscent = metrics.actualBoundingBoxAscent ?? fontAscent;
+  const actualDescent = metrics.actualBoundingBoxDescent ?? fontDescent;
+  const glyphTop = halfLeading + (fontAscent - actualAscent);
+  const glyphBottom = glyphTop + actualAscent + actualDescent;
+  const spaceAbove = glyphTop;
+  const spaceBelow = lineBoxHeight - glyphBottom;
+  const offset = (spaceBelow - spaceAbove) / 2;
+
+  return {
+    top: Math.max(0, Math.round(offset * 100) / 100),
+    bottom: Math.max(0, Math.round(-offset * 100) / 100),
+  };
+}
 
 function getResizeHandleAnchorStyle(handleKey, anchorPoint) {
   if (!anchorPoint) return null;
@@ -262,6 +289,20 @@ function rectsIntersect(firstRect, secondRect) {
   );
 }
 
+function snapEdgeToGuides(edgePx, guidePositions, thresholdPx = RESIZE_SNAP_THRESHOLD_PX) {
+  let best = null;
+
+  guidePositions.forEach((guide) => {
+    const distance = Math.abs(guide - edgePx);
+    if (distance > thresholdPx) return;
+    if (!best || distance < best.distance) {
+      best = { guide, delta: guide - edgePx, distance };
+    }
+  });
+
+  return best;
+}
+
 
 export default function ConstructorPreviewPanel({
   side,
@@ -288,6 +329,8 @@ export default function ConstructorPreviewPanel({
   onRuntimeTextLayerBoundsChange,
   getShapeByKey,
   getTextGradientByKey,
+  setActiveSnapGuides,
+  getCombinedSnapGuidesPx,
 }) {
   const [resizingLayerId, setResizingLayerId] = useState(null);
   const [hoveredLayerId, setHoveredLayerId] = useState(null);
@@ -342,7 +385,7 @@ export default function ConstructorPreviewPanel({
     const node = editableTextLayerRefs.current[editingTextLayerId];
     if (!node) return;
 
-    if (node.textContent !== editingLayerValue) {
+    if (node.textContent !== editingLayerValue && document.activeElement !== node) {
       node.textContent = editingLayerValue;
     }
 
@@ -674,11 +717,55 @@ export default function ConstructorPreviewPanel({
       rotationDeg: layer.type === "shape" ? Number(layer.rotationDeg) || 0 : 0,
     };
 
+    const snapGuides = getCombinedSnapGuidesPx
+      ? getCombinedSnapGuidesPx(layer.id, printAreaBounds.width, printAreaBounds.height)
+      : null;
+
     const updateResize = (clientX, clientY) => {
+      let snappedClientX = clientX;
+      let snappedClientY = clientY;
+      const activeGuides = [];
+
+      if (snapGuides) {
+        const localPointerX = clientX - printAreaBounds.left;
+        const localPointerY = clientY - printAreaBounds.top;
+
+        // Determine which edge the pointer controls based on handle direction
+        if (handle.x !== 0) {
+          const movingEdgeX = handle.x > 0
+            ? localPointerX
+            : localPointerX;
+          const snapX = snapEdgeToGuides(movingEdgeX, snapGuides.vertical);
+          if (snapX) {
+            snappedClientX = clientX + snapX.delta;
+            activeGuides.push({
+              orientation: "vertical",
+              positionPercent: (snapX.guide / printAreaBounds.width) * 100,
+            });
+          }
+        }
+
+        if (handle.y !== 0) {
+          const movingEdgeY = handle.y > 0
+            ? localPointerY
+            : localPointerY;
+          const snapY = snapEdgeToGuides(movingEdgeY, snapGuides.horizontal);
+          if (snapY) {
+            snappedClientY = clientY + snapY.delta;
+            activeGuides.push({
+              orientation: "horizontal",
+              positionPercent: (snapY.guide / printAreaBounds.height) * 100,
+            });
+          }
+        }
+      }
+
+      setActiveSnapGuides?.(activeGuides);
+
       const patch = resizeLayer({
         layer,
         handle,
-        pointer: { x: clientX, y: clientY },
+        pointer: { x: snappedClientX, y: snappedClientY },
         printAreaBounds,
         dragState,
         physicalWidthCm,
@@ -701,6 +788,7 @@ export default function ConstructorPreviewPanel({
     const stopResizing = (endEvent) => {
       if (endEvent.pointerId !== pointerId) return;
       setResizingLayerId(null);
+      setActiveSnapGuides?.([]);
       node.releasePointerCapture?.(pointerId);
       window.removeEventListener("pointermove", handlePointerMove);
       window.removeEventListener("pointerup", stopResizing);
@@ -837,9 +925,9 @@ export default function ConstructorPreviewPanel({
   };
 
   const getLayerFrameStyle = ({ active = false, selected = false, hovered = false }) => {
-    if (active) return "0 0 0 1px rgba(232,67,147,.82)";
-    if (selected) return "0 0 0 1px rgba(255,255,255,.7)";
-    if (hovered) return "0 0 0 1px rgba(232,67,147,.5)";
+    if (active) return "inset 0 0 0 1px rgba(232,67,147,.82)";
+    if (selected) return "inset 0 0 0 1px rgba(255,255,255,.7)";
+    if (hovered) return "inset 0 0 0 1px rgba(232,67,147,.5)";
     return "none";
   };
 
@@ -1076,9 +1164,7 @@ export default function ConstructorPreviewPanel({
               : frameStyle;
             const textShadowValue = layer.shadowEnabled
               ? `${layer.shadowOffsetX ?? 0}px ${layer.shadowOffsetY ?? 2}px ${layer.shadowBlur ?? 14}px ${layer.shadowColor || "#111111"}`
-              : color === "Белый"
-                ? DEFAULT_TEXT_SHADOW.light
-                : DEFAULT_TEXT_SHADOW.dark;
+              : "none";
             const layerFont = getConstructorTextFont(layer.fontKey);
             const activeGradient = layer.textFillMode === "gradient" ? getTextGradientByKey(layer.gradientKey) : null;
             const textDecorationLine = getTextDecorationLine(layer);
@@ -1089,6 +1175,14 @@ export default function ConstructorPreviewPanel({
             const textMinHeight = !hasVisibleText
               ? `${Math.max(layer.size * (layer.lineHeight ?? 1.05), layer.size)}px`
               : undefined;
+            const halfLetterSpacing = (layer.letterSpacing ?? 1) / 2;
+            const verticalPad = getTextVerticalCenterPadding({
+              fontFamily: layer.fontFamily || "'Outfit', sans-serif",
+              fontSize: layer.size,
+              fontWeight,
+              fontStyle,
+              lineHeight: layer.lineHeight ?? DEFAULT_TEXT_LINE_HEIGHT,
+            });
 
             return (
               <div
@@ -1107,7 +1201,7 @@ export default function ConstructorPreviewPanel({
                   event.stopPropagation();
                   onLayerEditOpen(layer.id);
                 }}
-                style={{ position: "absolute", left: `${layer.position.x}%`, top: `${layer.position.y}%`, transform: "translate(-50%, -50%)", transformOrigin: "center center", width: `${layer.textBoxWidth ?? 88}%`, maxWidth: "100%", minHeight: textMinHeight, padding: 0, textAlign: layer.textAlign || "center", fontSize: `${layer.size}px`, lineHeight: layer.lineHeight ?? 1.05, fontWeight, fontStyle, fontFamily: layer.fontFamily || "'Outfit', sans-serif", color: activeGradient ? "transparent" : layer.color, letterSpacing: `${layer.letterSpacing ?? 1}px`, WebkitTextStroke: (layer.strokeWidth ?? 0) > 0 ? `${layer.strokeWidth}px ${layer.strokeColor || "#111111"}` : "0 transparent", paintOrder: "stroke fill", whiteSpace: "pre-wrap", overflowWrap: "anywhere", wordBreak: "break-word", hyphens: "none", textShadow: textShadowValue, pointerEvents: "auto", cursor: allowTextEditing ? "text" : resizing ? "nwse-resize" : layer.locked ? "default" : dragging ? "grabbing" : "grab", touchAction: allowTextEditing ? "auto" : "none", boxShadow: showTextBoxGuides ? textGuideShadow : frameStyle, borderRadius: 0, outline: "none", outlineOffset: 0, background: "transparent", zIndex: index + 1 }}
+                style={{ position: "absolute", left: `${layer.position.x}%`, top: `${layer.position.y}%`, transform: "translate(-50%, -50%)", transformOrigin: "center center", width: `${layer.textBoxWidth ?? 88}%`, maxWidth: "100%", minHeight: textMinHeight, padding: `${verticalPad.top}px 0 ${verticalPad.bottom}px ${halfLetterSpacing}px`, textAlign: layer.textAlign || "center", fontSize: `${layer.size}px`, lineHeight: layer.lineHeight ?? 1.05, fontWeight, fontStyle, fontFamily: layer.fontFamily || "'Outfit', sans-serif", color: activeGradient ? "transparent" : layer.color, letterSpacing: `${layer.letterSpacing ?? 1}px`, WebkitTextStroke: (layer.strokeWidth ?? 0) > 0 ? `${layer.strokeWidth}px ${layer.strokeColor || "#111111"}` : "0 transparent", paintOrder: "stroke fill", whiteSpace: "pre-wrap", overflowWrap: "anywhere", wordBreak: "break-word", hyphens: "none", textShadow: textShadowValue, pointerEvents: "auto", cursor: allowTextEditing ? "text" : resizing ? "nwse-resize" : layer.locked ? "default" : dragging ? "grabbing" : "grab", touchAction: allowTextEditing ? "auto" : "none", boxShadow: showTextBoxGuides ? textGuideShadow : frameStyle, borderRadius: 0, outline: "none", outlineOffset: 0, background: "transparent", zIndex: index + 1 }}
               >
                 {allowTextEditing ? (
                   <div

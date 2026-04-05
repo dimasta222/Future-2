@@ -1427,6 +1427,9 @@ export default function useConstructorState({
     ...(backPrintPricing ? [
       [`Печать сзади • ${backPrintPricing.formatName} • ${backPrintPricing.isSingleLayer ? (backPrintPricing.objectSizeLabel || backPrintPricing.sizeLabel) : backPrintPricing.sizeLabel}`, `${resolvedBackPrintPrice.toLocaleString("ru-RU")} ₽`],
     ] : []),
+    ...(isSmallOrder ? [
+      ["hint", `От 5 шт печать дешевле: ${((frontPrintPricing?.price || 0) + (backPrintPricing?.price || 0)).toLocaleString("ru-RU")} ₽ вместо ${currentPrintTotalPerItem.toLocaleString("ru-RU")} ₽`],
+    ] : []),
     ["---"],
     ["Итого за 1 шт", `${currentUnitPrice.toLocaleString("ru-RU")} ₽`],
     ...debugOrderMetaRows,

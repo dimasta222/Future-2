@@ -16,6 +16,12 @@ export default function ConstructorOrderPanel({ currentTotal, orderMeta, canSubm
                 return <div key={`sep-${index}`} style={{ height: 1, background: "rgba(255,255,255,.06)", margin: "10px 0" }} />;
               }
 
+              if (label === "hint") {
+                return (
+                  <div key={`hint-${index}`} style={{ padding: "6px 0 2px", fontSize: 12, lineHeight: 1.5, fontWeight: 400, background: "linear-gradient(135deg, rgba(240,138,192,.55), rgba(156,139,255,.55))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{value}</div>
+                );
+              }
+
               const isTotal = label === "Итого за 1 шт";
 
               return (

@@ -120,14 +120,15 @@ export function resizeShapeLayer({
   const rawLocalPointerY = pointer.y - printAreaBounds.top;
   const localPointerX = clamp(rawLocalPointerX, 0, printAreaBounds.width);
   const localPointerY = clamp(rawLocalPointerY, 0, printAreaBounds.height);
-  const resolvedStartBaseWidthPx = Math.max(MIN_SHAPE_WIDTH_PX, Number(startBaseWidthPx) || (((startWidthCm || 1) / physicalWidthCm) * printAreaBounds.width));
-  const resolvedStartBaseHeightPx = Math.max(MIN_SHAPE_HEIGHT_PX, Number(startBaseHeightPx) || (((startHeightCm || 1) / physicalHeightCm) * printAreaBounds.height));
+  const pxPerCm = printAreaBounds.width / Math.max(0.001, physicalWidthCm);
+  const resolvedStartBaseWidthPx = Math.max(MIN_SHAPE_WIDTH_PX, Number(startBaseWidthPx) || ((startWidthCm || 1) * pxPerCm));
+  const resolvedStartBaseHeightPx = Math.max(MIN_SHAPE_HEIGHT_PX, Number(startBaseHeightPx) || ((startHeightCm || 1) * pxPerCm));
   const toWidthValue = (widthPx) => (isLineShape
     ? (widthPx / printAreaBounds.width) * Math.max(1, Number(logicalPrintAreaWidthPx) || printAreaBounds.width)
-    : (widthPx / printAreaBounds.width) * physicalWidthCm);
+    : widthPx / pxPerCm);
   const toHeightValue = (heightPx) => (isLineShape
     ? (heightPx / printAreaBounds.height) * Math.max(1, Number(logicalPrintAreaHeightPx) || printAreaBounds.height)
-    : (heightPx / printAreaBounds.height) * physicalHeightCm);
+    : heightPx / pxPerCm);
   const toPositionX = (xPx) => (xPx / printAreaBounds.width) * 100;
   const toPositionY = (yPx) => (yPx / printAreaBounds.height) * 100;
 

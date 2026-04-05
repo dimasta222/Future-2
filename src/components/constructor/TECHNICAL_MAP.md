@@ -222,7 +222,7 @@ Props:
 Содержимое:
 
 - preview image
-- side switcher
+- side switcher под превью
 - print area overlay
 - render stack of visible layers only for the active side
 - upload/regular-shape rendering via layer widthCm/heightCm mapped into physical print-area, while line-shape rendering via lineWidthPx/lineHeightPx maps into ту же print-area как logical canvas pixels
@@ -258,11 +258,12 @@ Props:
 
 Дополнительно отвечает за:
 
-- sticky text-toolbar под переключателем стороны
+- sticky text-toolbar в отдельном верхнем слоте над превью
 - синхронизацию toolbar с активной левой панелью текста
-- sticky text-toolbar и sticky shape-toolbar под переключателем стороны, плюс синхронизацию text/shape toolbar с активными левыми панелями; text-toolbar показывается для активного text-layer вне зависимости от текущей вкладки и временно подменяет левую колонку text-панелью по кнопкам toolbar с закрытием по крестику или клику в пустое место превью; для shape-toolbar также отдельные режимы add/replace каталога фигур, кнопку «Редактировать» с подсветкой только в replace-режиме и переходом на вкладку «Фигуры», показ toolbar для активного shape-layer даже вне вкладки «Фигуры», временную подмену текущей левой вкладки shape-панелью по кнопкам toolbar с закрытием по крестику или клику в пустое место превью, сброс replace-режима по выбору другого слоя или пустого места превью, якорный quick-popover «Обводка» и переключение между панелями «Редактирование», «Цвет», «Цвет обводки» и «Эффекты"
+- sticky text-toolbar и sticky shape-toolbar в отдельном верхнем слоте над превью, плюс синхронизацию text/shape toolbar с активными левыми панелями; text-toolbar показывается для активного text-layer вне зависимости от текущей вкладки и временно подменяет левую колонку text-панелью по кнопкам toolbar с закрытием по крестику или клику в пустое место превью; для shape-toolbar также отдельные режимы add/replace каталога фигур, кнопку «Редактировать» с подсветкой только в replace-режиме и переходом на вкладку «Фигуры», показ toolbar для активного shape-layer даже вне вкладки «Фигуры», временную подмену текущей левой вкладки shape-панелью по кнопкам toolbar с закрытием по крестику или клику в пустое место превью, сброс replace-режима по выбору другого слоя или пустого места превью, якорный quick-popover «Обводка» и переключение между панелями «Редактирование», «Цвет», «Цвет обводки» и «Эффекты"
 - preview-колонка рендерится в обычном потоке без sticky-позиционирования, чтобы высота активного toolbar не вызывала вертикальный сдвиг мокапа и side-toggle кнопок внутри viewport
-- side-aware orchestration: при переключении стороны активный слой и preview/sidebar синхронизируются с независимым front/back набором, а summary заказа считает слои по обеим сторонам отдельно
+- side-aware orchestration: при переключении стороны активный слой и preview/sidebar синхронизируются с независимым front/back набором, а summary заказа считает видимые слои по обеим сторонам отдельно
+- order pricing orchestration: `useConstructorState` собирает общий bounding box всех видимых printable-layer на стороне, переводит его в сантиметры текущей print-area, подбирает формат через `getConstructorPrintFormat(...)` и добавляет цену печати front/back к базовой цене футболки
 - выбор реального previewSrc: PNG-мокапы для чёрной, белой, розовой, бежевой и серой oversize-модели и SVG fallback для остальных сочетаний размера/модели/цвета
 
 ### src/components/constructor/ConstructorOrderPanel.jsx

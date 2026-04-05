@@ -576,7 +576,9 @@ export default function ConstructorSidebarPanel({
   const showTextLayerList = !showTextSidebarOverlay || currentTextToolPanel !== "font";
   const showShapeSidebarOverlay = shapeSidebarOverlayOpen && Boolean(activeShapeLayer) && activeTab !== "shapes";
   const showShapesPanel = activeTab === "shapes" || showShapeSidebarOverlay;
-  const physicalPrintAreaLabel = `${printArea?.physicalWidthCm || 40} × ${printArea?.physicalHeightCm || 50} см`;
+  const safePrintAreaWidthCm = Math.max(1, Number(printArea?.physicalWidthCm) || 1);
+  const safePrintAreaHeightCm = Math.max(1, Number(printArea?.physicalHeightCm) || 1);
+  const physicalPrintAreaLabel = `${safePrintAreaWidthCm} × ${safePrintAreaHeightCm} см`;
   const safeShapeVisualWidthCm = Math.max(0.1, Number(activeShapeVisualMetricsCm?.widthCm) || 0.1);
   const safeShapeVisualHeightCm = Math.max(0.1, Number(activeShapeVisualMetricsCm?.heightCm) || 0.1);
   const fontSearchVariants = buildFontSearchVariants(fontSearch);
@@ -1101,7 +1103,7 @@ export default function ConstructorSidebarPanel({
           <SidebarFieldRow label="Размер печати">
             <div style={{ display: "grid", gap: 8 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                <input type="range" min="1" max={printArea?.physicalWidthCm || 40} step="0.1" value={uploadWidthCm} onChange={handleUploadScaleChange} style={{ width: "100%" }} />
+                <input type="range" min="1" max={safePrintAreaWidthCm} step="0.1" value={uploadWidthCm} onChange={handleUploadScaleChange} style={{ width: "100%" }} />
                 <span style={{ minWidth: 72, textAlign: "right", fontSize: 13, color: "rgba(240,238,245,.6)" }}>{uploadWidthCm.toFixed(1)} см</span>
               </div>
               <div style={{ fontSize: 12, color: "rgba(240,238,245,.48)" }}>Размер картинки: {uploadWidthCm.toFixed(1)} × {uploadHeightCm.toFixed(1)} см.</div>
@@ -1519,10 +1521,10 @@ export default function ConstructorSidebarPanel({
                   <div style={{ fontSize: 13, fontWeight: 600, color: "#f0eef5", whiteSpace: "nowrap" }}>{safeShapeVisualWidthCm.toFixed(1)} × {safeShapeVisualHeightCm.toFixed(1)} см</div>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                  <input type="range" min="1" max={printArea?.physicalWidthCm || 40} step="0.1" value={safeShapeWidthCm} onChange={(event) => onShapeWidthCmChange(Number(event.target.value))} style={{ width: "100%" }} />
+                  <input type="range" min="1" max={safePrintAreaWidthCm} step="0.1" value={safeShapeWidthCm} onChange={(event) => onShapeWidthCmChange(Number(event.target.value))} style={{ width: "100%" }} />
                   <span style={{ minWidth: 72, textAlign: "right", fontSize: 13, color: "rgba(240,238,245,.6)" }}>{safeShapeWidthCm.toFixed(1)} см</span>
                 </div>
-                <div style={{ fontSize: 12, color: "rgba(240,238,245,.48)" }}>Базовый размер фигуры: {safeShapeWidthCm.toFixed(1)} × {safeShapeHeightCm.toFixed(1)} см. Фактический размер выше уже учитывает обводку, тень и дополнительные shape-эффекты. Максимальная зона — {physicalPrintAreaLabel}.</div>
+                <div style={{ fontSize: 12, color: "rgba(240,238,245,.48)" }}>Фактический размер выше уже учитывает обводку, тень и дополнительные shape-эффекты. Максимальная зона — {physicalPrintAreaLabel}.</div>
               </>
             )}
           </div>

@@ -26,6 +26,24 @@ const OVERSIZE_REAL_MOCKUP_COLOR_SLUGS = {
   "тёмно-серый": "gray",
 };
 
+export const CONSTRUCTOR_PRINT_FORMATS = [
+  { name: "A6", short: 10, long: 15, price: 250 },
+  { name: "A5", short: 15, long: 20, price: 290 },
+  { name: "A4", short: 20, long: 30, price: 350 },
+  { name: "A3", short: 30, long: 42, price: 450 },
+  { name: "A3+", short: 35, long: 48, price: 650 },
+  { name: "A3++", short: 40, long: 50, price: 800 },
+];
+
+export function getConstructorPrintFormat(widthCm, heightCm) {
+  const smallSideCm = Math.min(Number(widthCm) || 0, Number(heightCm) || 0);
+  const largeSideCm = Math.max(Number(widthCm) || 0, Number(heightCm) || 0);
+
+  return CONSTRUCTOR_PRINT_FORMATS.find((format) => (
+    smallSideCm <= format.short && largeSideCm <= format.long
+  )) || CONSTRUCTOR_PRINT_FORMATS[CONSTRUCTOR_PRINT_FORMATS.length - 1] || null;
+}
+
 function resolveOversizeMockupSrc(side, colorName = "") {
   const resolvedSide = side === "back" ? "back" : "front";
   const colorSlug = OVERSIZE_REAL_MOCKUP_COLOR_SLUGS[normalizeColorName(colorName)];
@@ -39,20 +57,20 @@ function resolveOversizeMockupSrc(side, colorName = "") {
 
 const OVERSIZE_PRINT_AREA_GEOMETRY = {
   front: {
-    left: 49.8,
-    top: 55.4,
-    width: 52.6,
-    height: 79.6,
+    left: 50,
+    top: 55.5,
+    width: 53,
+    height: 79,
   },
   back: {
-    left: 50.0,
-    top: 53.8,
-    width: 52.6,
-    height: 79.4,
+    left: 50,
+    top: 56,
+    width: 53,
+    height: 79,
   },
 };
 
-const OVERSIZE_PRINT_AREA_PHYSICAL_SIZES = {
+const PRINT_AREA_PHYSICAL_SIZES = {
   XS: { physicalWidthCm: 41, physicalHeightCm: 52 },
   S: { physicalWidthCm: 43, physicalHeightCm: 54 },
   M: { physicalWidthCm: 46, physicalHeightCm: 53 },
@@ -62,9 +80,9 @@ const OVERSIZE_PRINT_AREA_PHYSICAL_SIZES = {
   "3XL": { physicalWidthCm: 54, physicalHeightCm: 63 },
 };
 
-function buildOversizePrintAreaSizeOverrides(side) {
+function buildPrintAreaSizeOverrides(side) {
   return Object.fromEntries(
-    Object.entries(OVERSIZE_PRINT_AREA_PHYSICAL_SIZES).map(([size, physicalSize]) => [
+    Object.entries(PRINT_AREA_PHYSICAL_SIZES).map(([size, physicalSize]) => [
       size,
       {
         ...OVERSIZE_PRINT_AREA_GEOMETRY[side === "back" ? "back" : "front"],
@@ -75,34 +93,50 @@ function buildOversizePrintAreaSizeOverrides(side) {
   );
 }
 
-const OVERSIZE_PRINT_AREA_SIZE_OVERRIDES = {
-  front: buildOversizePrintAreaSizeOverrides("front"),
-  back: buildOversizePrintAreaSizeOverrides("back"),
+const PRINT_AREA_SIZE_OVERRIDES = {
+  front: buildPrintAreaSizeOverrides("front"),
+  back: buildPrintAreaSizeOverrides("back"),
 };
 
 export const CONSTRUCTOR_PRINT_AREAS = {
   classic: {
-    front: { left: 50, top: 48, width: 28, height: 31, physicalWidthCm: 40, physicalHeightCm: 50 },
-    back: { left: 50, top: 44, width: 30, height: 34, physicalWidthCm: 40, physicalHeightCm: 50 },
+    front: {
+      left: 50,
+      top: 55.5,
+      width: 53,
+      height: 79,
+      physicalWidthCm: 46,
+      physicalHeightCm: 53,
+      sizeOverrides: PRINT_AREA_SIZE_OVERRIDES.front,
+    },
+    back: {
+      left: 50,
+      top: 56,
+      width: 53,
+      height: 79,
+      physicalWidthCm: 46,
+      physicalHeightCm: 53,
+      sizeOverrides: PRINT_AREA_SIZE_OVERRIDES.back,
+    },
   },
   oversize: {
     front: {
-      left: 49.6,
-      top: 50.6,
-      width: 48.4,
-      height: 68.2,
-      physicalWidthCm: 40,
-      physicalHeightCm: 50,
-      sizeOverrides: OVERSIZE_PRINT_AREA_SIZE_OVERRIDES.front,
+      left: 50,
+      top: 55.5,
+      width: 53,
+      height: 79,
+      physicalWidthCm: 46,
+      physicalHeightCm: 53,
+      sizeOverrides: PRINT_AREA_SIZE_OVERRIDES.front,
     },
     back: {
-      left: 49.5,
-      top: 49.0,
-      width: 49.0,
-      height: 69.0,
-      physicalWidthCm: 40,
-      physicalHeightCm: 50,
-      sizeOverrides: OVERSIZE_PRINT_AREA_SIZE_OVERRIDES.back,
+      left: 50,
+      top: 56,
+      width: 53,
+      height: 79,
+      physicalWidthCm: 46,
+      physicalHeightCm: 53,
+      sizeOverrides: PRINT_AREA_SIZE_OVERRIDES.back,
     },
   },
 };
@@ -1678,6 +1712,9 @@ export function buildConstructorTelegramLink(lines) {
         `размер ${line.size}`,
         `сторона ${line.side === "front" ? "спереди" : "сзади"}`,
         `кол-во ${line.qty} шт`,
+        line.printFormatName ? `печать ${line.printFormatName}` : null,
+        line.printSizeLabel ? `занимаемая область ${line.printSizeLabel}` : null,
+        Number.isFinite(line.printPrice) ? `печать ${line.printPrice.toLocaleString("ru-RU")} ₽/шт` : null,
         ...(line.layerSummary?.length ? line.layerSummary : [
           line.uploadName ? `макет ${line.uploadName}` : null,
           line.text ? `текст «${line.text}»` : null,

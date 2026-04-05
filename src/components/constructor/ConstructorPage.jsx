@@ -13,6 +13,7 @@ import { buildTshirtMockupSvg, svgToDataUri } from "../../shared/textilePreviewH
 const TEXT_FONT_SIZE_STEP = 1;
 const MAX_SHAPE_STROKE_WIDTH = 100;
 const MAX_LINE_STROKE_WIDTH = 100;
+const PREVIEW_TOOLBAR_SLOT_MIN_HEIGHT = 48;
 
 function ToolChip({ active = false, onClick, children, disabled = false, minWidth, fullWidth = false }) {
   return (
@@ -575,6 +576,7 @@ function ShapeCornerPopover({ shapeCornerRoundness, onShapeCornerRoundnessChange
 
 export default function ConstructorPage({ onBack, products }) {
   const [activeTextMetricsCm, setActiveTextMetricsCm] = useState(null);
+  const [runtimeTextLayerBoundsBySide, setRuntimeTextLayerBoundsBySide] = useState({ front: {}, back: {} });
   const {
     activeTab,
     setActiveTab,
@@ -679,6 +681,7 @@ export default function ConstructorPage({ onBack, products }) {
     activeShapeVisualMetricsCm,
     setShapeWidthCm,
     printAreaRef,
+    textLayerNodesRef,
     product,
     printArea,
     previewSrc,
@@ -717,10 +720,9 @@ export default function ConstructorPage({ onBack, products }) {
     getShapeByKey,
   } = useConstructorState({
     products,
+    runtimeTextLayerBoundsBySide,
     buildPreviewSrc: ({ product: currentProduct, color: currentColor, side: currentSide, size: currentSize }) => {
-      const resolvedMockupSrc = currentProduct.model === "oversize"
-        ? resolveConstructorMockupSrc(currentProduct.printAreas, currentSide, currentSize, currentColor)
-        : "";
+      const resolvedMockupSrc = resolveConstructorMockupSrc(currentProduct.printAreas, currentSide, currentSize, currentColor);
       return resolvedMockupSrc
         ? resolvedMockupSrc
         : svgToDataUri(buildTshirtMockupSvg({ model: currentProduct.model, colorName: currentColor, view: currentSide, showViewLabel: false, showHeader: false }));
@@ -748,6 +750,23 @@ export default function ConstructorPage({ onBack, products }) {
   const activeShapeIsLine = activeShapeLayer ? getConstructorShape(activeShapeLayer.shapeKey).category === "lines" : false;
   const activeTextGradient = getConstructorTextGradient(textGradientKey);
   const effectiveShapeCatalogMode = activeTab === "shapes" && activeShapeLayer ? shapeCatalogMode : "add";
+  const handleRuntimeTextLayerBoundsChange = (targetSide, nextBoundsById) => {
+    const resolvedSide = targetSide === "back" ? "back" : "front";
+    const normalizedNextBounds = nextBoundsById || {};
+
+    setRuntimeTextLayerBoundsBySide((currentBounds) => {
+      const currentSideBounds = currentBounds[resolvedSide] || {};
+
+      if (JSON.stringify(currentSideBounds) === JSON.stringify(normalizedNextBounds)) {
+        return currentBounds;
+      }
+
+      return {
+        ...currentBounds,
+        [resolvedSide]: normalizedNextBounds,
+      };
+    });
+  };
 
   const resetShapeReplaceMode = ({ showShapeCatalog = false } = {}) => {
     setShapeCatalogMode("add");
@@ -993,7 +1012,7 @@ export default function ConstructorPage({ onBack, products }) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [activeLayer, activeShapeLayer, activeTab, copyActiveLayer, duplicateActiveLayer, layers, pasteCopiedLayer, redo, removeActiveLayer, selectedLayerIds, undo]);
 
-  const previewTopOverlay = showTextQuickToolbar ? (
+  const previewToolbar = showTextQuickToolbar ? (
     <TextQuickToolbar
       activeTextToolPanel={activeTextToolPanel}
       textToolPanelVisible={textToolPanelVisible}
@@ -1149,7 +1168,10 @@ export default function ConstructorPage({ onBack, products }) {
           </div>
 
           <div style={{ minWidth: 0, position: "relative", alignSelf: "start" }}>
-            <ConstructorPreviewPanel side={side} onSideChange={handleSideChange} topOverlay={previewTopOverlay} previewSrc={previewSrc} productName={product.name} color={color} printAreaRef={printAreaRef} printArea={printArea} layers={sideLayers} activeLayerId={activeLayerId} selectedLayerIds={selectedLayerIds} draggingLayerId={draggingLayerId} activeSnapGuides={activeSnapGuides} editingTextLayerId={editingTextLayerId} onLayerPointerDown={handlePreviewLayerPointerDown} onLayerEditOpen={handleLayerEditOpen} onPreviewBackgroundPointerDown={handlePreviewBackgroundPointerDown} onMarqueeSelectLayerIds={handlePreviewMarqueeSelectLayerIds} onActiveTextValueChange={setTextValue} onEditingTextLayerChange={setEditingTextLayerId} onLayerResize={applyLayerResize} onActiveTextMetricsChange={setActiveTextMetricsCm} onRemoveLayer={handleRemoveLayer} getShapeByKey={getShapeByKey} getTextGradientByKey={getConstructorTextGradient} />
+            <div style={{ minHeight: PREVIEW_TOOLBAR_SLOT_MIN_HEIGHT, marginBottom: 14, display: "flex", alignItems: "flex-start", justifyContent: "stretch" }}>
+              {previewToolbar ? <div style={{ width: "100%" }}>{previewToolbar}</div> : null}
+            </div>
+            <ConstructorPreviewPanel side={side} onSideChange={handleSideChange} previewSrc={previewSrc} productName={product.name} color={color} printAreaRef={printAreaRef} textLayerNodesRef={textLayerNodesRef} printArea={printArea} layers={sideLayers} activeLayerId={activeLayerId} selectedLayerIds={selectedLayerIds} draggingLayerId={draggingLayerId} activeSnapGuides={activeSnapGuides} editingTextLayerId={editingTextLayerId} onLayerPointerDown={handlePreviewLayerPointerDown} onLayerEditOpen={handleLayerEditOpen} onPreviewBackgroundPointerDown={handlePreviewBackgroundPointerDown} onMarqueeSelectLayerIds={handlePreviewMarqueeSelectLayerIds} onActiveTextValueChange={setTextValue} onEditingTextLayerChange={setEditingTextLayerId} onLayerResize={applyLayerResize} onActiveTextMetricsChange={setActiveTextMetricsCm} onRuntimeTextLayerBoundsChange={handleRuntimeTextLayerBoundsChange} onRemoveLayer={handleRemoveLayer} getShapeByKey={getShapeByKey} getTextGradientByKey={getConstructorTextGradient} />
           </div>
 
           <ConstructorOrderPanel currentTotal={currentTotal} orderMeta={orderMeta} canSubmitOrder={canSubmitOrder} telegramLink={telegramLink} />

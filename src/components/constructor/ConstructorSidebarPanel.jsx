@@ -1450,9 +1450,6 @@ export default function ConstructorSidebarPanel({
                     </label>
                     {textShadowEnabled ? (
                       <>
-                        <div style={{ fontSize: 12, lineHeight: 1.5, color: "rgba(240,238,245,.42)" }}>
-                          Мягкая тень остаётся с blur и более плавным краем.
-                        </div>
                         {renderFreeColorControl({ fieldKey: "shadow", value: textShadowColor, onChange: onTextShadowColorChange, helperText: "Выберите цвет тени через палитру или введите HEX-код." })}
                         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                           <span style={{ width: 22, fontSize: 13, color: "rgba(240,238,245,.48)" }}>X</span>

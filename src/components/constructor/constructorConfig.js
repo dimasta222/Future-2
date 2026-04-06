@@ -181,13 +181,38 @@ export function resolveConstructorMockupSrc(printAreas, side = "front", size = "
   return resolvedMockupSrc;
 }
 
+export const CONSTRUCTOR_SIZE_GUIDES = {
+  oversize: [
+    { size: "XS", chest: 49, length: 65 },
+    { size: "S", chest: 52, length: 67 },
+    { size: "M", chest: 55, length: 69 },
+    { size: "L", chest: 58, length: 71 },
+    { size: "XL", chest: 61, length: 73 },
+    { size: "2XL", chest: 64, length: 75 },
+    { size: "3XL", chest: 67, length: 77 },
+  ],
+  classic: [
+    { size: "XS", chest: 49, length: 65 },
+    { size: "S", chest: 52, length: 67 },
+    { size: "M", chest: 55, length: 69 },
+    { size: "L", chest: 58, length: 71 },
+    { size: "XL", chest: 61, length: 73 },
+    { size: "2XL", chest: 64, length: 75 },
+    { size: "3XL", chest: 67, length: 77 },
+  ],
+};
+
 export const CONSTRUCTOR_TABS = [
   { key: "textile", label: "Текстиль" },
-  { key: "text", label: "Текст" },
-  { key: "shapes", label: "Фигуры" },
   { key: "upload", label: "Загрузить" },
   { key: "layers", label: "Слои" },
+  { key: "text", label: "Текст" },
+  { key: "shapes", label: "Фигуры" },
 ];
+
+export function getConstructorSizeGuide(model) {
+  return CONSTRUCTOR_SIZE_GUIDES[model] || null;
+}
 
 export const CONSTRUCTOR_TEXT_FONTS = [
   { key: "outfit", label: "Outfit", family: "'Outfit', sans-serif", group: "sans", supportsBold: true, supportsItalic: false, regularWeight: 500, boldWeight: 800 },

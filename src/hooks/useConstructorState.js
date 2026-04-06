@@ -966,24 +966,24 @@ export default function useConstructorState({
       baseWidthPx,
       baseHeightPx,
     });
-    const normalizedRotationDeg = normalizeRotationDeg(layer.rotationDeg ?? 0);
-    const rotationRadians = (normalizedRotationDeg * Math.PI) / 180;
-    const rotatedWidthPx = normalizedRotationDeg
-      ? (Math.abs(frameMetrics.frameWidthPx * Math.cos(rotationRadians)) + Math.abs(frameMetrics.frameHeightPx * Math.sin(rotationRadians)))
-      : frameMetrics.frameWidthPx;
-    const rotatedHeightPx = normalizedRotationDeg
-      ? (Math.abs(frameMetrics.frameWidthPx * Math.sin(rotationRadians)) + Math.abs(frameMetrics.frameHeightPx * Math.cos(rotationRadians)))
-      : frameMetrics.frameHeightPx;
 
     return {
-      widthCm: Number((rotatedWidthPx / LOGICAL_PRINT_PX_PER_CM).toFixed(3)),
-      heightCm: Number((rotatedHeightPx / LOGICAL_PRINT_PX_PER_CM).toFixed(3)),
+      widthCm: Number((frameMetrics.frameWidthPx / LOGICAL_PRINT_PX_PER_CM).toFixed(3)),
+      heightCm: Number((frameMetrics.frameHeightPx / LOGICAL_PRINT_PX_PER_CM).toFixed(3)),
     };
   };
   const resolveOrderLayerBoundsPx = (layer, areaMetrics) => {
     if (layer?.type === "upload") {
-      const widthPx = Math.max(0, (Number(layer.widthCm) || 0) * LOGICAL_PRINT_PX_PER_CM);
-      const heightPx = Math.max(0, (Number(layer.heightCm) || 0) * LOGICAL_PRINT_PX_PER_CM);
+      const baseWidthPx = Math.max(0, (Number(layer.widthCm) || 0) * LOGICAL_PRINT_PX_PER_CM);
+      const baseHeightPx = Math.max(0, (Number(layer.heightCm) || 0) * LOGICAL_PRINT_PX_PER_CM);
+      const rotDeg = normalizeRotationDeg(layer.rotationDeg ?? 0);
+      const rotRad = (rotDeg * Math.PI) / 180;
+      const widthPx = rotDeg
+        ? (Math.abs(baseWidthPx * Math.cos(rotRad)) + Math.abs(baseHeightPx * Math.sin(rotRad)))
+        : baseWidthPx;
+      const heightPx = rotDeg
+        ? (Math.abs(baseWidthPx * Math.sin(rotRad)) + Math.abs(baseHeightPx * Math.cos(rotRad)))
+        : baseHeightPx;
       const centerXPx = ((Number(layer.position?.x) || 50) / 100) * areaMetrics.areaWidthPx;
       const centerYPx = ((Number(layer.position?.y) || 50) / 100) * areaMetrics.areaHeightPx;
 
@@ -1055,6 +1055,19 @@ export default function useConstructorState({
         left = boxRight - widthPx;
       }
 
+      const textRotDeg = normalizeRotationDeg(layer.rotationDeg ?? 0);
+      if (textRotDeg) {
+        const textRotRad = (textRotDeg * Math.PI) / 180;
+        const aabbW = Math.abs(widthPx * Math.cos(textRotRad)) + Math.abs(heightPx * Math.sin(textRotRad));
+        const aabbH = Math.abs(widthPx * Math.sin(textRotRad)) + Math.abs(heightPx * Math.cos(textRotRad));
+        return {
+          left: centerXPx - (aabbW / 2),
+          right: centerXPx + (aabbW / 2),
+          top: centerYPx - (aabbH / 2),
+          bottom: centerYPx + (aabbH / 2),
+        };
+      }
+
       return {
         left,
         right,
@@ -1070,8 +1083,16 @@ export default function useConstructorState({
     const visualMetricsCm = getShapeVisualMetricsCm(layer, getLayerSide(layer));
     if (!visualMetricsCm) return null;
 
-    const widthPx = Number(visualMetricsCm.widthCm) * LOGICAL_PRINT_PX_PER_CM;
-    const heightPx = Number(visualMetricsCm.heightCm) * LOGICAL_PRINT_PX_PER_CM;
+    const baseWidthPx = Number(visualMetricsCm.widthCm) * LOGICAL_PRINT_PX_PER_CM;
+    const baseHeightPx = Number(visualMetricsCm.heightCm) * LOGICAL_PRINT_PX_PER_CM;
+    const shapeRotDeg = normalizeRotationDeg(layer.rotationDeg ?? 0);
+    const shapeRotRad = (shapeRotDeg * Math.PI) / 180;
+    const widthPx = shapeRotDeg
+      ? (Math.abs(baseWidthPx * Math.cos(shapeRotRad)) + Math.abs(baseHeightPx * Math.sin(shapeRotRad)))
+      : baseWidthPx;
+    const heightPx = shapeRotDeg
+      ? (Math.abs(baseWidthPx * Math.sin(shapeRotRad)) + Math.abs(baseHeightPx * Math.cos(shapeRotRad)))
+      : baseHeightPx;
     const centerXPx = ((Number(layer.position?.x) || 50) / 100) * areaMetrics.areaWidthPx;
     const centerYPx = ((Number(layer.position?.y) || 50) / 100) * areaMetrics.areaHeightPx;
 
@@ -1165,8 +1186,16 @@ export default function useConstructorState({
   };
   const resolveOrderLayerBoundsCm = (layer, areaMetrics) => {
     if (layer?.type === "upload") {
-      const widthCm = Math.max(0, Number(layer.widthCm) || 0);
-      const heightCm = Math.max(0, Number(layer.heightCm) || 0);
+      const baseW = Math.max(0, Number(layer.widthCm) || 0);
+      const baseH = Math.max(0, Number(layer.heightCm) || 0);
+      const rotDeg = normalizeRotationDeg(layer.rotationDeg ?? 0);
+      let widthCm = baseW;
+      let heightCm = baseH;
+      if (rotDeg) {
+        const rotRad = (rotDeg * Math.PI) / 180;
+        widthCm = Math.abs(baseW * Math.cos(rotRad)) + Math.abs(baseH * Math.sin(rotRad));
+        heightCm = Math.abs(baseW * Math.sin(rotRad)) + Math.abs(baseH * Math.cos(rotRad));
+      }
       const centerXCm = ((Number(layer.position?.x) || 50) / 100) * areaMetrics.areaWidthCm;
       const centerYCm = ((Number(layer.position?.y) || 50) / 100) * areaMetrics.areaHeightCm;
 
@@ -1205,6 +1234,21 @@ export default function useConstructorState({
       const top = centerYCm - (rawContentHeightCm / 2);
       const bottom = centerYCm + (rawContentHeightCm / 2);
 
+      const rotDeg = normalizeRotationDeg(layer.rotationDeg ?? 0);
+      if (rotDeg) {
+        const contentW = right - left;
+        const contentH = bottom - top;
+        const rotRad = (rotDeg * Math.PI) / 180;
+        const aabbW = Math.abs(contentW * Math.cos(rotRad)) + Math.abs(contentH * Math.sin(rotRad));
+        const aabbH = Math.abs(contentW * Math.sin(rotRad)) + Math.abs(contentH * Math.cos(rotRad));
+        return clampBoundsCmToPrintArea({
+          left: centerXCm - (aabbW / 2),
+          right: centerXCm + (aabbW / 2),
+          top: centerYCm - (aabbH / 2),
+          bottom: centerYCm + (aabbH / 2),
+        }, areaMetrics);
+      }
+
       return clampBoundsCmToPrintArea({
         left,
         right,
@@ -1220,10 +1264,18 @@ export default function useConstructorState({
     const visualMetricsCm = getShapeVisualMetricsCm(layer, getLayerSide(layer));
     if (!visualMetricsCm) return null;
 
-    const widthCm = Math.max(0, Number(visualMetricsCm.widthCm) || 0);
-    const heightCm = Math.max(0, Number(visualMetricsCm.heightCm) || 0);
-    if (widthCm <= 0 || heightCm <= 0) return null;
+    const baseW = Math.max(0, Number(visualMetricsCm.widthCm) || 0);
+    const baseH = Math.max(0, Number(visualMetricsCm.heightCm) || 0);
+    if (baseW <= 0 || baseH <= 0) return null;
 
+    const rotDeg = normalizeRotationDeg(layer.rotationDeg ?? 0);
+    const rotRad = (rotDeg * Math.PI) / 180;
+    const widthCm = rotDeg
+      ? (Math.abs(baseW * Math.cos(rotRad)) + Math.abs(baseH * Math.sin(rotRad)))
+      : baseW;
+    const heightCm = rotDeg
+      ? (Math.abs(baseW * Math.sin(rotRad)) + Math.abs(baseH * Math.cos(rotRad)))
+      : baseH;
     const centerXCm = ((Number(layer.position?.x) || 50) / 100) * areaMetrics.areaWidthCm;
     const centerYCm = ((Number(layer.position?.y) || 50) / 100) * areaMetrics.areaHeightCm;
 
@@ -1236,9 +1288,19 @@ export default function useConstructorState({
   };
   const resolveSingleLayerSizeCm = (layer, areaMetrics) => {
     if (layer?.type === "upload") {
+      const baseW = Number(layer.widthCm) || 0;
+      const baseH = Number(layer.heightCm) || 0;
+      const rotDeg = normalizeRotationDeg(layer.rotationDeg ?? 0);
+      if (rotDeg) {
+        const rotRad = (rotDeg * Math.PI) / 180;
+        return {
+          widthCm: Number((Math.abs(baseW * Math.cos(rotRad)) + Math.abs(baseH * Math.sin(rotRad))).toFixed(1)),
+          heightCm: Number((Math.abs(baseW * Math.sin(rotRad)) + Math.abs(baseH * Math.cos(rotRad))).toFixed(1)),
+        };
+      }
       return {
-        widthCm: Number((Number(layer.widthCm) || 0).toFixed(1)),
-        heightCm: Number((Number(layer.heightCm) || 0).toFixed(1)),
+        widthCm: Number(baseW.toFixed(1)),
+        heightCm: Number(baseH.toFixed(1)),
       };
     }
 
@@ -1246,9 +1308,19 @@ export default function useConstructorState({
       const textMetricsCm = getTextVisualMetricsCm(layer, areaMetrics);
       if (!textMetricsCm) return null;
 
+      const rawW = Math.max(0, textMetricsCm.rawContentWidthCm);
+      const rawH = Math.max(0, textMetricsCm.rawContentHeightCm);
+      const rotDeg = normalizeRotationDeg(layer.rotationDeg ?? 0);
+      if (rotDeg) {
+        const rotRad = (rotDeg * Math.PI) / 180;
+        return {
+          widthCm: Number((Math.abs(rawW * Math.cos(rotRad)) + Math.abs(rawH * Math.sin(rotRad))).toFixed(1)),
+          heightCm: Number((Math.abs(rawW * Math.sin(rotRad)) + Math.abs(rawH * Math.cos(rotRad))).toFixed(1)),
+        };
+      }
       return {
-        widthCm: Number(Math.max(0, textMetricsCm.rawContentWidthCm).toFixed(1)),
-        heightCm: Number(Math.max(0, textMetricsCm.rawContentHeightCm).toFixed(1)),
+        widthCm: Number(rawW.toFixed(1)),
+        heightCm: Number(rawH.toFixed(1)),
       };
     }
 
@@ -1260,9 +1332,19 @@ export default function useConstructorState({
       const visualMetricsCm = getShapeVisualMetricsCm(layer, getLayerSide(layer));
       if (!visualMetricsCm) return null;
 
+      const baseW = Number(visualMetricsCm.widthCm) || 0;
+      const baseH = Number(visualMetricsCm.heightCm) || 0;
+      const rotDeg = normalizeRotationDeg(layer.rotationDeg ?? 0);
+      if (rotDeg) {
+        const rotRad = (rotDeg * Math.PI) / 180;
+        return {
+          widthCm: Number((Math.abs(baseW * Math.cos(rotRad)) + Math.abs(baseH * Math.sin(rotRad))).toFixed(1)),
+          heightCm: Number((Math.abs(baseW * Math.sin(rotRad)) + Math.abs(baseH * Math.cos(rotRad))).toFixed(1)),
+        };
+      }
       return {
-        widthCm: Number((Number(visualMetricsCm.widthCm) || 0).toFixed(1)),
-        heightCm: Number((Number(visualMetricsCm.heightCm) || 0).toFixed(1)),
+        widthCm: Number(baseW.toFixed(1)),
+        heightCm: Number(baseH.toFixed(1)),
       };
     }
 
@@ -1505,6 +1587,7 @@ export default function useConstructorState({
     shadowBlur: 14,
     scaleX: 1,
     scaleY: 1,
+    rotationDeg: 0,
     side: overrides.side || side,
     position: getLayerDefaultPosition("text"),
     ...overrides,
@@ -1542,6 +1625,8 @@ export default function useConstructorState({
       rotationDeg: 0,
       widthCm: defaultDimensions.widthCm,
       heightCm: defaultDimensions.heightCm,
+      desiredWidthCm: defaultDimensions.widthCm,
+      desiredHeightCm: defaultDimensions.heightCm,
       side: resolvedSide,
       position: getLayerDefaultPosition("shape"),
       ...overrides,
@@ -1593,6 +1678,9 @@ export default function useConstructorState({
       renderFrame: overrides.renderFrame || null,
       widthCm: defaultDimensions.widthCm,
       heightCm: defaultDimensions.heightCm,
+      desiredWidthCm: defaultDimensions.widthCm,
+      desiredHeightCm: defaultDimensions.heightCm,
+      rotationDeg: 0,
       side: resolvedSide,
       position: overrides.position || defaultUploadPosition,
       ...overrides,
@@ -1670,8 +1758,16 @@ export default function useConstructorState({
       const heightCm = resolvedLayer.heightCm;
       if (!widthCm || !heightCm) return null;
       const pxPerCm = areaWidth / Math.max(0.001, areaWidthCm);
-      const width = Math.min(areaWidth, widthCm * pxPerCm);
-      const height = Math.min(areaHeight, heightCm * pxPerCm);
+      const baseWidth = Math.min(areaWidth, widthCm * pxPerCm);
+      const baseHeight = Math.min(areaHeight, heightCm * pxPerCm);
+      const normalizedRotationDeg = normalizeRotationDeg(resolvedLayer.rotationDeg ?? 0);
+      const rotationRadians = (normalizedRotationDeg * Math.PI) / 180;
+      const width = normalizedRotationDeg
+        ? (Math.abs(baseWidth * Math.cos(rotationRadians)) + Math.abs(baseHeight * Math.sin(rotationRadians)))
+        : baseWidth;
+      const height = normalizedRotationDeg
+        ? (Math.abs(baseWidth * Math.sin(rotationRadians)) + Math.abs(baseHeight * Math.cos(rotationRadians)))
+        : baseHeight;
       return { areaWidth, areaHeight, width, height };
     }
 
@@ -1750,11 +1846,19 @@ export default function useConstructorState({
     const contentHeight = hasVisibleText
       ? Math.min(areaHeight, Math.max(1, contentMetrics.contentHeightPx + visualPadding.topPaddingPx + visualPadding.bottomPaddingPx))
       : Math.max(1, (resolvedLayer.size ?? 36) * (resolvedLayer.lineHeight ?? DEFAULT_TEXT_LINE_HEIGHT));
+    const textRotationDeg = normalizeRotationDeg(resolvedLayer.rotationDeg ?? 0);
+    const textRotationRad = (textRotationDeg * Math.PI) / 180;
+    const rotatedContentWidth = textRotationDeg
+      ? (Math.abs(contentWidth * Math.cos(textRotationRad)) + Math.abs(contentHeight * Math.sin(textRotationRad)))
+      : contentWidth;
+    const rotatedContentHeight = textRotationDeg
+      ? (Math.abs(contentWidth * Math.sin(textRotationRad)) + Math.abs(contentHeight * Math.cos(textRotationRad)))
+      : contentHeight;
     return {
       areaWidth,
       areaHeight,
-      width: contentWidth,
-      height: contentHeight,
+      width: rotatedContentWidth,
+      height: rotatedContentHeight,
       boxWidth,
       contentWidth,
       contentHeight,
@@ -1990,11 +2094,32 @@ export default function useConstructorState({
     pushHistoryCheckpoint();
     const nextWidthCm = Number(event.target.value);
     const nextDimensions = getUploadDimensionsFromWidthCm(activeUploadLayer, nextWidthCm);
-    updateLayer(activeUploadLayer.id, (layer) => ({
-      ...layer,
-      ...nextDimensions,
-      position: clampLayerPosition(layer.position, { ...layer, ...nextDimensions }, getLayerMetrics(layer, nextDimensions)),
-    }));
+    updateLayer(activeUploadLayer.id, (layer) => {
+      let w = nextDimensions.widthCm;
+      let h = nextDimensions.heightCm;
+      const rotDeg = normalizeRotationDeg(layer.rotationDeg ?? 0);
+      if (rotDeg) {
+        const { widthCm: maxW, heightCm: maxH } = getPhysicalPrintArea(getLayerSide(layer));
+        const rotRad = (rotDeg * Math.PI) / 180;
+        const cosA = Math.abs(Math.cos(rotRad));
+        const sinA = Math.abs(Math.sin(rotRad));
+        const aabbW = w * cosA + h * sinA;
+        const aabbH = w * sinA + h * cosA;
+        if (aabbW > maxW || aabbH > maxH) {
+          const fitScale = Math.min(maxW / aabbW, maxH / aabbH);
+          w = Number((w * fitScale).toFixed(3));
+          h = Number((h * fitScale).toFixed(3));
+        }
+      }
+      const dims = { widthCm: w, heightCm: h };
+      return {
+        ...layer,
+        ...dims,
+        desiredWidthCm: w,
+        desiredHeightCm: h,
+        position: clampLayerPosition(layer.position, { ...layer, ...dims }, getLayerMetrics(layer, dims)),
+      };
+    });
   };
 
   const fitUniformLayerToArea = (layer, requestedWidthCm, requestedHeightCm) => {
@@ -2027,14 +2152,17 @@ export default function useConstructorState({
     const heightRatio = nextArea.heightCm / Math.max(0.001, previousArea.heightCm || 1);
 
     if (layer.type === "upload") {
+      const fitted = fitUniformLayerToAreaForSize(
+        layer,
+        (Number(layer.widthCm) || 0) * widthRatio,
+        (Number(layer.heightCm) || 0) * heightRatio,
+        nextSize,
+      );
       return {
         ...layer,
-        ...fitUniformLayerToAreaForSize(
-          layer,
-          (Number(layer.widthCm) || 0) * widthRatio,
-          (Number(layer.heightCm) || 0) * heightRatio,
-          nextSize,
-        ),
+        ...fitted,
+        desiredWidthCm: fitted.widthCm,
+        desiredHeightCm: fitted.heightCm,
       };
     }
 
@@ -2059,6 +2187,8 @@ export default function useConstructorState({
         ...layer,
         widthCm: clampShapeCm(nextDimensions.widthCm, nextArea.widthCm),
         heightCm: clampShapeCm(nextDimensions.heightCm, nextArea.heightCm),
+        desiredWidthCm: clampShapeCm(nextDimensions.widthCm, nextArea.widthCm),
+        desiredHeightCm: clampShapeCm(nextDimensions.heightCm, nextArea.heightCm),
       };
     }
 
@@ -2412,11 +2542,37 @@ export default function useConstructorState({
       const { widthCm: maxWidthCm, heightCm: maxHeightCm } = getPhysicalPrintArea(getLayerSide(layer));
       const nextLayer = { ...layer, ...patch };
 
+      const isRotationOnly = patch.rotationDeg != null && patch.widthCm == null && patch.heightCm == null;
+      const isResizableLayer = (nextLayer.type === "upload" || (nextLayer.type === "shape" && !isLineShapeKey(nextLayer.shapeKey)));
+
+      if (isRotationOnly && isResizableLayer) {
+        const desiredW = nextLayer.desiredWidthCm ?? nextLayer.widthCm;
+        const desiredH = nextLayer.desiredHeightCm ?? nextLayer.heightCm;
+        const rotRad = (normalizeRotationDeg(nextLayer.rotationDeg) * Math.PI) / 180;
+        const cosA = Math.abs(Math.cos(rotRad));
+        const sinA = Math.abs(Math.sin(rotRad));
+        const aabbW = desiredW * cosA + desiredH * sinA;
+        const aabbH = desiredW * sinA + desiredH * cosA;
+        const scale = Math.min(maxWidthCm / aabbW, maxHeightCm / aabbH, 1);
+        nextLayer.widthCm = Number((desiredW * scale).toFixed(3));
+        nextLayer.heightCm = Number((desiredH * scale).toFixed(3));
+        nextLayer.desiredWidthCm = desiredW;
+        nextLayer.desiredHeightCm = desiredH;
+        if (nextLayer.type === "shape") {
+          nextLayer.lineWidthPx = null;
+          nextLayer.lineHeightPx = null;
+        }
+        nextLayer.position = clampLayerPosition(nextLayer.position ?? layer.position, nextLayer, getLayerMetrics(nextLayer));
+        return nextLayer;
+      }
+
       if (nextLayer.type === "upload" || nextLayer.type === "shape") {
         if (nextLayer.type === "upload" && patch.widthCm != null && patch.heightCm != null) {
           const fitted = fitUniformLayerToArea(nextLayer, nextLayer.widthCm, nextLayer.heightCm);
           nextLayer.widthCm = fitted.widthCm;
           nextLayer.heightCm = fitted.heightCm;
+          nextLayer.desiredWidthCm = fitted.widthCm;
+          nextLayer.desiredHeightCm = fitted.heightCm;
         } else if (nextLayer.type === "shape") {
           if (isLineShapeKey(nextLayer.shapeKey)) {
             const normalizedLineLayer = normalizeLineShapeLayer(nextLayer, getLayerSide(nextLayer));
@@ -2429,10 +2585,34 @@ export default function useConstructorState({
             nextLayer.lineHeightPx = null;
             nextLayer.widthCm = clampShapeCm(nextLayer.widthCm ?? layer.widthCm ?? 1, maxWidthCm);
             nextLayer.heightCm = clampShapeCm(nextLayer.heightCm ?? layer.heightCm ?? 1, maxHeightCm);
+            if (patch.widthCm != null || patch.heightCm != null) {
+              nextLayer.desiredWidthCm = nextLayer.widthCm;
+              nextLayer.desiredHeightCm = nextLayer.heightCm;
+            }
           }
         } else {
           nextLayer.widthCm = clampCm(nextLayer.widthCm ?? layer.widthCm ?? 1, maxWidthCm);
           nextLayer.heightCm = clampCm(nextLayer.heightCm ?? layer.heightCm ?? 1, maxHeightCm);
+          if (patch.widthCm != null || patch.heightCm != null) {
+            nextLayer.desiredWidthCm = nextLayer.widthCm;
+            nextLayer.desiredHeightCm = nextLayer.heightCm;
+          }
+        }
+
+        const resizeRotDeg = normalizeRotationDeg(nextLayer.rotationDeg ?? 0);
+        if (resizeRotDeg && isResizableLayer) {
+          const rotRad = (resizeRotDeg * Math.PI) / 180;
+          const cosA = Math.abs(Math.cos(rotRad));
+          const sinA = Math.abs(Math.sin(rotRad));
+          const aabbW = nextLayer.widthCm * cosA + nextLayer.heightCm * sinA;
+          const aabbH = nextLayer.widthCm * sinA + nextLayer.heightCm * cosA;
+          if (aabbW > maxWidthCm || aabbH > maxHeightCm) {
+            const fitScale = Math.min(maxWidthCm / aabbW, maxHeightCm / aabbH);
+            nextLayer.widthCm = Number((nextLayer.widthCm * fitScale).toFixed(3));
+            nextLayer.heightCm = Number((nextLayer.heightCm * fitScale).toFixed(3));
+            nextLayer.desiredWidthCm = nextLayer.widthCm;
+            nextLayer.desiredHeightCm = nextLayer.heightCm;
+          }
         }
       }
 
@@ -2625,6 +2805,25 @@ export default function useConstructorState({
           ...layer,
           ...getShapeDimensionsFromWidthCm(activeShapeLayer.shapeKey, nextWidthCm, layerSide),
         };
+
+      if (!isLineShapeKey(layer.shapeKey)) {
+        const rotDeg = normalizeRotationDeg(nextLayer.rotationDeg ?? 0);
+        if (rotDeg) {
+          const { widthCm: maxW, heightCm: maxH } = getPhysicalPrintArea(layerSide);
+          const rotRad = (rotDeg * Math.PI) / 180;
+          const cosA = Math.abs(Math.cos(rotRad));
+          const sinA = Math.abs(Math.sin(rotRad));
+          const aabbW = nextLayer.widthCm * cosA + nextLayer.heightCm * sinA;
+          const aabbH = nextLayer.widthCm * sinA + nextLayer.heightCm * cosA;
+          if (aabbW > maxW || aabbH > maxH) {
+            const fitScale = Math.min(maxW / aabbW, maxH / aabbH);
+            nextLayer.widthCm = Number((nextLayer.widthCm * fitScale).toFixed(3));
+            nextLayer.heightCm = Number((nextLayer.heightCm * fitScale).toFixed(3));
+          }
+        }
+        nextLayer.desiredWidthCm = nextLayer.widthCm;
+        nextLayer.desiredHeightCm = nextLayer.heightCm;
+      }
 
       return {
         ...nextLayer,

@@ -303,6 +303,11 @@ function snapEdgeToGuides(edgePx, guidePositions, thresholdPx = RESIZE_SNAP_THRE
   return best;
 }
 
+function normalizeRotationDeg(value) {
+  const n = Number(value) || 0;
+  return ((n % 360) + 360) % 360;
+}
+
 
 export default function ConstructorPreviewPanel({
   side,
@@ -333,6 +338,7 @@ export default function ConstructorPreviewPanel({
   getCombinedSnapGuidesPx,
 }) {
   const [resizingLayerId, setResizingLayerId] = useState(null);
+  const [rotatingLayerId, setRotatingLayerId] = useState(null);
   const [hoveredLayerId, setHoveredLayerId] = useState(null);
   const [marqueeSelection, setMarqueeSelection] = useState(null);
   const [printAreaPixelSize, setPrintAreaPixelSize] = useState({ width: 0, height: 0 });
@@ -429,8 +435,13 @@ export default function ConstructorPreviewPanel({
       }
 
       const textLayerBounds = textLayerNode.getBoundingClientRect();
-      const boxWidthPx = Number(textLayerBounds.width.toFixed(2));
-      const boxHeightPx = Number(Math.max(textLayerBounds.height, 1).toFixed(2));
+      const textRotDeg = normalizeRotationDeg(Number(activeTextLayer.rotationDeg) || 0);
+      const boxWidthPx = textRotDeg
+        ? Number((printAreaBounds.width * (Math.min(100, Math.max(1, activeTextLayer.textBoxWidth ?? 88)) / 100)).toFixed(2))
+        : Number(textLayerBounds.width.toFixed(2));
+      const boxHeightPx = textRotDeg
+        ? Number(Math.max(textLayerBounds.height, 1).toFixed(2))
+        : Number(Math.max(textLayerBounds.height, 1).toFixed(2));
       const layerFont = getConstructorTextFont(activeTextLayer.fontKey);
       const fontWeight = layerFont.supportsBold ? activeTextLayer.weight : (layerFont.regularWeight ?? 400);
       const fontStyle = layerFont.supportsItalic && activeTextLayer.italic ? "italic" : "normal";
@@ -500,6 +511,7 @@ export default function ConstructorPreviewPanel({
     activeTextLayer?.uppercase,
     activeTextLayer?.strokeWidth,
     activeTextLayer?.textAlign,
+    activeTextLayer?.rotationDeg,
     editingTextLayerId,
     onActiveTextMetricsChange,
     physicalHeightCm,
@@ -676,6 +688,7 @@ export default function ConstructorPreviewPanel({
     const startWidthCm = layer.widthCm ?? 0;
     const startHeightCm = layer.heightCm ?? 0;
     const initialShapeRenderFrame = layer.type === "shape" ? getShapeRenderFrame(layer) : null;
+    const layerRotationDeg = Number(layer.rotationDeg) || 0;
     let startRenderedWidth = layerBounds.width;
     let startRenderedHeight = layerBounds.height;
     let startBoundsLeft = layerBounds.left - printAreaBounds.left;
@@ -692,6 +705,20 @@ export default function ConstructorPreviewPanel({
       startBoundsTop = centerY - (startRenderedHeight / 2);
       startBoundsRight = startBoundsLeft + startRenderedWidth;
       startBoundsBottom = startBoundsTop + startRenderedHeight;
+    } else if (layerRotationDeg) {
+      const centerX = (layer.position.x / 100) * printAreaBounds.width;
+      const centerY = (layer.position.y / 100) * printAreaBounds.height;
+      if (initialShapeRenderFrame) {
+        startRenderedWidth = initialShapeRenderFrame.frameMetrics.frameWidthPx;
+        startRenderedHeight = initialShapeRenderFrame.frameMetrics.frameHeightPx;
+      } else {
+        startRenderedWidth = layerNode.offsetWidth;
+        startRenderedHeight = layerNode.offsetHeight;
+      }
+      startBoundsLeft = centerX - (startRenderedWidth / 2);
+      startBoundsTop = centerY - (startRenderedHeight / 2);
+      startBoundsRight = centerX + (startRenderedWidth / 2);
+      startBoundsBottom = centerY + (startRenderedHeight / 2);
     }
 
     const startTextBoxWidthPercent = ((startRenderedWidth / printAreaBounds.width) * 100) || (layer.textBoxWidth ?? 88);
@@ -714,7 +741,7 @@ export default function ConstructorPreviewPanel({
       logicalPrintAreaWidthPx: initialShapeRenderFrame?.logicalPrintAreaWidthPx ?? null,
       logicalPrintAreaHeightPx: initialShapeRenderFrame?.logicalPrintAreaHeightPx ?? null,
       shapeFrameMetrics: initialShapeRenderFrame?.frameMetrics ?? null,
-      rotationDeg: layer.type === "shape" ? Number(layer.rotationDeg) || 0 : 0,
+      rotationDeg: layerRotationDeg,
     };
 
     const snapGuides = getCombinedSnapGuidesPx
@@ -762,10 +789,28 @@ export default function ConstructorPreviewPanel({
 
       setActiveSnapGuides?.(activeGuides);
 
+      const rotationRad = dragState.rotationDeg && !dragState.isLineShape
+        ? (dragState.rotationDeg * Math.PI) / 180
+        : 0;
+
+      let effectiveClientX = snappedClientX;
+      let effectiveClientY = snappedClientY;
+
+      if (rotationRad) {
+        const centerXPx = (dragState.startBoundsLeft + dragState.startBoundsRight) / 2;
+        const centerYPx = (dragState.startBoundsTop + dragState.startBoundsBottom) / 2;
+        const relX = (snappedClientX - printAreaBounds.left) - centerXPx;
+        const relY = (snappedClientY - printAreaBounds.top) - centerYPx;
+        const cosNeg = Math.cos(-rotationRad);
+        const sinNeg = Math.sin(-rotationRad);
+        effectiveClientX = (relX * cosNeg - relY * sinNeg) + centerXPx + printAreaBounds.left;
+        effectiveClientY = (relX * sinNeg + relY * cosNeg) + centerYPx + printAreaBounds.top;
+      }
+
       const patch = resizeLayer({
         layer,
         handle,
-        pointer: { x: snappedClientX, y: snappedClientY },
+        pointer: { x: effectiveClientX, y: effectiveClientY },
         printAreaBounds,
         dragState,
         physicalWidthCm,
@@ -773,6 +818,32 @@ export default function ConstructorPreviewPanel({
       });
 
       if (!patch) return;
+
+      if (rotationRad && patch.position) {
+        const cosR = Math.cos(rotationRad);
+        const sinR = Math.sin(rotationRad);
+        const oldCenterXPx = (dragState.startBoundsLeft + dragState.startBoundsRight) / 2;
+        const oldCenterYPx = (dragState.startBoundsTop + dragState.startBoundsBottom) / 2;
+        const halfStartW = dragState.startRenderedWidth / 2;
+        const halfStartH = dragState.startRenderedHeight / 2;
+        const ax = handle.x !== 0 ? -handle.x : 0;
+        const ay = handle.y !== 0 ? -handle.y : 0;
+        const anchorLocalX = ax * halfStartW;
+        const anchorLocalY = ay * halfStartH;
+        const anchorScreenX = oldCenterXPx + cosR * anchorLocalX - sinR * anchorLocalY;
+        const anchorScreenY = oldCenterYPx + sinR * anchorLocalX + cosR * anchorLocalY;
+        const newCenterXPx = (patch.position.x / 100) * printAreaBounds.width;
+        const newCenterYPx = (patch.position.y / 100) * printAreaBounds.height;
+        const newAnchorLocalX = anchorLocalX - (newCenterXPx - oldCenterXPx);
+        const newAnchorLocalY = anchorLocalY - (newCenterYPx - oldCenterYPx);
+        const correctedX = anchorScreenX - (cosR * newAnchorLocalX - sinR * newAnchorLocalY);
+        const correctedY = anchorScreenY - (sinR * newAnchorLocalX + cosR * newAnchorLocalY);
+        patch.position = {
+          x: (correctedX / printAreaBounds.width) * 100,
+          y: (correctedY / printAreaBounds.height) * 100,
+        };
+      }
+
       onLayerResize(layer.id, patch);
     };
 
@@ -842,6 +913,93 @@ export default function ConstructorPreviewPanel({
     });
 
     return buttons;
+  };
+
+  const handleRotationPointerDown = (layer, event) => {
+    if (layer.locked || layer.id !== activeLayerId || !printAreaRef.current || !onLayerResize) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const pointerId = event.pointerId;
+    const node = event.currentTarget;
+    const layerNode = node.parentElement;
+    if (!layerNode) return;
+
+    const layerBounds = layerNode.getBoundingClientRect();
+    const centerX = layerBounds.left + layerBounds.width / 2;
+    const centerY = layerBounds.top + layerBounds.height / 2;
+    const startRotationDeg = normalizeRotationDeg(Number(layer.rotationDeg) || 0);
+    const startAngleRad = Math.atan2(event.clientY - centerY, event.clientX - centerX);
+
+    setRotatingLayerId(layer.id);
+    node.setPointerCapture?.(pointerId);
+
+    const handlePointerMove = (moveEvent) => {
+      if (moveEvent.pointerId !== pointerId) return;
+      moveEvent.preventDefault();
+      const currentAngleRad = Math.atan2(moveEvent.clientY - centerY, moveEvent.clientX - centerX);
+      const deltaRad = currentAngleRad - startAngleRad;
+      const deltaDeg = deltaRad * (180 / Math.PI);
+      let nextDeg = normalizeRotationDeg(startRotationDeg + deltaDeg);
+      const snapAngles = [0, 45, 90, 135, 180, 225, 270, 315];
+      for (const snap of snapAngles) {
+        if (Math.abs(nextDeg - snap) < 3) { nextDeg = snap; break; }
+      }
+      onLayerResize(layer.id, { rotationDeg: nextDeg });
+    };
+
+    const stopRotating = (endEvent) => {
+      if (endEvent.pointerId !== pointerId) return;
+      setRotatingLayerId(null);
+      node.releasePointerCapture?.(pointerId);
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", stopRotating);
+      window.removeEventListener("pointercancel", stopRotating);
+    };
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", stopRotating);
+    window.addEventListener("pointercancel", stopRotating);
+  };
+
+  const renderRotationHandle = (layer) => {
+    if (layer.locked || layer.id !== activeLayerId) return null;
+    return (
+      <button
+        key="rotation-handle"
+        type="button"
+        data-constructor-interactive="true"
+        aria-label="Повернуть слой"
+        onPointerDown={(event) => handleRotationPointerDown(layer, event)}
+        style={{
+          position: "absolute",
+          left: "50%",
+          top: "100%",
+          transform: "translateX(-50%)",
+          marginTop: 10,
+          width: 20,
+          height: 20,
+          padding: 0,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          borderRadius: 999,
+          border: "1px solid rgba(255,255,255,.32)",
+          background: rotatingLayerId === layer.id ? "linear-gradient(180deg, rgba(232,67,147,.96), rgba(108,92,231,.96))" : "rgba(15,15,18,.9)",
+          boxShadow: rotatingLayerId === layer.id ? "0 10px 24px rgba(232,67,147,.24)" : "0 8px 18px rgba(0,0,0,.22)",
+          cursor: "grab",
+          pointerEvents: "auto",
+          touchAction: "none",
+          zIndex: 3,
+        }}
+      >
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.82)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 12a9 9 0 1 1-3-6.7" />
+          <polyline points="21 3 21 9 15 9" />
+        </svg>
+      </button>
+    );
   };
 
   const handlePreviewBackgroundPointerDown = (event) => {
@@ -995,10 +1153,11 @@ export default function ConstructorPreviewPanel({
                   onPointerLeave={() => setHoveredLayerId((currentLayerId) => (currentLayerId === layer.id ? null : currentLayerId))}
                   onPointerDown={(event) => onLayerPointerDown(layer.id, event)}
                   onDoubleClick={() => onLayerEditOpen(layer.id)}
-                  style={{ position: "absolute", left: `${layer.position.x}%`, top: `${layer.position.y}%`, transform: "translate(-50%, -50%)", width: layerSize.width, height: layerSize.height, maxWidth: "100%", maxHeight: "100%", pointerEvents: "auto", cursor: layer.locked ? "default" : dragging ? "grabbing" : "grab", touchAction: "none", boxShadow: frameStyle, borderRadius: 0, zIndex: index + 1, overflow: "visible" }}
+                  style={{ position: "absolute", left: `${layer.position.x}%`, top: `${layer.position.y}%`, transform: `translate(-50%, -50%)${layer.rotationDeg ? ` rotate(${layer.rotationDeg}deg)` : ""}`, width: layerSize.width, height: layerSize.height, maxWidth: "100%", maxHeight: "100%", pointerEvents: "auto", cursor: layer.locked ? "default" : dragging ? "grabbing" : "grab", touchAction: "none", boxShadow: frameStyle, borderRadius: 0, zIndex: index + 1, overflow: "visible" }}
                 >
                   <img src={layer.src} alt={layer.uploadName} draggable={false} style={{ position: "absolute", left: `${uploadFrame.innerOffsetXPercent}%`, top: `${uploadFrame.innerOffsetYPercent}%`, width: `${uploadFrame.innerWidthPercent}%`, height: `${uploadFrame.innerHeightPercent}%`, maxWidth: "none", maxHeight: "none", objectFit: "fill", display: "block", filter: "drop-shadow(0 12px 24px rgba(0,0,0,.24))", userSelect: "none", WebkitUserDrag: "none", pointerEvents: "none" }} />
                   {renderResizeHandles(layer)}
+                  {renderRotationHandle(layer)}
                 </div>
               );
             }
@@ -1147,6 +1306,7 @@ export default function ConstructorPreviewPanel({
                     />
                   </div>
                   {renderResizeHandles(layer, isLineShape ? { handleKeys: LINE_SHAPE_HANDLE_KEYS, handleStyleOverrides: lineHandleStyleOverrides } : undefined)}
+                  {!isLineShape && renderRotationHandle(layer)}
                 </div>
               );
             }
@@ -1201,7 +1361,7 @@ export default function ConstructorPreviewPanel({
                   event.stopPropagation();
                   onLayerEditOpen(layer.id);
                 }}
-                style={{ position: "absolute", left: `${layer.position.x}%`, top: `${layer.position.y}%`, transform: "translate(-50%, -50%)", transformOrigin: "center center", width: `${layer.textBoxWidth ?? 88}%`, maxWidth: "100%", minHeight: textMinHeight, padding: `${verticalPad.top}px 0 ${verticalPad.bottom}px ${halfLetterSpacing}px`, textAlign: layer.textAlign || "center", fontSize: `${layer.size}px`, lineHeight: layer.lineHeight ?? 1.05, fontWeight, fontStyle, fontFamily: layer.fontFamily || "'Outfit', sans-serif", color: activeGradient ? "transparent" : layer.color, letterSpacing: `${layer.letterSpacing ?? 1}px`, WebkitTextStroke: (layer.strokeWidth ?? 0) > 0 ? `${layer.strokeWidth}px ${layer.strokeColor || "#111111"}` : "0 transparent", paintOrder: "stroke fill", whiteSpace: "pre-wrap", overflowWrap: "anywhere", wordBreak: "break-word", hyphens: "none", textShadow: textShadowValue, pointerEvents: "auto", cursor: allowTextEditing ? "text" : resizing ? "nwse-resize" : layer.locked ? "default" : dragging ? "grabbing" : "grab", touchAction: allowTextEditing ? "auto" : "none", boxShadow: showTextBoxGuides ? textGuideShadow : frameStyle, borderRadius: 0, outline: "none", outlineOffset: 0, background: "transparent", zIndex: index + 1 }}
+                style={{ position: "absolute", left: `${layer.position.x}%`, top: `${layer.position.y}%`, transform: `translate(-50%, -50%)${layer.rotationDeg ? ` rotate(${layer.rotationDeg}deg)` : ""}`, transformOrigin: "center center", width: `${layer.textBoxWidth ?? 88}%`, maxWidth: "100%", minHeight: textMinHeight, padding: `${verticalPad.top}px 0 ${verticalPad.bottom}px ${halfLetterSpacing}px`, textAlign: layer.textAlign || "center", fontSize: `${layer.size}px`, lineHeight: layer.lineHeight ?? 1.05, fontWeight, fontStyle, fontFamily: layer.fontFamily || "'Outfit', sans-serif", color: activeGradient ? "transparent" : layer.color, letterSpacing: `${layer.letterSpacing ?? 1}px`, WebkitTextStroke: (layer.strokeWidth ?? 0) > 0 ? `${layer.strokeWidth}px ${layer.strokeColor || "#111111"}` : "0 transparent", paintOrder: "stroke fill", whiteSpace: "pre-wrap", overflowWrap: "anywhere", wordBreak: "break-word", hyphens: "none", textShadow: textShadowValue, pointerEvents: "auto", cursor: allowTextEditing ? "text" : resizing ? "nwse-resize" : layer.locked ? "default" : dragging ? "grabbing" : "grab", touchAction: allowTextEditing ? "auto" : "none", boxShadow: showTextBoxGuides ? textGuideShadow : frameStyle, borderRadius: 0, outline: "none", outlineOffset: 0, background: "transparent", zIndex: index + 1 }}
               >
                 {allowTextEditing ? (
                   <div
@@ -1240,6 +1400,7 @@ export default function ConstructorPreviewPanel({
                   </span>
                 ) : null}
                 {showTextBoxGuides ? renderResizeHandles(layer) : null}
+                {renderRotationHandle(layer)}
               </div>
             );
           })}

@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import LogoMini from "../LogoMini.jsx";
+import TshirtSizeGuideTable from "../TshirtSizeGuideTable.jsx";
 import ConstructorOrderPanel from "./ConstructorOrderPanel.jsx";
 import ConstructorPreviewPanel from "./ConstructorPreviewPanel.jsx";
 import ConstructorSidebarPanel from "./ConstructorSidebarPanel.jsx";
 import ConstructorTabsNav from "./ConstructorTabsNav.jsx";
-import { buildConstructorTelegramLink, CONSTRUCTOR_TABS, getConstructorShape, getConstructorTextGradient, readFileAsDataUrl, readImageSize, resolveConstructorMockupSrc } from "./constructorConfig.js";
+import { buildConstructorTelegramLink, CONSTRUCTOR_TABS, getConstructorShape, getConstructorSizeGuide, getConstructorTextGradient, readFileAsDataUrl, readImageSize, resolveConstructorMockupSrc } from "./constructorConfig.js";
 import useConstructorState from "../../hooks/useConstructorState.js";
 import STYLES from "../../shared/appStyles.js";
 import { resolveColorSwatch } from "../../shared/textileHelpers.js";
@@ -741,6 +742,7 @@ export default function ConstructorPage({ onBack, products }) {
   const [showShapeCornerPopover, setShowShapeCornerPopover] = useState(false);
   const [textSidebarOverlayOpen, setTextSidebarOverlayOpen] = useState(false);
   const [shapeSidebarOverlayOpen, setShapeSidebarOverlayOpen] = useState(false);
+  const [sizeGuideOpen, setSizeGuideOpen] = useState(false);
   const shapeToolbarOverlayRef = useRef(null);
   const shapeStrokeButtonRef = useRef(null);
   const shapeCornerButtonRef = useRef(null);
@@ -1166,7 +1168,7 @@ export default function ConstructorPage({ onBack, products }) {
         <div className="constructor-shell" style={{ display: "grid", gridTemplateColumns: "minmax(236px,272px) minmax(0,1fr) minmax(236px,288px)", gap: 18, alignItems: "start", width: "100%", padding: "0 0 96px", boxSizing: "border-box" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 12, justifySelf: "start", width: "100%", minWidth: 0 }}>
             <ConstructorTabsNav tabs={CONSTRUCTOR_TABS} activeTab={activeTab} onTabChange={handleSidebarTabChange} />
-            <ConstructorSidebarPanel activeTab={activeTab} onTabChange={handleSidebarTabChange} printArea={printArea} products={products} product={product} productKey={productKey} onProductChange={handleProductChange} size={size} onSizeChange={setSize} qty={qty} onQtyChange={setQty} color={color} onColorChange={handleColorChange} resolveColorSwatch={resolveColorSwatch} layers={sideLayers} activeLayer={activeLayer} activeLayerId={activeLayerId} selectedLayerIds={selectedLayerIds} isMultiSelection={isMultiSelection} uploadedFiles={uploadedFiles} activeUploadLayer={activeUploadLayer} activeTextLayer={activeTextLayer} activeTextMetricsCm={activeTextMetricsCm} activeTextToolPanel={activeTextToolPanel} textSidebarOverlayOpen={textSidebarOverlayOpen} onCloseTextSidebarOverlay={() => closeTextSidebarOverlay({ resetToolPanel: true })} onTextToolPanelChange={handleTextToolbarPanelChange} activeShapeLayer={activeShapeLayer} activeShapeVisualMetricsCm={activeShapeVisualMetricsCm} activeShapeToolPanel={activeShapeToolPanel} shapeSidebarOverlayOpen={shapeSidebarOverlayOpen} onCloseShapeSidebarOverlay={() => closeShapeSidebarOverlay({ resetToolPanel: true })} shapeCatalogMode={effectiveShapeCatalogMode} onShapeCatalogModeChange={setShapeCatalogMode} onShapeToolPanelChange={setActiveShapeToolPanel} onLayerSelect={handleLayerEditOpen} onLayerActivate={handleLayerActivate} onLayerEditOpen={handleLayerEditOpen} onLayerReorder={(nextLayerIds) => reorderLayers(nextLayerIds, side)} onAddTextLayer={addTextLayer} onAddShapeLayer={addShapeLayer} onDuplicateActiveLayer={duplicateActiveLayer} onRemoveLayer={handleRemoveLayer} onRemoveActiveLayer={handleRemoveActiveLayer} onMoveLayer={moveActiveLayer} onToggleLayerVisibility={toggleLayerVisibility} onToggleLayerLock={toggleLayerLock} handleUploadChange={handleUploadChange} onAddUploadedFileAsLayer={addUploadedFileAsLayer} onRemoveUploadedFile={removeUploadedFile} uploadWidthCm={uploadWidthCm} uploadHeightCm={uploadHeightCm} handleUploadScaleChange={handleUploadScaleChange} centerActiveLayerPosition={centerActiveLayerPosition} textFillMode={textFillMode} textColor={textColor} onTextColorChange={setTextColor} textGradientKey={textGradientKey} onTextGradientKeyChange={setTextGradientKey} textFontKey={textFontKey} onTextFontKeyChange={setTextFontKey} textLineHeight={textLineHeight} onTextLineHeightChange={setTextLineHeight} textLetterSpacing={textLetterSpacing} onTextLetterSpacingChange={setTextLetterSpacing} textStrokeWidth={textStrokeWidth} onTextStrokeWidthChange={setTextStrokeWidth} textStrokeColor={textStrokeColor} onTextStrokeColorChange={setTextStrokeColor} textShadowEnabled={textShadowEnabled} onTextShadowEnabledChange={setTextShadowEnabled} textShadowColor={textShadowColor} onTextShadowColorChange={setTextShadowColor} textShadowOffsetX={textShadowOffsetX} onTextShadowOffsetXChange={setTextShadowOffsetX} textShadowOffsetY={textShadowOffsetY} onTextShadowOffsetYChange={setTextShadowOffsetY} textShadowBlur={textShadowBlur} onTextShadowBlurChange={setTextShadowBlur} shapeKey={shapeKey} onShapeKeyChange={setShapeKey} shapeFillMode={shapeFillMode} shapeColor={shapeColor} onShapeColorChange={setShapeColor} shapeGradientKey={shapeGradientKey} onShapeGradientKeyChange={setShapeGradientKey} shapeStrokeStyle={shapeStrokeStyle} onShapeStrokeStyleChange={setShapeStrokeStyle} shapeStrokeWidth={shapeStrokeWidth} onShapeStrokeWidthChange={setShapeStrokeWidth} shapeStrokeColor={shapeStrokeColor} onShapeStrokeColorChange={setShapeStrokeColor} shapeEffectType={shapeEffectType} onShapeEffectTypeChange={setShapeEffectType} shapeEffectAngle={shapeEffectAngle} onShapeEffectAngleChange={setShapeEffectAngle} shapeEffectDistance={shapeEffectDistance} onShapeEffectDistanceChange={setShapeEffectDistance} shapeEffectColor={shapeEffectColor} onShapeEffectColorChange={setShapeEffectColor} shapeDistortionColorA={shapeDistortionColorA} onShapeDistortionColorAChange={setShapeDistortionColorA} shapeDistortionColorB={shapeDistortionColorB} onShapeDistortionColorBChange={setShapeDistortionColorB} shapeWidthCm={shapeWidthCm} shapeHeightCm={shapeHeightCm} onShapeWidthCmChange={setShapeWidthCm} />
+            <ConstructorSidebarPanel activeTab={activeTab} onTabChange={handleSidebarTabChange} printArea={printArea} products={products} product={product} productKey={productKey} onProductChange={handleProductChange} size={size} onSizeChange={setSize} onSizeGuideOpen={() => setSizeGuideOpen(true)} qty={qty} onQtyChange={setQty} color={color} onColorChange={handleColorChange} resolveColorSwatch={resolveColorSwatch} layers={sideLayers} activeLayer={activeLayer} activeLayerId={activeLayerId} selectedLayerIds={selectedLayerIds} isMultiSelection={isMultiSelection} uploadedFiles={uploadedFiles} activeUploadLayer={activeUploadLayer} activeTextLayer={activeTextLayer} activeTextMetricsCm={activeTextMetricsCm} activeTextToolPanel={activeTextToolPanel} textSidebarOverlayOpen={textSidebarOverlayOpen} onCloseTextSidebarOverlay={() => closeTextSidebarOverlay({ resetToolPanel: true })} onTextToolPanelChange={handleTextToolbarPanelChange} activeShapeLayer={activeShapeLayer} activeShapeVisualMetricsCm={activeShapeVisualMetricsCm} activeShapeToolPanel={activeShapeToolPanel} shapeSidebarOverlayOpen={shapeSidebarOverlayOpen} onCloseShapeSidebarOverlay={() => closeShapeSidebarOverlay({ resetToolPanel: true })} shapeCatalogMode={effectiveShapeCatalogMode} onShapeCatalogModeChange={setShapeCatalogMode} onShapeToolPanelChange={setActiveShapeToolPanel} onLayerSelect={handleLayerEditOpen} onLayerActivate={handleLayerActivate} onLayerEditOpen={handleLayerEditOpen} onLayerReorder={(nextLayerIds) => reorderLayers(nextLayerIds, side)} onAddTextLayer={addTextLayer} onAddShapeLayer={addShapeLayer} onDuplicateActiveLayer={duplicateActiveLayer} onRemoveLayer={handleRemoveLayer} onRemoveActiveLayer={handleRemoveActiveLayer} onMoveLayer={moveActiveLayer} onToggleLayerVisibility={toggleLayerVisibility} onToggleLayerLock={toggleLayerLock} handleUploadChange={handleUploadChange} onAddUploadedFileAsLayer={addUploadedFileAsLayer} onRemoveUploadedFile={removeUploadedFile} uploadWidthCm={uploadWidthCm} uploadHeightCm={uploadHeightCm} handleUploadScaleChange={handleUploadScaleChange} centerActiveLayerPosition={centerActiveLayerPosition} textFillMode={textFillMode} textColor={textColor} onTextColorChange={setTextColor} textGradientKey={textGradientKey} onTextGradientKeyChange={setTextGradientKey} textFontKey={textFontKey} onTextFontKeyChange={setTextFontKey} textLineHeight={textLineHeight} onTextLineHeightChange={setTextLineHeight} textLetterSpacing={textLetterSpacing} onTextLetterSpacingChange={setTextLetterSpacing} textStrokeWidth={textStrokeWidth} onTextStrokeWidthChange={setTextStrokeWidth} textStrokeColor={textStrokeColor} onTextStrokeColorChange={setTextStrokeColor} textShadowEnabled={textShadowEnabled} onTextShadowEnabledChange={setTextShadowEnabled} textShadowColor={textShadowColor} onTextShadowColorChange={setTextShadowColor} textShadowOffsetX={textShadowOffsetX} onTextShadowOffsetXChange={setTextShadowOffsetX} textShadowOffsetY={textShadowOffsetY} onTextShadowOffsetYChange={setTextShadowOffsetY} textShadowBlur={textShadowBlur} onTextShadowBlurChange={setTextShadowBlur} shapeKey={shapeKey} onShapeKeyChange={setShapeKey} shapeFillMode={shapeFillMode} shapeColor={shapeColor} onShapeColorChange={setShapeColor} shapeGradientKey={shapeGradientKey} onShapeGradientKeyChange={setShapeGradientKey} shapeStrokeStyle={shapeStrokeStyle} onShapeStrokeStyleChange={setShapeStrokeStyle} shapeStrokeWidth={shapeStrokeWidth} onShapeStrokeWidthChange={setShapeStrokeWidth} shapeStrokeColor={shapeStrokeColor} onShapeStrokeColorChange={setShapeStrokeColor} shapeEffectType={shapeEffectType} onShapeEffectTypeChange={setShapeEffectType} shapeEffectAngle={shapeEffectAngle} onShapeEffectAngleChange={setShapeEffectAngle} shapeEffectDistance={shapeEffectDistance} onShapeEffectDistanceChange={setShapeEffectDistance} shapeEffectColor={shapeEffectColor} onShapeEffectColorChange={setShapeEffectColor} shapeDistortionColorA={shapeDistortionColorA} onShapeDistortionColorAChange={setShapeDistortionColorA} shapeDistortionColorB={shapeDistortionColorB} onShapeDistortionColorBChange={setShapeDistortionColorB} shapeWidthCm={shapeWidthCm} shapeHeightCm={shapeHeightCm} onShapeWidthCmChange={setShapeWidthCm} />
           </div>
 
           <div style={{ minWidth: 0, position: "relative", alignSelf: "start" }}>
@@ -1179,6 +1181,67 @@ export default function ConstructorPage({ onBack, products }) {
           <ConstructorOrderPanel currentTotal={currentTotal} orderMeta={orderMeta} canSubmitOrder={canSubmitOrder} telegramLink={telegramLink} />
         </div>
       </div>
+      {sizeGuideOpen ? (
+        <div
+          onClick={() => setSizeGuideOpen(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 70,
+            background: "rgba(6,6,10,.78)",
+            backdropFilter: "blur(10px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 24,
+          }}
+        >
+          <div
+            className="cs"
+            onClick={(event) => event.stopPropagation()}
+            style={{
+              width: "min(600px, 100%)",
+              maxHeight: "min(82vh, 720px)",
+              overflow: "auto",
+              padding: 24,
+              border: "1px solid rgba(255,255,255,.08)",
+              boxShadow: "0 28px 90px rgba(0,0,0,.45)",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, marginBottom: 18 }}>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 500, letterSpacing: 2, color: "#6c5ce7", textTransform: "uppercase", marginBottom: 8 }}>Спецификация</div>
+                <div style={{ fontSize: "clamp(22px,3vw,30px)", fontWeight: 500 }}>Размерная сетка</div>
+                <div style={{ fontSize: 14, color: "rgba(240,238,245,.55)", marginTop: 6 }}>{product.displayName || product.name}</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSizeGuideOpen(false)}
+                style={{
+                  width: 42,
+                  height: 42,
+                  borderRadius: "50%",
+                  border: "1px solid rgba(255,255,255,.08)",
+                  background: "rgba(255,255,255,.04)",
+                  color: "#f0eef5",
+                  cursor: "pointer",
+                  flexShrink: 0,
+                  fontSize: 20,
+                  lineHeight: 1,
+                  fontFamily: "'Outfit',sans-serif",
+                }}
+              >
+                ×
+              </button>
+            </div>
+            {getConstructorSizeGuide(product.model) ? (
+              <TshirtSizeGuideTable title={product.name} rows={getConstructorSizeGuide(product.model)} />
+            ) : (
+              <div style={{ padding: 18, color: "rgba(240,238,245,.4)", fontSize: 14 }}>Размерная сетка для этой модели пока недоступна.</div>
+            )}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

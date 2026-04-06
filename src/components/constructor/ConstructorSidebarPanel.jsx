@@ -466,6 +466,7 @@ export default function ConstructorSidebarPanel({
   onProductChange,
   size,
   onSizeChange,
+  onSizeGuideOpen,
   qty,
   onQtyChange,
   color,
@@ -815,6 +816,45 @@ export default function ConstructorSidebarPanel({
               );
             })}
           </div>
+          {onSizeGuideOpen ? (
+            <button
+              type="button"
+              onClick={onSizeGuideOpen}
+              style={{
+                marginTop: 8,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "6px 12px",
+                borderRadius: 10,
+                border: "1px solid rgba(255,255,255,.08)",
+                background: "rgba(255,255,255,.03)",
+                color: "rgba(240,238,245,.6)",
+                fontSize: 12,
+                fontWeight: 500,
+                cursor: "pointer",
+                fontFamily: "'Outfit',sans-serif",
+                transition: "all .2s ease",
+              }}
+              onPointerEnter={(e) => {
+                e.currentTarget.style.borderColor = "rgba(232,67,147,.35)";
+                e.currentTarget.style.background = "linear-gradient(135deg,rgba(232,67,147,.1),rgba(108,92,231,.1))";
+                e.currentTarget.style.color = "rgba(240,238,245,.85)";
+              }}
+              onPointerLeave={(e) => {
+                e.currentTarget.style.borderColor = "rgba(255,255,255,.08)";
+                e.currentTarget.style.background = "rgba(255,255,255,.03)";
+                e.currentTarget.style.color = "rgba(240,238,245,.6)";
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.4 2.4 0 0 1 0-3.4l2.6-2.6a2.4 2.4 0 0 1 3.4 0z" />
+                <path d="m14 7 3 3" />
+                <path d="m9.7 2.7 11.6 11.6" />
+              </svg>
+              Размерная сетка
+            </button>
+          ) : null}
         </SidebarFieldRow>
         <SidebarFieldRow label="Цвет" minHeight={74}>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
@@ -1524,7 +1564,7 @@ export default function ConstructorSidebarPanel({
                   <input type="range" min="1" max={safePrintAreaWidthCm} step="0.1" value={safeShapeWidthCm} onChange={(event) => onShapeWidthCmChange(Number(event.target.value))} style={{ width: "100%" }} />
                   <span style={{ minWidth: 72, textAlign: "right", fontSize: 13, color: "rgba(240,238,245,.6)" }}>{safeShapeWidthCm.toFixed(1)} см</span>
                 </div>
-                <div style={{ fontSize: 12, color: "rgba(240,238,245,.48)" }}>Фактический размер выше уже учитывает обводку, тень и дополнительные shape-эффекты. Максимальная зона — {physicalPrintAreaLabel}.</div>
+                <div style={{ fontSize: 12, color: "rgba(240,238,245,.48)" }}>Максимальная зона — {physicalPrintAreaLabel}.</div>
               </>
             )}
           </div>

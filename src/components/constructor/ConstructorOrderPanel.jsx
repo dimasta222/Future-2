@@ -35,7 +35,7 @@ export default function ConstructorOrderPanel({ currentTotal, orderMeta, canSubm
         </div>
 
         <a href={canSubmitOrder ? telegramLink : undefined} target="_blank" rel="noopener noreferrer" className="btg" style={{ width: "100%", justifyContent: "center", pointerEvents: canSubmitOrder ? "auto" : "none", opacity: canSubmitOrder ? 1 : 0.45, filter: canSubmitOrder ? "none" : "grayscale(.18)", textDecoration: "none" }}>Оформить заказ</a>
-        <div style={{ minWidth: 0, fontSize: 12, lineHeight: 1.6, color: "rgba(240,238,245,.42)", overflowWrap: "anywhere" }}>{canSubmitOrder ? "Заявка откроется в Telegram с текущей конфигурацией футболки и перечислением всех слоёв." : "Чтобы оформить заказ, выберите размер и добавьте хотя бы один слой: файл, текст или фигуру."}</div>
+        <div style={{ minWidth: 0, fontSize: 12, lineHeight: 1.6, color: "rgba(240,238,245,.42)", overflowWrap: "anywhere" }}>{canSubmitOrder ? "Заявка откроется в Telegram с текущей конфигурацией футболки и перечислением всех слоёв." : "Чтобы оформить заказ, добавьте хотя бы один слой: файл, текст или фигуру."}</div>
       </div>
     </div>
   );

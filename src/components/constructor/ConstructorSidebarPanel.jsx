@@ -483,6 +483,7 @@ export default function ConstructorSidebarPanel({
   activeTextToolPanel,
   textSidebarOverlayOpen = false,
   onCloseTextSidebarOverlay,
+  onTextToolPanelChange,
   activeShapeLayer,
   activeShapeVisualMetricsCm,
   activeShapeToolPanel,
@@ -572,10 +573,10 @@ export default function ConstructorSidebarPanel({
   const currentTextToolPanel = activeTextToolPanel || "font";
   const currentShapeToolPanel = activeShapeToolPanel || "edit";
   const showTextSidebarOverlay = textSidebarOverlayOpen && Boolean(activeTextLayer) && activeTab !== "text";
+  const showShapeSidebarOverlay = shapeSidebarOverlayOpen && Boolean(activeShapeLayer) && activeTab !== "shapes" && !showTextSidebarOverlay;
   const showTextPanel = activeTab === "text" || showTextSidebarOverlay;
   const showTextLayerList = !showTextSidebarOverlay || currentTextToolPanel !== "font";
-  const showShapeSidebarOverlay = shapeSidebarOverlayOpen && Boolean(activeShapeLayer) && activeTab !== "shapes";
-  const showShapesPanel = activeTab === "shapes" || showShapeSidebarOverlay;
+  const showShapesPanel = (activeTab === "shapes" || showShapeSidebarOverlay) && !showTextSidebarOverlay;
   const safePrintAreaWidthCm = Math.max(1, Number(printArea?.physicalWidthCm) || 1);
   const safePrintAreaHeightCm = Math.max(1, Number(printArea?.physicalHeightCm) || 1);
   const physicalPrintAreaLabel = `${safePrintAreaWidthCm} × ${safePrintAreaHeightCm} см`;
@@ -755,6 +756,7 @@ export default function ConstructorSidebarPanel({
         : "Текст";
 
   const handleCloseTextPanel = () => {
+    onTextToolPanelChange?.("font");
     onCloseTextSidebarOverlay?.();
   };
 
@@ -1121,10 +1123,10 @@ export default function ConstructorSidebarPanel({
   if (showTextPanel && !showShapesPanel) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
-        {showTextSidebarOverlay
-          ? <ClosablePanelHeader title={textPanelTitle} onClose={handleCloseTextPanel} closeLabel="Закрыть панель текста" />
-          : <SidebarTitle>Текст</SidebarTitle>}
-        {!showTextSidebarOverlay ? (
+        {currentTextToolPanel === "font" && !showTextSidebarOverlay
+          ? <SidebarTitle>Текст</SidebarTitle>
+          : <ClosablePanelHeader title={textPanelTitle} onClose={handleCloseTextPanel} closeLabel="Закрыть панель текста" />}
+        {currentTextToolPanel === "font" && !showTextSidebarOverlay ? (
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <ActionButton onClick={onAddTextLayer} variant="primary">+ Новый текстовый слой</ActionButton>
           </div>
@@ -1218,8 +1220,7 @@ export default function ConstructorSidebarPanel({
             </div>
           </SidebarFieldRow>
         ) : null}
-        {activeTextLayer ? (
-          <>
+        {activeTextLayer && currentTextToolPanel === "font" ? (
             <SidebarFieldRow label="Размер текста в см" minHeight={72}>
               <div style={{ display: "grid", gap: 8 }}>
                 <div style={{ padding: "8px 10px", borderRadius: 12, background: "rgba(255,255,255,.03)", border: "1px solid rgba(255,255,255,.08)" }}>
@@ -1230,7 +1231,9 @@ export default function ConstructorSidebarPanel({
                 </div>
               </div>
             </SidebarFieldRow>
-
+        ) : null}
+        {activeTextLayer ? (
+          <>
             {currentTextToolPanel === "font" ? (
               <SidebarFieldRow label="Шрифт" minHeight={96}>
                 <div style={{ display: "grid", gap: 10 }}>

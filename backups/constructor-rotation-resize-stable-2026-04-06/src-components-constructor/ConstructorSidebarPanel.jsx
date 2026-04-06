@@ -466,7 +466,6 @@ export default function ConstructorSidebarPanel({
   onProductChange,
   size,
   onSizeChange,
-  onSizeGuideOpen,
   qty,
   onQtyChange,
   color,
@@ -511,7 +510,6 @@ export default function ConstructorSidebarPanel({
   uploadWidthCm,
   uploadHeightCm,
   handleUploadScaleChange,
-  setUploadDimensionCm,
   centerActiveLayerPosition,
   textFillMode,
   textColor,
@@ -563,7 +561,6 @@ export default function ConstructorSidebarPanel({
   shapeWidthCm,
   shapeHeightCm,
   onShapeWidthCmChange,
-  setShapeDimensionCm,
 }) {
   const fontListId = useId();
   const fontOptionRefs = useRef({});
@@ -573,16 +570,6 @@ export default function ConstructorSidebarPanel({
   const [activeShapeEffectColorTarget, setActiveShapeEffectColorTarget] = useState("shadow");
   const [draggedLayerId, setDraggedLayerId] = useState(null);
   const [isUploadDropzoneHovered, setIsUploadDropzoneHovered] = useState(false);
-  const [uploadAspectLock, setUploadAspectLock] = useState(true);
-  const [uploadWidthInput, setUploadWidthInput] = useState("");
-  const [uploadHeightInput, setUploadHeightInput] = useState("");
-  const [uploadWidthFocused, setUploadWidthFocused] = useState(false);
-  const [uploadHeightFocused, setUploadHeightFocused] = useState(false);
-  const [shapeAspectLock, setShapeAspectLock] = useState(true);
-  const [shapeWidthInput, setShapeWidthInput] = useState("");
-  const [shapeHeightInput, setShapeHeightInput] = useState("");
-  const [shapeWidthFocused, setShapeWidthFocused] = useState(false);
-  const [shapeHeightFocused, setShapeHeightFocused] = useState(false);
   const currentTextToolPanel = activeTextToolPanel || "font";
   const currentShapeToolPanel = activeShapeToolPanel || "edit";
   const showTextSidebarOverlay = textSidebarOverlayOpen && Boolean(activeTextLayer) && activeTab !== "text";
@@ -828,45 +815,6 @@ export default function ConstructorSidebarPanel({
               );
             })}
           </div>
-          {onSizeGuideOpen ? (
-            <button
-              type="button"
-              onClick={onSizeGuideOpen}
-              style={{
-                marginTop: 8,
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                padding: "6px 12px",
-                borderRadius: 10,
-                border: "1px solid rgba(255,255,255,.08)",
-                background: "rgba(255,255,255,.03)",
-                color: "rgba(240,238,245,.6)",
-                fontSize: 12,
-                fontWeight: 500,
-                cursor: "pointer",
-                fontFamily: "'Outfit',sans-serif",
-                transition: "all .2s ease",
-              }}
-              onPointerEnter={(e) => {
-                e.currentTarget.style.borderColor = "rgba(232,67,147,.35)";
-                e.currentTarget.style.background = "linear-gradient(135deg,rgba(232,67,147,.1),rgba(108,92,231,.1))";
-                e.currentTarget.style.color = "rgba(240,238,245,.85)";
-              }}
-              onPointerLeave={(e) => {
-                e.currentTarget.style.borderColor = "rgba(255,255,255,.08)";
-                e.currentTarget.style.background = "rgba(255,255,255,.03)";
-                e.currentTarget.style.color = "rgba(240,238,245,.6)";
-              }}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.4 2.4 0 0 1 0-3.4l2.6-2.6a2.4 2.4 0 0 1 3.4 0z" />
-                <path d="m14 7 3 3" />
-                <path d="m9.7 2.7 11.6 11.6" />
-              </svg>
-              Размерная сетка
-            </button>
-          ) : null}
         </SidebarFieldRow>
         <SidebarFieldRow label="Цвет" minHeight={74}>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
@@ -1158,53 +1106,9 @@ export default function ConstructorSidebarPanel({
             <div style={{ display: "grid", gap: 8 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                 <input type="range" min="1" max={safePrintAreaWidthCm} step="0.1" value={uploadWidthCm} onChange={handleUploadScaleChange} style={{ width: "100%" }} />
+                <span style={{ minWidth: 72, textAlign: "right", fontSize: 13, color: "rgba(240,238,245,.6)" }}>{uploadWidthCm.toFixed(1)} см</span>
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1, minWidth: 0 }}>
-                  <label style={{ fontSize: 11, color: "rgba(240,238,245,.4)", fontWeight: 500 }}>Ш, см</label>
-                  <input
-                    type="number"
-                    min="0.1"
-                    max={safePrintAreaWidthCm}
-                    step="0.1"
-                    value={uploadWidthFocused ? uploadWidthInput : uploadWidthCm.toFixed(1)}
-                    onFocus={(e) => { setUploadWidthFocused(true); setUploadWidthInput(uploadWidthCm.toFixed(1)); e.target.select(); }}
-                    onBlur={() => { setUploadWidthFocused(false); if (setUploadDimensionCm) setUploadDimensionCm("width", uploadWidthInput, uploadAspectLock); }}
-                    onChange={(e) => setUploadWidthInput(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") { e.target.blur(); } }}
-                    style={{ width: "100%", padding: "6px 8px", borderRadius: 8, border: "1px solid rgba(255,255,255,.1)", background: "rgba(255,255,255,.04)", color: "#f0eef5", fontSize: 13, fontFamily: "'Outfit',sans-serif", outline: "none", boxSizing: "border-box" }}
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setUploadAspectLock((v) => !v)}
-                  title={uploadAspectLock ? "Пропорции связаны" : "Пропорции не связаны"}
-                  style={{ marginTop: 16, width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 7, border: uploadAspectLock ? "1px solid rgba(232,67,147,.35)" : "1px solid rgba(255,255,255,.1)", background: uploadAspectLock ? "rgba(232,67,147,.1)" : "rgba(255,255,255,.03)", color: uploadAspectLock ? "rgba(232,67,147,.9)" : "rgba(240,238,245,.35)", cursor: "pointer", flexShrink: 0, padding: 0, transition: "all .2s" }}
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    {uploadAspectLock ? (
-                      <><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></>
-                    ) : (
-                      <><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 9.9-1" /></>
-                    )}
-                  </svg>
-                </button>
-                <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1, minWidth: 0 }}>
-                  <label style={{ fontSize: 11, color: "rgba(240,238,245,.4)", fontWeight: 500 }}>В, см</label>
-                  <input
-                    type="number"
-                    min="0.1"
-                    max={safePrintAreaHeightCm}
-                    step="0.1"
-                    value={uploadHeightFocused ? uploadHeightInput : uploadHeightCm.toFixed(1)}
-                    onFocus={(e) => { setUploadHeightFocused(true); setUploadHeightInput(uploadHeightCm.toFixed(1)); e.target.select(); }}
-                    onBlur={() => { setUploadHeightFocused(false); if (setUploadDimensionCm) setUploadDimensionCm("height", uploadHeightInput, uploadAspectLock); }}
-                    onChange={(e) => setUploadHeightInput(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") { e.target.blur(); } }}
-                    style={{ width: "100%", padding: "6px 8px", borderRadius: 8, border: "1px solid rgba(255,255,255,.1)", background: "rgba(255,255,255,.04)", color: "#f0eef5", fontSize: 13, fontFamily: "'Outfit',sans-serif", outline: "none", boxSizing: "border-box" }}
-                  />
-                </div>
-              </div>
+              <div style={{ fontSize: 12, color: "rgba(240,238,245,.48)" }}>Размер картинки: {uploadWidthCm.toFixed(1)} × {uploadHeightCm.toFixed(1)} см.</div>
             </div>
           </SidebarFieldRow>
         ) : uploadedFiles.length ? (
@@ -1602,58 +1506,12 @@ export default function ConstructorSidebarPanel({
     const renderShapeSizeControl = () => (
       activeShapeLayer ? (
         <SidebarFieldRow label="Размер печати">
-          <div style={{ display: "grid", gap: 8 }}>
+          <div style={{ display: "grid", gap: 10 }}>
             {activeShapeIsLine ? (
               <>
                 <div style={{ padding: "8px 10px", borderRadius: 12, background: "rgba(255,255,255,.03)", border: "1px solid rgba(255,255,255,.08)" }}>
                   <div style={{ fontSize: 10, lineHeight: 1.2, letterSpacing: ".08em", textTransform: "uppercase", color: "rgba(240,238,245,.38)", marginBottom: 4 }}>Фактический размер линии</div>
                   <div style={{ fontSize: 13, fontWeight: 600, color: "#f0eef5", whiteSpace: "nowrap" }}>{safeShapeWidthCm.toFixed(1)} × {safeShapeHeightCm.toFixed(1)} см</div>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1, minWidth: 0 }}>
-                    <label style={{ fontSize: 11, color: "rgba(240,238,245,.4)", fontWeight: 500 }}>Ш, см</label>
-                    <input
-                      type="number"
-                      min="0.1"
-                      max={safePrintAreaWidthCm}
-                      step="0.1"
-                      value={shapeWidthFocused ? shapeWidthInput : safeShapeWidthCm.toFixed(1)}
-                      onFocus={(e) => { setShapeWidthFocused(true); setShapeWidthInput(safeShapeWidthCm.toFixed(1)); e.target.select(); }}
-                      onBlur={() => { setShapeWidthFocused(false); if (setShapeDimensionCm) setShapeDimensionCm("width", shapeWidthInput, shapeAspectLock); }}
-                      onChange={(e) => setShapeWidthInput(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Enter") { e.target.blur(); } }}
-                      style={{ width: "100%", padding: "6px 8px", borderRadius: 8, border: "1px solid rgba(255,255,255,.1)", background: "rgba(255,255,255,.04)", color: "#f0eef5", fontSize: 13, fontFamily: "'Outfit',sans-serif", outline: "none", boxSizing: "border-box" }}
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setShapeAspectLock((v) => !v)}
-                    title={shapeAspectLock ? "Пропорции связаны" : "Пропорции не связаны"}
-                    style={{ marginTop: 16, width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 7, border: shapeAspectLock ? "1px solid rgba(232,67,147,.35)" : "1px solid rgba(255,255,255,.1)", background: shapeAspectLock ? "rgba(232,67,147,.1)" : "rgba(255,255,255,.03)", color: shapeAspectLock ? "rgba(232,67,147,.9)" : "rgba(240,238,245,.35)", cursor: "pointer", flexShrink: 0, padding: 0, transition: "all .2s" }}
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      {shapeAspectLock ? (
-                        <><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></>
-                      ) : (
-                        <><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 9.9-1" /></>
-                      )}
-                    </svg>
-                  </button>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1, minWidth: 0 }}>
-                    <label style={{ fontSize: 11, color: "rgba(240,238,245,.4)", fontWeight: 500 }}>В, см</label>
-                    <input
-                      type="number"
-                      min="0.1"
-                      max={safePrintAreaHeightCm}
-                      step="0.1"
-                      value={shapeHeightFocused ? shapeHeightInput : safeShapeHeightCm.toFixed(1)}
-                      onFocus={(e) => { setShapeHeightFocused(true); setShapeHeightInput(safeShapeHeightCm.toFixed(1)); e.target.select(); }}
-                      onBlur={() => { setShapeHeightFocused(false); if (setShapeDimensionCm) setShapeDimensionCm("height", shapeHeightInput, shapeAspectLock); }}
-                      onChange={(e) => setShapeHeightInput(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Enter") { e.target.blur(); } }}
-                      style={{ width: "100%", padding: "6px 8px", borderRadius: 8, border: "1px solid rgba(255,255,255,.1)", background: "rgba(255,255,255,.04)", color: "#f0eef5", fontSize: 13, fontFamily: "'Outfit',sans-serif", outline: "none", boxSizing: "border-box" }}
-                    />
-                  </div>
                 </div>
               </>
             ) : (
@@ -1664,52 +1522,7 @@ export default function ConstructorSidebarPanel({
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                   <input type="range" min="1" max={safePrintAreaWidthCm} step="0.1" value={safeShapeWidthCm} onChange={(event) => onShapeWidthCmChange(Number(event.target.value))} style={{ width: "100%" }} />
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1, minWidth: 0 }}>
-                    <label style={{ fontSize: 11, color: "rgba(240,238,245,.4)", fontWeight: 500 }}>Ш, см</label>
-                    <input
-                      type="number"
-                      min="0.1"
-                      max={safePrintAreaWidthCm}
-                      step="0.1"
-                      value={shapeWidthFocused ? shapeWidthInput : safeShapeWidthCm.toFixed(1)}
-                      onFocus={(e) => { setShapeWidthFocused(true); setShapeWidthInput(safeShapeWidthCm.toFixed(1)); e.target.select(); }}
-                      onBlur={() => { setShapeWidthFocused(false); if (setShapeDimensionCm) setShapeDimensionCm("width", shapeWidthInput, shapeAspectLock); }}
-                      onChange={(e) => setShapeWidthInput(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Enter") { e.target.blur(); } }}
-                      style={{ width: "100%", padding: "6px 8px", borderRadius: 8, border: "1px solid rgba(255,255,255,.1)", background: "rgba(255,255,255,.04)", color: "#f0eef5", fontSize: 13, fontFamily: "'Outfit',sans-serif", outline: "none", boxSizing: "border-box" }}
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setShapeAspectLock((v) => !v)}
-                    title={shapeAspectLock ? "Пропорции связаны" : "Пропорции не связаны"}
-                    style={{ marginTop: 16, width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 7, border: shapeAspectLock ? "1px solid rgba(232,67,147,.35)" : "1px solid rgba(255,255,255,.1)", background: shapeAspectLock ? "rgba(232,67,147,.1)" : "rgba(255,255,255,.03)", color: shapeAspectLock ? "rgba(232,67,147,.9)" : "rgba(240,238,245,.35)", cursor: "pointer", flexShrink: 0, padding: 0, transition: "all .2s" }}
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      {shapeAspectLock ? (
-                        <><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></>
-                      ) : (
-                        <><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 9.9-1" /></>
-                      )}
-                    </svg>
-                  </button>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1, minWidth: 0 }}>
-                    <label style={{ fontSize: 11, color: "rgba(240,238,245,.4)", fontWeight: 500 }}>В, см</label>
-                    <input
-                      type="number"
-                      min="0.1"
-                      max={safePrintAreaHeightCm}
-                      step="0.1"
-                      value={shapeHeightFocused ? shapeHeightInput : safeShapeHeightCm.toFixed(1)}
-                      onFocus={(e) => { setShapeHeightFocused(true); setShapeHeightInput(safeShapeHeightCm.toFixed(1)); e.target.select(); }}
-                      onBlur={() => { setShapeHeightFocused(false); if (setShapeDimensionCm) setShapeDimensionCm("height", shapeHeightInput, shapeAspectLock); }}
-                      onChange={(e) => setShapeHeightInput(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Enter") { e.target.blur(); } }}
-                      style={{ width: "100%", padding: "6px 8px", borderRadius: 8, border: "1px solid rgba(255,255,255,.1)", background: "rgba(255,255,255,.04)", color: "#f0eef5", fontSize: 13, fontFamily: "'Outfit',sans-serif", outline: "none", boxSizing: "border-box" }}
-                    />
-                  </div>
+                  <span style={{ minWidth: 72, textAlign: "right", fontSize: 13, color: "rgba(240,238,245,.6)" }}>{safeShapeWidthCm.toFixed(1)} см</span>
                 </div>
                 <div style={{ fontSize: 12, color: "rgba(240,238,245,.48)" }}>Максимальная зона — {physicalPrintAreaLabel}.</div>
               </>

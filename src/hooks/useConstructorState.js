@@ -1308,70 +1308,7 @@ export default function useConstructorState({
     resolveLayerBoundsCm: resolveOrderLayerBoundsCm,
     resolveRuntimeLayerBoundsCm,
   });
-  const buildSideDebugRows = (targetSide, sideLayers, resolvedPrintArea, printAreaPixelSize) => {
-    const textLayers = sideLayers.filter((layer) => layer.type === "text");
-    if (textLayers.length < 2) return [];
 
-    const areaWidthCm = Number(resolvedPrintArea?.physicalWidthCm) || 0;
-    const areaHeightCm = Number(resolvedPrintArea?.physicalHeightCm) || 0;
-    if (areaWidthCm <= 0 || areaHeightCm <= 0) return [];
-
-    const areaMetrics = {
-      areaWidthPx: Math.max(MIN_LINE_LENGTH_PX, areaWidthCm * LOGICAL_PRINT_PX_PER_CM),
-      areaHeightPx: Math.max(MIN_LINE_HEIGHT_PX, areaHeightCm * LOGICAL_PRINT_PX_PER_CM),
-      areaWidthCm,
-      areaHeightCm,
-      areaGeometryWidth: Number(resolvedPrintArea?.width) || 0,
-      areaGeometryHeight: Number(resolvedPrintArea?.height) || 0,
-      areaRenderWidthPx: Math.max(1, Number(printAreaPixelSize?.widthPx) || 1),
-      areaRenderHeightPx: Math.max(1, Number(printAreaPixelSize?.heightPx) || 1),
-    };
-    const boundsByLayer = textLayers.map((layer, index) => {
-      const bounds = resolveOrderLayerBoundsCm(layer, areaMetrics);
-      if (!bounds) return null;
-
-      const runtimeBounds = runtimeTextLayerBoundsBySide?.[targetSide]?.[layer.id] || null;
-
-      const widthCm = Number(((bounds.right - bounds.left) || 0).toFixed(1));
-      const heightCm = Number(((bounds.bottom - bounds.top) || 0).toFixed(1));
-
-      return {
-        index,
-        layer,
-        bounds,
-        runtimeBounds,
-        widthCm,
-        heightCm,
-      };
-    }).filter(Boolean);
-
-    if (boundsByLayer.length < 2) return [];
-
-    const unionBounds = {
-      left: Math.min(...boundsByLayer.map((item) => item.bounds.left)),
-      right: Math.max(...boundsByLayer.map((item) => item.bounds.right)),
-      top: Math.min(...boundsByLayer.map((item) => item.bounds.top)),
-      bottom: Math.max(...boundsByLayer.map((item) => item.bounds.bottom)),
-    };
-    const unionWidthCm = Number(((unionBounds.right - unionBounds.left) || 0).toFixed(1));
-    const unionHeightCm = Number(((unionBounds.bottom - unionBounds.top) || 0).toFixed(1));
-    const sideLabel = targetSide === "front" ? "front" : "back";
-
-    return [
-      ...boundsByLayer.map((item) => ([
-        `DEBUG ${sideLabel} text ${item.index + 1}`,
-        `w ${item.widthCm} h ${item.heightCm} | l ${item.bounds.left.toFixed(2)} r ${item.bounds.right.toFixed(2)} t ${item.bounds.top.toFixed(2)} b ${item.bounds.bottom.toFixed(2)} | py ${(Number(item.layer.position?.y) || 50).toFixed(2)}${item.runtimeBounds ? ` | rt ${item.runtimeBounds.top.toFixed(2)} rb ${item.runtimeBounds.bottom.toFixed(2)} src ${item.runtimeBounds.source}` : ""}`,
-      ])),
-      [
-        `DEBUG ${sideLabel} union`,
-        `w ${unionWidthCm} h ${unionHeightCm} | l ${unionBounds.left.toFixed(2)} r ${unionBounds.right.toFixed(2)} t ${unionBounds.top.toFixed(2)} b ${unionBounds.bottom.toFixed(2)}`,
-      ],
-    ];
-  };
-  const debugOrderMetaRows = [
-    ...buildSideDebugRows("front", meaningfulFrontLayers, frontResolvedPrintArea, frontPrintAreaPixelSize),
-    ...buildSideDebugRows("back", meaningfulBackLayers, backResolvedPrintArea, backPrintAreaPixelSize),
-  ];
   const activePrintSidesCount = [frontPrintPricing, backPrintPricing].filter(Boolean).length;
   const printTypeLabel = activePrintSidesCount >= 2 ? "Печать двусторонняя" : activePrintSidesCount === 1 ? "Печать односторонняя" : "Печать";
   const printTypeDetails = [
@@ -1432,7 +1369,6 @@ export default function useConstructorState({
     ] : []),
     ["---"],
     ["Итого за 1 шт", `${currentUnitPrice.toLocaleString("ru-RU")} ₽`],
-    ...debugOrderMetaRows,
   ];
   const getVisibleLayerAspectRatio = (layer) => {
     const visibleWidth = Number(layer?.renderFrame?.contentBounds?.width) || Number(layer?.width) || 1;

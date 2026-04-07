@@ -668,10 +668,10 @@ export default function ConstructorPreviewPanel({
   };
 
   const handleLayerResizePointerDown = (layer, handle, event) => {
-    if (layer.locked || layer.id !== activeLayerId || !printAreaRef.current || !onLayerResize) return;
-
     event.preventDefault();
     event.stopPropagation();
+
+    if (layer.locked || layer.id !== activeLayerId || !printAreaRef.current || !onLayerResize) return;
 
     const pointerId = event.pointerId;
     const node = event.currentTarget;

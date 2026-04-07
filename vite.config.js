@@ -1,11 +1,29 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { scanFonts } from './scripts/scan-fonts.mjs'
 
 const repositoryName = process.env.GITHUB_REPOSITORY?.split('/')?.[1]
 const isGitHubActionsBuild = process.env.GITHUB_ACTIONS === 'true'
 
+function localFontsPlugin() {
+  return {
+    name: 'local-fonts',
+    buildStart() {
+      scanFonts()
+    },
+    configureServer(server) {
+      server.watcher.add('public/fonts')
+      server.watcher.on('all', (event, path) => {
+        if (path.includes('/public/fonts/') && /\.(ttf|otf|woff2?)$/i.test(path)) {
+          scanFonts()
+        }
+      })
+    },
+  }
+}
+
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), localFontsPlugin()],
   base: isGitHubActionsBuild && repositoryName ? `/${repositoryName}/` : '/',
   build: {
     rollupOptions: {

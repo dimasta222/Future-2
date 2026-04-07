@@ -1796,11 +1796,30 @@ export default function useConstructorState({
       const rotatedHeight = normalizedRotationDeg
         ? (Math.abs(frameMetrics.frameWidthPx * Math.sin(rotationRadians)) + Math.abs(frameMetrics.frameHeightPx * Math.cos(rotationRadians)))
         : frameMetrics.frameHeightPx;
+
+      let clampWidth = rotatedWidth;
+      let clampHeight = rotatedHeight;
+
+      if (isLineShape && lineDimensions) {
+        const lineAspectRatio = Math.max(0.2, (lineDimensions.lineWidthPx || MIN_LINE_LENGTH_PX) / Math.max(1, lineDimensions.lineHeightPx || MIN_LINE_HEIGHT_PX));
+        const visualMetrics = getConstructorLineVisualMetrics(resolvedLayer.shapeKey, resolvedLayer.strokeWidth, lineAspectRatio);
+        const visualWidth = baseWidth * (visualMetrics.visibleWidthPx / Math.max(1, visualMetrics.layoutWidthPx)) + frameMetrics.leftPaddingPx + frameMetrics.rightPaddingPx;
+        const visualHeight = baseHeight * (visualMetrics.visibleHeightPx / Math.max(1, visualMetrics.layoutHeightPx)) + frameMetrics.topPaddingPx + frameMetrics.bottomPaddingPx;
+        clampWidth = normalizedRotationDeg
+          ? (Math.abs(visualWidth * Math.cos(rotationRadians)) + Math.abs(visualHeight * Math.sin(rotationRadians)))
+          : visualWidth;
+        clampHeight = normalizedRotationDeg
+          ? (Math.abs(visualWidth * Math.sin(rotationRadians)) + Math.abs(visualHeight * Math.cos(rotationRadians)))
+          : visualHeight;
+      }
+
       return {
         areaWidth,
         areaHeight,
         width: rotatedWidth,
         height: rotatedHeight,
+        clampWidth,
+        clampHeight,
         baseWidth,
         baseHeight,
         frameMetrics,
@@ -1879,10 +1898,11 @@ export default function useConstructorState({
       };
     }
 
-    const clampWidth = metrics.width;
+    const clampWidth = metrics.clampWidth ?? metrics.width;
     const minX = (clampWidth / 2 / metrics.areaWidth) * 100;
     const maxX = 100 - minX;
-    const minY = (metrics.height / 2 / metrics.areaHeight) * 100;
+    const clampHeight = metrics.clampHeight ?? metrics.height;
+    const minY = (clampHeight / 2 / metrics.areaHeight) * 100;
     const maxY = 100 - minY;
 
     return {
@@ -1903,15 +1923,17 @@ export default function useConstructorState({
       };
     }
 
-    const top = centerYPx - (metrics.height / 2);
-    const bottom = centerYPx + (metrics.height / 2);
+    const boundWidth = metrics.clampWidth ?? metrics.width;
+    const boundHeight = metrics.clampHeight ?? metrics.height;
+    const top = centerYPx - (boundHeight / 2);
+    const bottom = centerYPx + (boundHeight / 2);
     return {
-      left: centerXPx - (metrics.width / 2),
-      right: centerXPx + (metrics.width / 2),
+      left: centerXPx - (boundWidth / 2),
+      right: centerXPx + (boundWidth / 2),
       top,
       bottom,
-      width: metrics.width,
-      height: metrics.height,
+      width: boundWidth,
+      height: boundHeight,
     };
   };
 

@@ -16,6 +16,9 @@ dist-ssr
 .cache
 coverage
 
+# Auto-generated font files
+src/generated/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

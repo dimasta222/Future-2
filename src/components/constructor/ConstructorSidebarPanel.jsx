@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { buildConstructorShapeSvg, CONSTRUCTOR_SHAPE_BASIC_COLORS, CONSTRUCTOR_SHAPE_CATEGORIES, CONSTRUCTOR_SHAPES, CONSTRUCTOR_TEXT_FONTS, CONSTRUCTOR_TEXT_GRADIENTS, CONSTRUCTOR_TEXT_SOLID_COLORS, getConstructorShape, getConstructorTextGradient } from "./constructorConfig.js";
+import { buildConstructorShapeSvg, CONSTRUCTOR_SHAPE_BASIC_COLORS, CONSTRUCTOR_SHAPE_CATEGORIES, CONSTRUCTOR_SHAPES, CONSTRUCTOR_TEXT_FONTS, CONSTRUCTOR_TEXT_GRADIENTS, CONSTRUCTOR_TEXT_SOLID_COLORS, getConstructorShape, getConstructorTextGradient, LOCAL_FONT_GROUP_LABELS } from "./constructorConfig.js";
 import { svgToDataUri } from "../../shared/textilePreviewHelpers.js";
 
 const FONT_GROUP_LABELS = {
@@ -7,6 +7,7 @@ const FONT_GROUP_LABELS = {
   display: "Акцентные",
   script: "Рукописные",
   mono: "Моно",
+  ...LOCAL_FONT_GROUP_LABELS,
 };
 
 const EN_TO_RU_LAYOUT_MAP = {
@@ -567,8 +568,10 @@ export default function ConstructorSidebarPanel({
 }) {
   const fontListId = useId();
   const fontOptionRefs = useRef({});
+  const fontKeyboardScrollFlag = useRef(false);
   const [fontSearch, setFontSearch] = useState("");
   const [keyboardFontKey, setKeyboardFontKey] = useState(null);
+  const [recentFontKeys, setRecentFontKeys] = useState([]);
   const [expandedShapeCategoryKey, setExpandedShapeCategoryKey] = useState(null);
   const [activeShapeEffectColorTarget, setActiveShapeEffectColorTarget] = useState("shadow");
   const [draggedLayerId, setDraggedLayerId] = useState(null);
@@ -615,10 +618,7 @@ export default function ConstructorSidebarPanel({
       optionId: `${fontListId}-${font.key}`,
     };
   }).filter(Boolean);
-  const activeTextFont = filteredTextFonts.find((font) => font.key === textFontKey) || null;
   const groupedTextFonts = filteredTextFonts.reduce((groups, font) => {
-    if (font.key === activeTextFont?.key) return groups;
-
     const nextGroupKey = font.group || "sans";
     if (!groups[nextGroupKey]) {
       groups[nextGroupKey] = [];
@@ -628,9 +628,13 @@ export default function ConstructorSidebarPanel({
     return groups;
   }, {});
   const groupedTextFontEntries = Object.entries(groupedTextFonts);
-  const keyboardVisibleFonts = activeTextFont
-    ? [activeTextFont, ...groupedTextFontEntries.flatMap(([, fonts]) => fonts)]
-    : groupedTextFontEntries.flatMap(([, fonts]) => fonts);
+  const recentFonts = recentFontKeys
+    .map((key) => filteredTextFonts.find((f) => f.key === key))
+    .filter(Boolean);
+  const keyboardVisibleFonts = [
+    ...recentFonts,
+    ...groupedTextFontEntries.flatMap(([, fonts]) => fonts),
+  ];
   const currentKeyboardFontKey = keyboardVisibleFonts.some((font) => font.key === keyboardFontKey)
     ? keyboardFontKey
     : keyboardVisibleFonts[0]?.key || null;
@@ -639,7 +643,8 @@ export default function ConstructorSidebarPanel({
     : orderedTextLayers;
 
   useEffect(() => {
-    if (!currentKeyboardFontKey) return;
+    if (!fontKeyboardScrollFlag.current || !currentKeyboardFontKey) return;
+    fontKeyboardScrollFlag.current = false;
     fontOptionRefs.current[currentKeyboardFontKey]?.scrollIntoView({ block: "nearest" });
   }, [currentKeyboardFontKey]);
 
@@ -659,6 +664,10 @@ export default function ConstructorSidebarPanel({
     onTextFontKeyChange(fontKey);
     setFontSearch("");
     setKeyboardFontKey(fontKey);
+    setRecentFontKeys((prev) => {
+      const next = [fontKey, ...prev.filter((k) => k !== fontKey)];
+      return next.slice(0, 5);
+    });
   };
 
   const handleFontSearchKeyDown = (event) => {
@@ -668,12 +677,14 @@ export default function ConstructorSidebarPanel({
 
     if (event.key === "ArrowDown") {
       event.preventDefault();
+      fontKeyboardScrollFlag.current = true;
       const nextIndex = activeIndex >= 0 ? (activeIndex + 1) % keyboardVisibleFonts.length : 0;
       setKeyboardFontKey(keyboardVisibleFonts[nextIndex].key);
     }
 
     if (event.key === "ArrowUp") {
       event.preventDefault();
+      fontKeyboardScrollFlag.current = true;
       const nextIndex = activeIndex >= 0 ? (activeIndex - 1 + keyboardVisibleFonts.length) % keyboardVisibleFonts.length : keyboardVisibleFonts.length - 1;
       setKeyboardFontKey(keyboardVisibleFonts[nextIndex].key);
     }
@@ -1361,23 +1372,28 @@ export default function ConstructorSidebarPanel({
 
                   {filteredTextFonts.length ? (
                     <div id={fontListId} role="listbox" aria-label="Список шрифтов" style={{ display: "grid", gap: 10, maxHeight: 340, overflowY: "auto", paddingRight: 4 }}>
-                      {activeTextFont ? (
+                      {recentFonts.length > 0 ? (
                         <div style={{ display: "grid", gap: 6 }}>
                           <div style={{ fontSize: 11, lineHeight: 1.2, letterSpacing: ".08em", textTransform: "uppercase", color: "rgba(240,238,245,.38)" }}>
-                            Выбранный шрифт
+                            Недавние
                           </div>
-                          <FontOptionButton
-                            font={activeTextFont}
-                            active
-                            keyboardActive={currentKeyboardFontKey === activeTextFont.key}
-                            highlightQuery={activeTextFont.labelMatchQuery || ""}
-                            optionRef={(node) => {
-                              fontOptionRefs.current[activeTextFont.key] = node;
-                            }}
-                            onFocus={() => setKeyboardFontKey(activeTextFont.key)}
-                            onMouseEnter={() => setKeyboardFontKey(activeTextFont.key)}
-                            onClick={() => handleFontSelect(activeTextFont.key)}
-                          />
+                          <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 8 }}>
+                            {recentFonts.map((font) => (
+                              <FontOptionButton
+                                key={font.key}
+                                font={font}
+                                active={textFontKey === font.key}
+                                keyboardActive={currentKeyboardFontKey === font.key}
+                                highlightQuery={font.labelMatchQuery || ""}
+                                optionRef={(node) => {
+                                  fontOptionRefs.current[font.key] = node;
+                                }}
+                                onFocus={() => setKeyboardFontKey(font.key)}
+                                onMouseEnter={() => setKeyboardFontKey(font.key)}
+                                onClick={() => handleFontSelect(font.key)}
+                              />
+                            ))}
+                          </div>
                         </div>
                       ) : null}
 

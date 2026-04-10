@@ -72,9 +72,9 @@ function SidebarTitle({ children }) {
   );
 }
 
-function SidebarFieldRow({ label, children, minHeight = 56 }) {
+function SidebarFieldRow({ label, children, minHeight = 56, "data-onboarding": dataOnboarding }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "10px 12px", background: "rgba(255,255,255,.02)", borderRadius: 14, minHeight, minWidth: 0 }}>
+    <div data-onboarding={dataOnboarding} style={{ display: "flex", flexDirection: "column", gap: 8, padding: "10px 12px", background: "rgba(255,255,255,.02)", borderRadius: 14, minHeight, minWidth: 0 }}>
       <span style={{ fontSize: 12, fontWeight: 500, color: "rgba(240,238,245,.36)", textTransform: "uppercase", letterSpacing: 1.1, lineHeight: 1.25, overflowWrap: "break-word", wordBreak: "normal" }}>{label}</span>
       <div style={{ minWidth: 0 }}>{children}</div>
     </div>
@@ -802,7 +802,7 @@ export default function ConstructorSidebarPanel({
   if (activeTab === "textile" && !showShapesPanel && !showTextPanel) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 10, minWidth: 0 }}>
-        <SidebarFieldRow label="Текстиль" minHeight={96}>
+        <SidebarFieldRow label="Текстиль" minHeight={96} data-onboarding="textile">
           <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr)", gap: 8 }}>
             {products.map((item) => {
               const active = item.key === productKey;
@@ -810,7 +810,7 @@ export default function ConstructorSidebarPanel({
             })}
           </div>
         </SidebarFieldRow>
-        <SidebarFieldRow label="Размер" minHeight={74}>
+        <SidebarFieldRow label="Размер" minHeight={74} data-onboarding="size">
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
             {product.sizes.map((option) => {
               const active = option === size;
@@ -879,7 +879,7 @@ export default function ConstructorSidebarPanel({
             </button>
           ) : null}
         </SidebarFieldRow>
-        <SidebarFieldRow label="Цвет" minHeight={74}>
+        <SidebarFieldRow label="Цвет" minHeight={74} data-onboarding="color">
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
             {product.colors.map((option) => {
               const active = option === color;

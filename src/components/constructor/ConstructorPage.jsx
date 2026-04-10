@@ -3,6 +3,7 @@ import LogoMini from "../LogoMini.jsx";
 import TshirtSizeGuideTable from "../TshirtSizeGuideTable.jsx";
 import ConstructorOrderPanel from "./ConstructorOrderPanel.jsx";
 import ConstructorPreviewPanel from "./ConstructorPreviewPanel.jsx";
+import ConstructorOnboarding from "./ConstructorOnboarding.jsx";
 import ConstructorSidebarPanel from "./ConstructorSidebarPanel.jsx";
 import ConstructorTabsNav from "./ConstructorTabsNav.jsx";
 import { buildConstructorTelegramLink, CONSTRUCTOR_TABS, getConstructorShape, getConstructorSizeGuide, getConstructorTextGradient, readFileAsDataUrl, readImageSize, resolveConstructorMockupSrc } from "./constructorConfig.js";
@@ -1196,7 +1197,7 @@ export default function ConstructorPage({ onBack, products }) {
           style={{
             position: "fixed",
             inset: 0,
-            zIndex: 70,
+            zIndex: 10000,
             background: "rgba(6,6,10,.78)",
             backdropFilter: "blur(10px)",
             display: "flex",
@@ -1251,6 +1252,7 @@ export default function ConstructorPage({ onBack, products }) {
           </div>
         </div>
       ) : null}
+      <ConstructorOnboarding />
     </div>
   );
 }

@@ -24,6 +24,7 @@ const OVERSIZE_REAL_MOCKUP_COLOR_SLUGS = {
   "серый": "gray",
   "темно-серый": "gray",
   "тёмно-серый": "gray",
+  "меланж": "melange",
 };
 
 export const CONSTRUCTOR_PRINT_FORMATS = [

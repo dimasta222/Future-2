@@ -960,6 +960,7 @@ export default function ConstructorPage({ onBack, products }) {
     const isTypingTarget = (target) => {
       if (!(target instanceof HTMLElement)) return false;
       const tagName = target.tagName;
+      if (tagName === "INPUT" && target.type === "range") return false;
       return target.isContentEditable || tagName === "INPUT" || tagName === "TEXTAREA" || tagName === "SELECT";
     };
 

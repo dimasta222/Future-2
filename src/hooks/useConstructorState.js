@@ -1446,7 +1446,10 @@ export default function useConstructorState({
     ...(backPrintPricing ? [
       [`Печать сзади • ${backPrintPricing.formatName} • ${backPrintPricing.isSingleLayer ? (backPrintPricing.objectSizeLabel || backPrintPricing.sizeLabel) : backPrintPricing.sizeLabel}`, `${resolvedBackPrintPrice.toLocaleString("ru-RU")} ₽`],
     ] : []),
-    ...(isSmallOrder ? [
+    ...(isSmallOrder && ![
+      frontPrintPricing?.formatName,
+      backPrintPricing?.formatName
+    ].some((name) => name === "A3+" || name === "A3++") ? [
       ["hint", `От 5 шт печать дешевле: ${((frontPrintPricing?.price || 0) + (backPrintPricing?.price || 0)).toLocaleString("ru-RU")} ₽ вместо ${currentPrintTotalPerItem.toLocaleString("ru-RU")} ₽`],
     ] : []),
     ["---"],

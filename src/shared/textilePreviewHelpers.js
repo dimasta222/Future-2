@@ -52,6 +52,7 @@ const HOME_TSHIRT_PREVIEW_PATHS = {
   classic: {
     "180": {
       "черный": "/tshirts/home img t-shirt/classic/180/black/futbolka_classic_black_180.jpg",
+      "белый": "/tshirts/home img t-shirt/classic/180/white/futbolka_classic_white_180.png",
     },
   },
 };

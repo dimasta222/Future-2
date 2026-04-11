@@ -27,6 +27,19 @@ const OVERSIZE_REAL_MOCKUP_COLOR_SLUGS = {
   "меланж": "melange",
 };
 
+function buildClassicMockupAssetSet(side) {
+  const resolvedSide = side === "back" ? "back" : "front";
+
+  return {
+    mockupSrc: resolvePublicAssetPath(`mockups/180/classik-black-${resolvedSide}.png`),
+  };
+}
+
+const CLASSIC_REAL_MOCKUP_COLOR_SLUGS = {
+  "черный": "black",
+  "белый": "white",
+};
+
 export const CONSTRUCTOR_PRINT_FORMATS = [
   { name: "A6", short: 10, long: 15, price: 250 },
   { name: "A5", short: 15, long: 20, price: 290 },
@@ -56,6 +69,17 @@ function resolveOversizeMockupSrc(side, colorName = "") {
   return resolvePublicAssetPath(`mockups/oversize-${colorSlug}-${resolvedSide}.png`);
 }
 
+function resolveClassicMockupSrc(side, colorName = "") {
+  const resolvedSide = side === "back" ? "back" : "front";
+  const colorSlug = CLASSIC_REAL_MOCKUP_COLOR_SLUGS[normalizeColorName(colorName)];
+
+  if (!colorSlug) {
+    return "";
+  }
+
+  return resolvePublicAssetPath(`mockups/180/classik-${colorSlug}-${resolvedSide}.png`);
+}
+
 const OVERSIZE_PRINT_AREA_GEOMETRY = {
   front: {
     left: 50,
@@ -81,6 +105,31 @@ const PRINT_AREA_PHYSICAL_SIZES = {
   "3XL": { physicalWidthCm: 54, physicalHeightCm: 63 },
 };
 
+const CLASSIC_PRINT_AREA_GEOMETRY = {
+  front: {
+    left: 50,
+    top: 55.5,
+    width: 53,
+    height: 79,
+  },
+  back: {
+    left: 50,
+    top: 56,
+    width: 53,
+    height: 79,
+  },
+};
+
+const CLASSIC_PRINT_AREA_PHYSICAL_SIZES = {
+  XS: { physicalWidthCm: 40, physicalHeightCm: 54 },
+  S: { physicalWidthCm: 41, physicalHeightCm: 55 },
+  M: { physicalWidthCm: 42, physicalHeightCm: 56 },
+  L: { physicalWidthCm: 43, physicalHeightCm: 57 },
+  XL: { physicalWidthCm: 44, physicalHeightCm: 58 },
+  "2XL": { physicalWidthCm: 45, physicalHeightCm: 59 },
+  "3XL": { physicalWidthCm: 46, physicalHeightCm: 60 },
+};
+
 function buildPrintAreaSizeOverrides(side) {
   return Object.fromEntries(
     Object.entries(PRINT_AREA_PHYSICAL_SIZES).map(([size, physicalSize]) => [
@@ -99,6 +148,24 @@ const PRINT_AREA_SIZE_OVERRIDES = {
   back: buildPrintAreaSizeOverrides("back"),
 };
 
+function buildClassicPrintAreaSizeOverrides(side) {
+  return Object.fromEntries(
+    Object.entries(CLASSIC_PRINT_AREA_PHYSICAL_SIZES).map(([size, physicalSize]) => [
+      size,
+      {
+        ...CLASSIC_PRINT_AREA_GEOMETRY[side === "back" ? "back" : "front"],
+        ...physicalSize,
+        ...buildClassicMockupAssetSet(side),
+      },
+    ])
+  );
+}
+
+const CLASSIC_PRINT_AREA_SIZE_OVERRIDES = {
+  front: buildClassicPrintAreaSizeOverrides("front"),
+  back: buildClassicPrintAreaSizeOverrides("back"),
+};
+
 export const CONSTRUCTOR_PRINT_AREAS = {
   classic: {
     front: {
@@ -106,18 +173,18 @@ export const CONSTRUCTOR_PRINT_AREAS = {
       top: 55.5,
       width: 53,
       height: 79,
-      physicalWidthCm: 46,
-      physicalHeightCm: 53,
-      sizeOverrides: PRINT_AREA_SIZE_OVERRIDES.front,
+      physicalWidthCm: 42,
+      physicalHeightCm: 56,
+      sizeOverrides: CLASSIC_PRINT_AREA_SIZE_OVERRIDES.front,
     },
     back: {
       left: 50,
       top: 56,
       width: 53,
       height: 79,
-      physicalWidthCm: 46,
-      physicalHeightCm: 53,
-      sizeOverrides: PRINT_AREA_SIZE_OVERRIDES.back,
+      physicalWidthCm: 42,
+      physicalHeightCm: 56,
+      sizeOverrides: CLASSIC_PRINT_AREA_SIZE_OVERRIDES.back,
     },
   },
   oversize: {
@@ -162,21 +229,17 @@ export function resolveConstructorPrintArea(printAreas, side = "front", size = "
 
 export function resolveConstructorMockupSrc(printAreas, side = "front", size = "", colorName = "") {
   const resolvedMockupSrc = resolveConstructorPrintArea(printAreas, side, size)?.mockupSrc || "";
-  const resolvedOversizeMockupSrc = resolveOversizeMockupSrc(side, colorName);
-
-  if (resolvedOversizeMockupSrc) {
-    return resolvedOversizeMockupSrc;
-  }
 
   if (!resolvedMockupSrc) {
     return "";
   }
 
-  const normalizedColor = normalizeColorName(colorName);
-  const isOversizeBlackMockup = /(^|\/)mockups\/oversize-black-/.test(resolvedMockupSrc);
+  if (/(^|\/)mockups\/oversize-/.test(resolvedMockupSrc)) {
+    return resolveOversizeMockupSrc(side, colorName);
+  }
 
-  if (isOversizeBlackMockup && normalizedColor && normalizedColor !== "черный") {
-    return "";
+  if (/(^|\/)mockups\/180\/classik-/.test(resolvedMockupSrc)) {
+    return resolveClassicMockupSrc(side, colorName);
   }
 
   return resolvedMockupSrc;

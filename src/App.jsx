@@ -295,14 +295,14 @@ const COLORS = [
 
 /* Shared components */
 
-function useInView(th = 0.15) {
+function useInView(th = 0.05) {
   const ref = useRef(null); const [v, setV] = useState(false);
-  useEffect(() => { const el = ref.current; if (!el) return; const o = new IntersectionObserver(([e]) => { if (e.isIntersecting) { setV(true); o.unobserve(el); } }, { threshold: th }); o.observe(el); return () => o.disconnect(); }, [th]);
+  useEffect(() => { const el = ref.current; if (!el) return; const o = new IntersectionObserver(([e]) => { if (e.isIntersecting) { setV(true); o.unobserve(el); } }, { threshold: th, rootMargin: "0px 0px 80px 0px" }); o.observe(el); return () => o.disconnect(); }, [th]);
   return [ref, v];
 }
 function A({ children, className = "", delay = 0 }) {
   const [ref, v] = useInView();
-  return <div ref={ref} className={className} style={{ opacity: v ? 1 : 0, transform: v ? "translateY(0)" : "translateY(40px)", transition: `all .8s cubic-bezier(.16,1,.3,1) ${delay}s` }}>{children}</div>;
+  return <div ref={ref} className={className} style={{ opacity: v ? 1 : 0, transform: v ? "translateY(0)" : "translateY(30px)", transition: `opacity .5s cubic-bezier(.16,1,.3,1) ${delay}s, transform .5s cubic-bezier(.16,1,.3,1) ${delay}s`, willChange: v ? "auto" : "opacity, transform" }}>{children}</div>;
 }
 
 /* ══════════════════════════════════════════
@@ -316,7 +316,7 @@ const TEXTILE_DATA = {
     items: [
       { name: "Футболка оверсайз", galleryModel: "oversize", sizes: "XS – 3XL", variants: [
         { label: "180 г/м²", material: "100% хлопок", colors: "Чёрный, Белый, Розовый, Тёмно-серый, Меланж", defaultColor: "Розовый", price: "800 ₽", desc: "Средней плотности футболка свободного кроя. Идеальна для ярких принтов. Не садится после стирки." },
-        { label: "240 г/м²", material: "100% хлопок", colors: "Чёрный, Белый, Бежевый, Розовый", price: "1 000 ₽", desc: "Плотная футболка свободного кроя. Идеальна для ярких принтов. Не садится после стирки." },
+        { label: "240 г/м²", material: "100% хлопок", colors: "Чёрный, Белый, Бежевый, Розовый", defaultColor: "Белый", price: "1 000 ₽", desc: "Плотная футболка свободного кроя. Идеальна для ярких принтов. Не садится после стирки." },
       ] },
       { name: "Футболка классика", galleryModel: "classic", sizes: "XS – 3XL", variants: [
         { label: "180 г/м²", material: "100% хлопок", colors: "Чёрный, Белый", price: "650 ₽", desc: "Классический крой, мягкий хлопок. Отлично подходит для корпоративных тиражей и мерча." },
@@ -623,20 +623,22 @@ function CalcPage({ onBack }) {
     setItems(items.map(i => i.id === id ? { ...i, [f]: n } : i));
   };
 
-  const valid = items.every(i => i.w > 0 && i.h > 0 && i.qty > 0);
-  const oversized = items.some(i => Math.min(i.w, i.h) > BED_W);
+  const activeItems = items.filter(i => i.w > 0 && i.h > 0 && i.qty > 0);
+  const valid = activeItems.length > 0;
+  const oversized = activeItems.some(i => Math.min(i.w, i.h) > BED_W);
 
-  const packItems = items.map((it, idx) => ({ w: it.w, h: it.h, qty: it.qty, color: COLORS[idx % COLORS.length] }));
+  const packItems = activeItems.map((it, idx) => ({ w: it.w, h: it.h, qty: it.qty, color: COLORS[items.indexOf(it) % COLORS.length] }));
   const pack = valid && !oversized ? packOnBed(packItems) : { length: 0, placements: [] };
 
-  const totalQty = items.reduce((s, i) => s + i.qty, 0);
+  const totalQty = activeItems.reduce((s, i) => s + i.qty, 0);
   const lengthCm = pack.length;
   const meters = lengthCm / 100;
   const metersRaw = meters > 0 ? Math.ceil(meters * 10) / 10 : 0;
   const metersRound = metersRaw > 0 && !withApply ? Math.max(1, metersRaw) : metersRaw;
 
   const overThreeMeters = metersRaw > 3;
-  const itemFormats = items.map((it, idx) => {
+  const itemFormats = activeItems.map((it) => {
+    const idx = items.indexOf(it);
     const fmt = getFormat(it.w, it.h);
     const eligible = withApply && !overThreeMeters && fmt !== null && it.qty <= 15;
     return { ...it, format: fmt, formatCost: eligible ? fmt.price * it.qty : null, eligible, idx };

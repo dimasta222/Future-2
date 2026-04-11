@@ -9,6 +9,7 @@ import MainNavigation from "./components/MainNavigation.jsx";
 import PricingSection from "./components/PricingSection.jsx";
 import ProductCard from "./components/ProductCard.jsx";
 import ReviewsSection from "./components/ReviewsSection.jsx";
+import useYandexReviews from "./hooks/useYandexReviews.js";
 import TG from "./components/TG.jsx";
 import TshirtOrderFlyingBadge from "./components/TshirtOrderFlyingBadge.jsx";
 import TshirtSizeGuideTrigger from "./components/TshirtSizeGuideTrigger.jsx";
@@ -70,8 +71,9 @@ const FORMAT_PRICES = [
 function getFormat(w, h) {
   const small = Math.min(w, h);
   const big = Math.max(w, h);
+  const MARGIN = 1;
   for (const f of FORMAT_PRICES) {
-    if (small <= f.short && big <= f.long) return f;
+    if (small <= f.short + MARGIN && big <= f.long + MARGIN) return f;
   }
   return null;
 }
@@ -313,7 +315,7 @@ const TEXTILE_DATA = {
     desc: "Широкий выбор футболок для нанесения DTF-принтов. Наши футболки создаются напрямую на фабрике по собственным лекалам, которые мы разрабатывали лично. Мы внимательно подошли к каждой детали: от кроя и посадки до выбора ткани и цвета. Всё для того, чтобы футболка идеально сидела, подходила разным типам фигуры, не сковывала движения и выглядела достойно в любой ситуации. Мы предлагаем качественный текстиль под любые задачи: от повседневной носки до брендинга и мерча.",
     items: [
       { name: "Футболка оверсайз", galleryModel: "oversize", sizes: "XS – 3XL", variants: [
-        { label: "180 г/м²", material: "100% хлопок", colors: "Чёрный, Белый, Розовый, Тёмно-серый, Меланж", price: "800 ₽", desc: "Средней плотности футболка свободного кроя. Идеальна для ярких принтов. Не садится после стирки." },
+        { label: "180 г/м²", material: "100% хлопок", colors: "Чёрный, Белый, Розовый, Тёмно-серый, Меланж", defaultColor: "Розовый", price: "800 ₽", desc: "Средней плотности футболка свободного кроя. Идеальна для ярких принтов. Не садится после стирки." },
         { label: "240 г/м²", material: "100% хлопок", colors: "Чёрный, Белый, Бежевый, Розовый", price: "1 000 ₽", desc: "Плотная футболка свободного кроя. Идеальна для ярких принтов. Не садится после стирки." },
       ] },
       { name: "Футболка классика", galleryModel: "classic", sizes: "XS – 3XL", variants: [
@@ -630,21 +632,36 @@ function CalcPage({ onBack }) {
   const totalQty = items.reduce((s, i) => s + i.qty, 0);
   const lengthCm = pack.length;
   const meters = lengthCm / 100;
-  const metersRound = meters > 0 ? Math.max(1, Math.ceil(meters * 10) / 10) : 0;
+  const metersRaw = meters > 0 ? Math.ceil(meters * 10) / 10 : 0;
+  const metersRound = metersRaw > 0 && !withApply ? Math.max(1, metersRaw) : metersRaw;
 
-  const useFormatPricing = withApply && totalQty > 0 && totalQty <= 15;
-  const itemFormats = items.map(it => {
+  const overThreeMeters = metersRaw > 3;
+  const itemFormats = items.map((it, idx) => {
     const fmt = getFormat(it.w, it.h);
-    return { ...it, format: fmt, formatCost: fmt ? fmt.price * it.qty : null };
+    const eligible = withApply && !overThreeMeters && fmt !== null && it.qty <= 15;
+    return { ...it, format: fmt, formatCost: eligible ? fmt.price * it.qty : null, eligible, idx };
   });
-  const allFitsFormat = itemFormats.every(it => it.format !== null);
-  const formatTotal = allFitsFormat ? itemFormats.reduce((s, it) => s + it.formatCost, 0) : 0;
-  const isSmallOrder = useFormatPricing && allFitsFormat;
+  const formatItems = itemFormats.filter(it => it.eligible);
+  const meterItems = itemFormats.filter(it => !it.eligible);
+  const isSmallOrder = withApply && formatItems.length > 0 && meterItems.length === 0;
+  const isMixed = withApply && formatItems.length > 0 && meterItems.length > 0;
+  const formatPartCost = formatItems.reduce((s, it) => s + it.formatCost, 0);
+
+  let meterPartPrint = { rate: 0, cost: 0 };
+  let meterPartApply = { rate: 0, cost: 0 };
+  let meterPartMeters = 0;
+  const meterQty = meterItems.reduce((s, it) => s + it.qty, 0);
+  if (meterItems.length > 0 && valid && !oversized) {
+    const mPack = packOnBed(meterItems.map(it => ({ w: it.w, h: it.h, qty: it.qty, color: COLORS[it.idx % COLORS.length] })));
+    meterPartMeters = mPack.length > 0 ? Math.ceil(mPack.length / 100 * 10) / 10 : 0;
+    meterPartPrint = getPrintCost(meterPartMeters);
+    meterPartApply = getApplyCost(meterQty);
+  }
 
   const print = getPrintCost(metersRound);
   const apply = withApply ? getApplyCost(totalQty) : { rate: 0, cost: 0 };
   const standardTotal = print.cost + apply.cost;
-  const printTotal = isSmallOrder ? formatTotal : standardTotal;
+  const printTotal = isSmallOrder ? formatPartCost : isMixed ? formatPartCost + meterPartPrint.cost + meterPartApply.cost : standardTotal;
   const total = printTotal;
 
   const svgW = 370;
@@ -803,7 +820,7 @@ function CalcPage({ onBack }) {
                         <span style={{ fontSize: 17, fontWeight: 600 }}>{v}</span>
                       </div>
                     ))}
-                    {!isSmallOrder && meters > 0 && meters < 1 && (
+                    {!isSmallOrder && !withApply && meters > 0 && meters < 1 && (
                       <div style={{ padding: "14px 18px", borderRadius: 12, background: "rgba(255,80,80,.08)", border: "1.5px solid rgba(255,80,80,.25)", display: "flex", alignItems: "center", gap: 12 }}>
                         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ff6b6b" strokeWidth="2" style={{ flexShrink: 0 }}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
                         <div>
@@ -815,16 +832,16 @@ function CalcPage({ onBack }) {
                   </div>
 
                   <div style={{ borderTop: "1px solid rgba(255,255,255,.05)", paddingTop: 18, display: "flex", flexDirection: "column", gap: 14 }}>
-                    {isSmallOrder ? (
+                    {isSmallOrder || isMixed ? (
                       <>
                         <div style={{ padding: "8px 12px", borderRadius: 10, background: "rgba(108,92,231,.06)", border: "1px solid rgba(108,92,231,.15)", marginBottom: 4 }}>
-                          <div style={{ fontSize: 12, fontWeight: 400, color: "#6c5ce7" }}>Расчёт по формату (до 15 шт, с нанесением)</div>
+                          <div style={{ fontSize: 12, fontWeight: 400, color: "#6c5ce7" }}>{isMixed ? "Расчёт: формат + метраж" : "Расчёт по формату (до 15 шт/размер)"}</div>
                         </div>
-                        {itemFormats.map((it, i) => (
-                          <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        {formatItems.map((it, i) => (
+                          <div key={`f${i}`} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                             <div>
                               <div style={{ fontSize: 14, fontWeight: 400, display: "flex", alignItems: "center", gap: 8 }}>
-                                <div style={{ width: 10, height: 10, borderRadius: 3, background: COLORS[i % COLORS.length], flexShrink: 0 }} />
+                                <div style={{ width: 10, height: 10, borderRadius: 3, background: COLORS[it.idx % COLORS.length], flexShrink: 0 }} />
                                 {it.w}×{it.h} см → {it.format.name}
                               </div>
                               <div style={{ fontSize: 12, fontWeight: 300, color: "rgba(240,238,245,.3)", marginLeft: 18 }}>{it.qty} шт × {it.format.price} ₽</div>
@@ -832,6 +849,18 @@ function CalcPage({ onBack }) {
                             <span style={{ fontSize: 18, fontWeight: 600 }}>{it.formatCost.toLocaleString("ru")} ₽</span>
                           </div>
                         ))}
+                        {isMixed && (
+                          <>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                              <div><div style={{ fontSize: 14, fontWeight: 400 }}>Печать (по метражу)</div><div style={{ fontSize: 12, fontWeight: 300, color: "rgba(240,238,245,.3)" }}>{meterPartMeters.toFixed(1)} м × {meterPartPrint.rate} ₽/м</div></div>
+                              <span style={{ fontSize: 18, fontWeight: 600 }}>{meterPartPrint.cost.toLocaleString("ru")} ₽</span>
+                            </div>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                              <div><div style={{ fontSize: 14, fontWeight: 400 }}>Нанесение</div><div style={{ fontSize: 12, fontWeight: 300, color: "rgba(240,238,245,.3)" }}>{meterQty} шт × {meterPartApply.rate} ₽/шт</div></div>
+                              <span style={{ fontSize: 18, fontWeight: 600 }}>{meterPartApply.cost.toLocaleString("ru")} ₽</span>
+                            </div>
+                          </>
+                        )}
                       </>
                     ) : (
                       <>
@@ -857,7 +886,7 @@ function CalcPage({ onBack }) {
                     {totalQty > 0 && <div style={{ fontSize: 13, fontWeight: 300, color: "rgba(240,238,245,.4)", marginTop: 4, textAlign: "right" }}>≈ {Math.round(total / totalQty)} ₽ / принт</div>}
                   </div>
 
-                  {(!isSmallOrder && meters > 0 && meters < 1) ? (
+                  {(!isSmallOrder && !withApply && meters > 0 && meters < 1) ? (
                     <div style={{ width: "100%", textAlign: "center", marginTop: 18, padding: "14px 36px", borderRadius: 50, background: "rgba(255,255,255,.04)", color: "rgba(240,238,245,.25)", fontSize: 16, fontWeight: 500, fontFamily: "'Outfit',sans-serif", cursor: "not-allowed" }}>Минимум 1 п/м для заказа</div>
                   ) : (
                     <a href={calcOrderLink} target="_blank" rel="noopener noreferrer" className="btg" style={{ width: "100%", justifyContent: "center", marginTop: 18, display: "flex" }}><TG /> Оформить заказ</a>
@@ -866,20 +895,22 @@ function CalcPage({ onBack }) {
               )}
             </div>
 
-            {isSmallOrder ? (
+            {(isSmallOrder || isMixed) && (
               <div className="cs calc-panel" style={{ padding: 22 }}>
-                <div style={{ fontSize: 11, fontWeight: 500, letterSpacing: 2, color: "rgba(240,238,245,.35)", textTransform: "uppercase", marginBottom: 14 }}>Цены по формату (до 15 шт, печать + нанесение)</div>
+                <div style={{ fontSize: 11, fontWeight: 500, letterSpacing: 2, color: "rgba(240,238,245,.35)", textTransform: "uppercase", marginBottom: 14 }}>Цены по формату (до 15 шт/размер, печать + нанесение)</div>
                 {FORMAT_PRICES.map((f, i) => {
-                  const active = itemFormats.some(it => it.format && it.format.name === f.name);
+                  const active = formatItems.some(it => it.format && it.format.name === f.name);
                   return <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "7px 12px", borderRadius: 8, background: active ? "rgba(232,67,147,.08)" : "transparent" }}><span style={{ fontSize: 13, fontWeight: 300, color: active ? "#e84393" : "rgba(240,238,245,.35)" }}>{f.name} ({f.short}×{f.long})</span><span style={{ fontSize: 13, fontWeight: active ? 600 : 400, color: active ? "#e84393" : "rgba(240,238,245,.45)" }}>{f.price} ₽/шт</span></div>;
                 })}
               </div>
-            ) : (
+            )}
+            {!isSmallOrder && (
               <>
                 <div className="cs calc-panel" style={{ padding: 22 }}>
                   <div style={{ fontSize: 11, fontWeight: 500, letterSpacing: 2, color: "rgba(240,238,245,.35)", textTransform: "uppercase", marginBottom: 14 }}>Тарифы — печать</div>
                   {PRINT_TIERS.map((t, i) => {
-                    const a = valid && metersRound > 0 && Math.ceil(metersRound) >= t.min && Math.ceil(metersRound) <= t.max;
+                    const dm = isMixed ? meterPartMeters : metersRound;
+                    const a = valid && dm > 0 && Math.ceil(dm) >= t.min && Math.ceil(dm) <= t.max;
                     return <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "7px 12px", borderRadius: 8, background: a ? "rgba(232,67,147,.08)" : "transparent" }}><span style={{ fontSize: 13, fontWeight: 300, color: a ? "#e84393" : "rgba(240,238,245,.35)" }}>{t.max === Infinity ? `от ${t.min} м` : `${t.min}–${t.max} м`}</span><span style={{ fontSize: 13, fontWeight: a ? 600 : 400, color: a ? "#e84393" : "rgba(240,238,245,.45)" }}>{t.price} ₽/м</span></div>;
                   })}
                 </div>
@@ -887,7 +918,8 @@ function CalcPage({ onBack }) {
                   <div className="cs calc-panel" style={{ padding: 22 }}>
                     <div style={{ fontSize: 11, fontWeight: 500, letterSpacing: 2, color: "rgba(240,238,245,.35)", textTransform: "uppercase", marginBottom: 14 }}>Тарифы — нанесение</div>
                     {APPLY_TIERS.map((t, i) => {
-                      const a = valid && totalQty >= t.min && totalQty <= t.max;
+                      const dq = isMixed ? meterQty : totalQty;
+                      const a = valid && dq >= t.min && dq <= t.max;
                       return <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "7px 12px", borderRadius: 8, background: a ? "rgba(108,92,231,.08)" : "transparent" }}><span style={{ fontSize: 13, fontWeight: 300, color: a ? "#6c5ce7" : "rgba(240,238,245,.35)" }}>{t.max === Infinity ? `от ${t.min} шт` : `${t.min}–${t.max} шт`}</span><span style={{ fontSize: 13, fontWeight: a ? 600 : 400, color: a ? "#6c5ce7" : "rgba(240,238,245,.45)" }}>{t.price} ₽/шт</span></div>;
                     })}
                   </div>
@@ -957,6 +989,7 @@ export default function App() {
   const [sy, setSy] = useState(0);
   const [pt, setPt] = useState("format");
   const [txMenuOpen, setTxMenuOpen] = useState(false);
+  const reviewData = useYandexReviews();
 
   useEffect(() => { const h = () => setSy(window.scrollY); window.addEventListener("scroll", h, { passive: true }); return () => window.removeEventListener("scroll", h); }, []);
   useEffect(() => {
@@ -1071,7 +1104,7 @@ export default function App() {
       />
 
       {/* HERO */}
-      <HeroSection Reveal={A} onOpenConstructor={goConstructor} onOpenCalculator={oc} />
+      <HeroSection Reveal={A} onOpenConstructor={goConstructor} onOpenCalculator={oc} reviewData={reviewData} />
 
 
       {/* PRICING */}
@@ -1095,7 +1128,7 @@ export default function App() {
       />
 
       {/* REVIEWS */}
-      <ReviewsSection Reveal={A} reviews={RV} />
+      <ReviewsSection Reveal={A} reviews={RV} reviewData={reviewData} />
 
       {/* CONTACT */}
       <ContactSection Reveal={A} formData={fm} setFormData={setFm} onSubmit={handleContactSubmit} />

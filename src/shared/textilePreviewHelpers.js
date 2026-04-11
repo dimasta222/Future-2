@@ -42,6 +42,16 @@ const HOME_TSHIRT_PREVIEW_PATHS = {
       "черный": "/tshirts/home img t-shirt/oversize/180/black/futbolka_oversize_black_180.png",
       "белый": "/tshirts/home img t-shirt/oversize/180/white/futbolka_oversize_white_180.png",
       "розовый": "/tshirts/home img t-shirt/oversize/180/pink/futbolka_oversize_pink_180.png",
+      "темно-серый": "/tshirts/home img t-shirt/oversize/180/dark-gray/futbolka_oversize_dark-gray_180.png",
+    },
+    "240": {
+      "черный": "/tshirts/home img t-shirt/oversize/240/black/futbolka_oversize_black_240.png",
+      "белый": "/tshirts/home img t-shirt/oversize/240/white/futbolka_oversize_white_240.png",
+    },
+  },
+  classic: {
+    "180": {
+      "черный": "/tshirts/home img t-shirt/classic/180/black/futbolka_classic_black_180.jpg",
     },
   },
 };

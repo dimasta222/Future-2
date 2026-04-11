@@ -13,7 +13,7 @@ export default function MainTshirtCard({ item, onOpen }) {
   const variantPrice = currentVariant?.price || item.price;
   const densityLabel = currentVariant?.label || "";
   const colorOptions = currentVariant ? parseColorOptions(currentVariant.colors) : parseColorOptions(item.colors);
-  const defaultColor = getDefaultTshirtColor(colorOptions) || colorOptions[0] || "Чёрный";
+  const defaultColor = getDefaultTshirtColor(colorOptions, currentVariant?.defaultColor) || colorOptions[0] || "Чёрный";
   const [selectedColor, setSelectedColor] = useState(defaultColor);
   const previewColor = colorOptions.includes(selectedColor) ? selectedColor : defaultColor;
   const densityValue = normalizeVariantLabel(densityLabel) || densityLabel || "180";
@@ -56,7 +56,7 @@ export default function MainTshirtCard({ item, onOpen }) {
                     if (!hasVariants) return;
                     const nextVariant = item.variants[index];
                     const nextColorOptions = parseColorOptions(nextVariant?.colors || "");
-                    const nextDefaultColor = getDefaultTshirtColor(nextColorOptions) || nextColorOptions[0] || "Чёрный";
+                    const nextDefaultColor = getDefaultTshirtColor(nextColorOptions, nextVariant?.defaultColor) || nextColorOptions[0] || "Чёрный";
                     setVariantIndex(index);
                     setSelectedColor(nextDefaultColor);
                   }}

@@ -25,8 +25,11 @@ export function normalizeColorName(colorName = "") {
   return colorName.toLowerCase().replace(/ё/g, "е").trim();
 }
 
-export function getDefaultTshirtColor(options) {
+export function getDefaultTshirtColor(options, preferredColor) {
   if (!options?.length) return "";
+  if (preferredColor && options.some((option) => normalizeColorName(option) === normalizeColorName(preferredColor))) {
+    return options.find((option) => normalizeColorName(option) === normalizeColorName(preferredColor));
+  }
   return options.find((option) => normalizeColorName(option) === "черный") || "";
 }
 

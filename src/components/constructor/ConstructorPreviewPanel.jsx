@@ -32,6 +32,7 @@ const TEXT_RESIZE_HANDLE_KEYS = new Set(["nw", "ne", "se", "sw", "e", "w"]);
 const LINE_SHAPE_HANDLE_KEYS = new Set(["e", "w"]);
 const MIDDLE_RESIZE_HANDLE_KEYS = new Set(["n", "e", "s", "w"]);
 const DEFAULT_TEXT_LINE_HEIGHT = 1.05;
+
 const textMeasureCanvas = typeof document !== "undefined" ? document.createElement("canvas") : null;
 const textMeasureContext = textMeasureCanvas?.getContext("2d") || null;
 
@@ -1325,6 +1326,8 @@ export default function ConstructorPreviewPanel({
             const textShadowValue = layer.shadowEnabled
               ? `${layer.shadowOffsetX ?? 0}px ${layer.shadowOffsetY ?? 2}px ${layer.shadowBlur ?? 14}px ${layer.shadowColor || "#111111"}`
               : "none";
+            const hasStroke = (layer.strokeWidth ?? 0) > 0;
+            const strokeFilterId = hasStroke ? `ts-${layer.id}` : null;
             const layerFont = getConstructorTextFont(layer.fontKey);
             const activeGradient = layer.textFillMode === "gradient" ? getTextGradientByKey(layer.gradientKey) : null;
             const textDecorationLine = getTextDecorationLine(layer);
@@ -1361,8 +1364,25 @@ export default function ConstructorPreviewPanel({
                   event.stopPropagation();
                   onLayerEditOpen(layer.id);
                 }}
-                style={{ position: "absolute", left: `${layer.position.x}%`, top: `${layer.position.y}%`, transform: `translate(-50%, -50%)${layer.rotationDeg ? ` rotate(${layer.rotationDeg}deg)` : ""}`, transformOrigin: "center center", width: `${layer.textBoxWidth ?? 88}%`, maxWidth: "100%", minHeight: textMinHeight, padding: `${verticalPad.top}px 0 ${verticalPad.bottom}px ${halfLetterSpacing}px`, textAlign: layer.textAlign || "center", fontSize: `${layer.size}px`, lineHeight: layer.lineHeight ?? 1.05, fontWeight, fontStyle, fontFamily: layer.fontFamily || "'Outfit', sans-serif", color: activeGradient ? "transparent" : layer.color, letterSpacing: `${layer.letterSpacing ?? 1}px`, WebkitTextStroke: (layer.strokeWidth ?? 0) > 0 ? `${layer.strokeWidth}px ${layer.strokeColor || "#111111"}` : "0 transparent", paintOrder: "stroke fill", whiteSpace: "pre-wrap", overflowWrap: "anywhere", wordBreak: "break-word", hyphens: "none", textShadow: textShadowValue, pointerEvents: "auto", cursor: allowTextEditing ? "text" : resizing ? "nwse-resize" : layer.locked ? "default" : dragging ? "grabbing" : "grab", touchAction: allowTextEditing ? "auto" : "none", boxShadow: showTextBoxGuides ? textGuideShadow : frameStyle, borderRadius: 0, outline: "none", outlineOffset: 0, background: "transparent", zIndex: index + 1 }}
+                style={{ position: "absolute", left: `${layer.position.x}%`, top: `${layer.position.y}%`, transform: `translate(-50%, -50%)${layer.rotationDeg ? ` rotate(${layer.rotationDeg}deg)` : ""}`, transformOrigin: "center center", width: `${layer.textBoxWidth ?? 88}%`, maxWidth: "100%", minHeight: textMinHeight, padding: `${verticalPad.top}px 0 ${verticalPad.bottom}px ${halfLetterSpacing}px`, textAlign: layer.textAlign || "center", fontSize: `${layer.size}px`, lineHeight: layer.lineHeight ?? 1.05, fontWeight, fontStyle, fontFamily: layer.fontFamily || "'Outfit', sans-serif", color: activeGradient ? "transparent" : layer.color, letterSpacing: `${layer.letterSpacing ?? 1}px`, whiteSpace: "pre-wrap", overflowWrap: "anywhere", wordBreak: "break-word", hyphens: "none", textShadow: textShadowValue, pointerEvents: "auto", cursor: allowTextEditing ? "text" : resizing ? "nwse-resize" : layer.locked ? "default" : dragging ? "grabbing" : "grab", touchAction: allowTextEditing ? "auto" : "none", boxShadow: showTextBoxGuides ? textGuideShadow : frameStyle, borderRadius: 0, outline: "none", outlineOffset: 0, background: "transparent", zIndex: index + 1 }}
               >
+                {hasStroke && (
+                  <>
+                    <svg width="0" height="0" style={{ position: "absolute", overflow: "hidden" }}>
+                      <defs>
+                        <filter id={strokeFilterId} x="-50%" y="-50%" width="200%" height="200%">
+                          <feMorphology operator="dilate" radius={layer.strokeWidth / 2} />
+                        </filter>
+                      </defs>
+                    </svg>
+                    <div
+                      aria-hidden="true"
+                      style={{ position: "absolute", inset: 0, padding: `${verticalPad.top}px 0 ${verticalPad.bottom}px ${halfLetterSpacing}px`, color: layer.strokeColor || "#111111", WebkitTextFillColor: layer.strokeColor || "#111111", filter: `url(#${strokeFilterId})`, textShadow: "none", pointerEvents: "none", textTransform, minHeight: textMinHeight, whiteSpace: "pre-wrap", overflowWrap: "anywhere", wordBreak: "break-word", hyphens: "none" }}
+                    >
+                      {overlayText}
+                    </div>
+                  </>
+                )}
                 {allowTextEditing ? (
                   <div
                     ref={(node) => {
@@ -1382,14 +1402,14 @@ export default function ConstructorPreviewPanel({
                       const nextValue = event.currentTarget.innerText.replace(/\r/g, "").replace(/\n$/, "");
                       onActiveTextValueChange(nextValue);
                     }}
-                    style={{ minHeight: textMinHeight, outline: "none", cursor: "text", userSelect: "text", WebkitUserSelect: "text", color: activeGradient ? "transparent" : layer.color, backgroundImage: activeGradient ? activeGradient.css : "none", WebkitBackgroundClip: activeGradient ? "text" : "border-box", backgroundClip: activeGradient ? "text" : "border-box", WebkitTextFillColor: activeGradient ? "transparent" : layer.color, caretColor: layer.color || "#f0eef5", fontStyle, textTransform: "none", textDecorationLine, textDecorationColor: decorationColor, textDecorationThickness: textDecorationLine === "none" ? undefined : "0.08em", textUnderlineOffset: layer.underline ? "0.14em" : undefined, whiteSpace: "pre-wrap", overflowWrap: "anywhere", wordBreak: "break-word", hyphens: "none", padding: 0, margin: 0 }}
+                    style={{ position: "relative", minHeight: textMinHeight, outline: "none", cursor: "text", userSelect: "text", WebkitUserSelect: "text", color: activeGradient ? "transparent" : layer.color, backgroundImage: activeGradient ? activeGradient.css : "none", WebkitBackgroundClip: activeGradient ? "text" : "border-box", backgroundClip: activeGradient ? "text" : "border-box", WebkitTextFillColor: activeGradient ? "transparent" : layer.color, caretColor: layer.color || "#f0eef5", fontStyle, textTransform: "none", textDecorationLine, textDecorationColor: decorationColor, textDecorationThickness: textDecorationLine === "none" ? undefined : "0.08em", textUnderlineOffset: layer.underline ? "0.14em" : undefined, whiteSpace: "pre-wrap", overflowWrap: "anywhere", wordBreak: "break-word", hyphens: "none", padding: 0, margin: 0 }}
                   />
                 ) : (
                   <div
                     ref={(node) => {
                       textContentLayerRefs.current[layer.id] = node;
                     }}
-                    style={{ minHeight: textMinHeight, outline: "none", cursor: "inherit", color: activeGradient ? "transparent" : layer.color, backgroundImage: activeGradient ? activeGradient.css : "none", WebkitBackgroundClip: activeGradient ? "text" : "border-box", backgroundClip: activeGradient ? "text" : "border-box", WebkitTextFillColor: activeGradient ? "transparent" : layer.color, caretColor: layer.color || "#f0eef5", fontStyle, textTransform, textDecorationLine, textDecorationColor: decorationColor, textDecorationThickness: textDecorationLine === "none" ? undefined : "0.08em", textUnderlineOffset: layer.underline ? "0.14em" : undefined, whiteSpace: "pre-wrap", overflowWrap: "anywhere", wordBreak: "break-word", hyphens: "none", padding: 0, margin: 0 }}
+                    style={{ position: "relative", minHeight: textMinHeight, outline: "none", cursor: "inherit", color: activeGradient ? "transparent" : layer.color, backgroundImage: activeGradient ? activeGradient.css : "none", WebkitBackgroundClip: activeGradient ? "text" : "border-box", backgroundClip: activeGradient ? "text" : "border-box", WebkitTextFillColor: activeGradient ? "transparent" : layer.color, caretColor: layer.color || "#f0eef5", fontStyle, textTransform, textDecorationLine, textDecorationColor: decorationColor, textDecorationThickness: textDecorationLine === "none" ? undefined : "0.08em", textUnderlineOffset: layer.underline ? "0.14em" : undefined, whiteSpace: "pre-wrap", overflowWrap: "anywhere", wordBreak: "break-word", hyphens: "none", padding: 0, margin: 0 }}
                   >
                     {overlayText}
                   </div>

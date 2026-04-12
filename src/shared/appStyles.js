@@ -8,6 +8,13 @@ a{color:inherit}
 ::-webkit-scrollbar-track{background:#111}
 ::-webkit-scrollbar-thumb{background:linear-gradient(#e84393,#6c5ce7);border-radius:3px}
 @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-20px)}}
+@keyframes hero-drift-a{0%,100%{transform:translate3d(0,0,0)}33%{transform:translate3d(200px,-140px,0)}66%{transform:translate3d(-160px,180px,0)}}
+@keyframes hero-drift-b{0%,100%{transform:translate3d(0,0,0)}33%{transform:translate3d(-180px,120px,0)}66%{transform:translate3d(160px,-200px,0)}}
+.hero-noise{position:absolute;inset:0;pointer-events:none;z-index:0;opacity:.035}
+.hero-noise svg{width:100%;height:100%}
+.hero-ambient-wrap{position:absolute;inset:0;pointer-events:none;z-index:0;overflow:hidden}
+.hero-blob-a{position:absolute;width:clamp(300px,50vw,700px);height:clamp(300px,50vw,700px);border-radius:50%;background:radial-gradient(circle,rgba(232,67,147,.12) 0%,rgba(232,67,147,.03) 50%,transparent 70%);filter:blur(120px);top:10%;left:15%;animation:hero-drift-a 24s ease-in-out infinite;-webkit-backface-visibility:hidden;backface-visibility:hidden}
+.hero-blob-b{position:absolute;width:clamp(250px,45vw,600px);height:clamp(250px,45vw,600px);border-radius:50%;background:radial-gradient(circle,rgba(108,92,231,.10) 0%,rgba(108,92,231,.03) 50%,transparent 70%);filter:blur(120px);bottom:10%;right:15%;animation:hero-drift-b 28s ease-in-out infinite;-webkit-backface-visibility:hidden;backface-visibility:hidden}
 @keyframes shimmer{0%{left:-100%}100%{left:200%}}
 @keyframes sheetIn{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:translateX(0)}}
 .hidden{display:none}

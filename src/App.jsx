@@ -17,6 +17,7 @@ import STYLES from "./shared/appStyles.js";
 import { buildTelegramBasketLink } from "./shared/textileOrderLinks.js";
 import { parsePriceValue } from "./shared/textileHelpers.js";
 import { saveCalcState, loadCalcState, clearCalcState } from "./utils/persistStorage.js";
+import { PRINT_FORMATS } from "./data/printFormats.js";
 
 const PortfolioPage = lazy(() => import("./portfolio/PortfolioCatalogPage.jsx"));
 const ConstructorRoute = lazy(() => import("./components/constructor/ConstructorRoute.jsx"));
@@ -60,14 +61,7 @@ function getApplyCost(qty) {
   return { rate: tier.price, cost: qty * tier.price };
 }
 
-const FORMAT_PRICES = [
-  { name: "A6", short: 10, long: 15, price: 250 },
-  { name: "A5", short: 15, long: 20, price: 290 },
-  { name: "A4", short: 20, long: 30, price: 350 },
-  { name: "A3", short: 30, long: 42, price: 450 },
-  { name: "A3+", short: 35, long: 48, price: 650 },
-  { name: "A3++", short: 40, long: 50, price: 800 },
-];
+const FORMAT_PRICES = PRINT_FORMATS;
 
 function getFormat(w, h) {
   const small = Math.min(w, h);
@@ -755,7 +749,8 @@ function CalcPage({ onBack }) {
               <div style={{ fontSize: 12, color: "rgba(240,238,245,.38)" }}>
                 Добавлено {items.length} из {MAX_CALC_ITEMS} размеров.
               </div>
-              <button onClick={resetCalc} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(240,238,245,.3)", fontSize: 12, fontFamily: "'Outfit',sans-serif", padding: "4px 0", transition: "color .3s" }} onMouseEnter={e => e.target.style.color = "#ff6b6b"} onMouseLeave={e => e.target.style.color = "rgba(240,238,245,.3)"}>
+              <button onClick={resetCalc} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(255,80,80,.08)", border: "1px solid rgba(255,80,80,.2)", borderRadius: 10, cursor: "pointer", color: "#ff6b6b", fontSize: 12, fontWeight: 500, fontFamily: "'Outfit',sans-serif", padding: "7px 14px", transition: "all .3s" }} onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,80,80,.15)"; e.currentTarget.style.borderColor = "rgba(255,80,80,.4)"; }} onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,80,80,.08)"; e.currentTarget.style.borderColor = "rgba(255,80,80,.2)"; }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 12a9 9 0 1 1 3 6.7"/><path d="M3 22v-6h6"/></svg>
                 Сбросить
               </button>
             </div>

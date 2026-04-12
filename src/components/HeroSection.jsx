@@ -6,6 +6,10 @@ import TG from "./TG.jsx";
 export default function HeroSection({ Reveal: _Reveal, onOpenConstructor, onOpenCalculator, reviewData }) {
   return (
     <section id="hero" className="hero-shell" style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", padding: "120px 5% 80px", position: "relative", overflow: "hidden" }}>
+      {/* — hero ambient effects — */}
+      <div className="hero-noise" aria-hidden="true"><svg><filter id="hero-grain"><feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch" /><feColorMatrix type="saturate" values="0" /></filter><rect width="100%" height="100%" filter="url(#hero-grain)" /></svg></div>
+      <div className="hero-ambient-wrap" aria-hidden="true"><div className="hero-blob-a" /><div className="hero-blob-b" /></div>
+      {/* — /hero ambient effects — */}
       <div style={{ position: "absolute", width: "clamp(250px, 50vw, 500px)", height: "clamp(250px, 50vw, 500px)", borderRadius: "50%", background: "radial-gradient(circle,rgba(232,67,147,.12) 0%,transparent 70%)", top: -100, left: -150, animation: "float 8s ease-in-out infinite", pointerEvents: "none" }} />
       <div style={{ position: "absolute", width: "clamp(200px, 40vw, 400px)", height: "clamp(200px, 40vw, 400px)", borderRadius: "50%", background: "radial-gradient(circle,rgba(108,92,231,.1) 0%,transparent 70%)", bottom: -50, right: -100, animation: "float 10s ease-in-out infinite 2s", pointerEvents: "none" }} />
       <_Reveal><LogoFullAsset /></_Reveal>

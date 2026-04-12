@@ -16,6 +16,7 @@ import TshirtSizeGuideTrigger from "./components/TshirtSizeGuideTrigger.jsx";
 import STYLES from "./shared/appStyles.js";
 import { buildTelegramBasketLink } from "./shared/textileOrderLinks.js";
 import { parsePriceValue } from "./shared/textileHelpers.js";
+import { saveCalcState, loadCalcState, clearCalcState } from "./utils/persistStorage.js";
 
 const PortfolioPage = lazy(() => import("./portfolio/PortfolioCatalogPage.jsx"));
 const ConstructorRoute = lazy(() => import("./components/constructor/ConstructorRoute.jsx"));
@@ -605,12 +606,22 @@ function TextilePage({ type, onBack, onNavigate }) {
    CALCULATOR PAGE
    ══════════════════════════════════════════ */
 function CalcPage({ onBack }) {
-  const [withApply, setWithApply] = useState(true);
-  const [items, setItems] = useState([{ id: 1, w: 20, h: 30, qty: 10 }]);
-  const [nid, setNid] = useState(2);
+  const [withApply, setWithApply] = useState(() => { const s = loadCalcState(); return s?.withApply ?? true; });
+  const [items, setItems] = useState(() => { const s = loadCalcState(); return s?.items ?? [{ id: 1, w: 20, h: 30, qty: 10 }]; });
+  const [nid, setNid] = useState(() => { const s = loadCalcState(); return s?.nid ?? 2; });
   const [layoutOpen, setLayoutOpen] = useState(false);
   const [mobileLayoutVisible, setMobileLayoutVisible] = useState(false);
   const layoutViewportRef = useRef(null);
+
+  useEffect(() => { saveCalcState({ items, withApply, nid }); }, [items, withApply, nid]);
+
+  const resetCalc = () => {
+    clearCalcState();
+    setItems([{ id: 1, w: 20, h: 30, qty: 10 }]);
+    setNid(2);
+    setWithApply(true);
+    setLayoutOpen(false);
+  };
 
   const add = () => {
     if (items.length >= MAX_CALC_ITEMS) return;
@@ -740,8 +751,13 @@ function CalcPage({ onBack }) {
                 + Добавить размер
               </button>
             )}
-            <div style={{ fontSize: 12, color: "rgba(240,238,245,.38)", marginTop: items.length < MAX_CALC_ITEMS ? -4 : 0 }}>
-              Добавлено {items.length} из {MAX_CALC_ITEMS} размеров.
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: items.length < MAX_CALC_ITEMS ? -4 : 0 }}>
+              <div style={{ fontSize: 12, color: "rgba(240,238,245,.38)" }}>
+                Добавлено {items.length} из {MAX_CALC_ITEMS} размеров.
+              </div>
+              <button onClick={resetCalc} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(240,238,245,.3)", fontSize: 12, fontFamily: "'Outfit',sans-serif", padding: "4px 0", transition: "color .3s" }} onMouseEnter={e => e.target.style.color = "#ff6b6b"} onMouseLeave={e => e.target.style.color = "rgba(240,238,245,.3)"}>
+                Сбросить
+              </button>
             </div>
 
             {valid && !oversized && lengthCm > 0 && (

@@ -114,8 +114,8 @@ input[type=number]{-moz-appearance:textfield}
 	.constructor-shape-toolbar{flex-wrap:wrap!important}
 	.constructor-shape-toolbar-main{flex:1 1 100%!important;min-width:0!important}
 	.constructor-shape-popover{width:100%!important}
-	.constructor-tabs-grid{display:flex!important;flex-wrap:wrap!important;gap:6px!important}
-	.constructor-tabs-button{min-height:auto!important;width:auto!important;flex:0 1 auto!important;padding:6px 10px!important}
+	.constructor-tabs-grid{display:flex!important;flex-wrap:wrap!important;gap:6px!important;justify-content:center!important}
+	.constructor-tabs-button{min-height:auto!important;width:auto!important;flex:1 1 calc(20% - 6px)!important;padding:8px 6px!important;aspect-ratio:1!important;max-width:64px!important}
 	.constructor-preview-stage{min-height:auto!important}
 	.constructor-order-row{grid-template-columns:1fr!important;gap:6px!important}
 	.constructor-order-label{white-space:normal!important}
@@ -150,10 +150,19 @@ input[type=number]{-moz-appearance:textfield}
 	.main-showcase-card .main-card-header span{font-size:13px!important}
 	.main-showcase-shell{width:100%!important}
 	.constructor-preview{position:relative!important;top:auto!important}
-	.constructor-shape-toolbar{flex-wrap:wrap!important}
-	.constructor-shape-toolbar-main{flex:1 1 100%!important;min-width:0!important}
-	.constructor-shape-toolbar>button,.constructor-shape-toolbar>div:not(.constructor-shape-toolbar-main){flex:1 1 calc(50% - 6px)!important;min-width:0!important}
+	.constructor-shape-toolbar{flex-wrap:wrap!important;justify-content:center!important}
+	.constructor-shape-toolbar-main{flex:0 1 auto!important;min-width:0!important}
+	.constructor-shape-toolbar>button,.constructor-shape-toolbar>div:not(.constructor-shape-toolbar-main){flex:0 1 auto!important;min-width:0!important}
 	.constructor-shape-popover{width:100%!important}
+	.constructor-text-toolbar-toggle{display:flex!important}
+	.constructor-text-toolbar-body{display:none!important;flex-wrap:wrap!important}
+	.constructor-text-toolbar-open .constructor-text-toolbar-body{display:flex!important;justify-content:center!important}
+	.constructor-text-toolbar-body>*{flex:0 1 auto!important}
+	.constructor-text-toolbar-open .constructor-text-toolbar-toggle{margin-bottom:10px}
+	.constructor-upload-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:6px!important}
+	.constructor-upload-grid>div{padding:5px!important;border-radius:12px!important}
+	.constructor-upload-grid>div>div:first-child{border-radius:8px!important}
+	.constructor-sidebar-close{display:flex!important}
 	.textile-order-line{flex-direction:column!important;align-items:flex-start!important}
 	.textile-order-summary{flex-direction:column!important;align-items:stretch!important}
 	.textile-order-cards{justify-content:stretch!important;width:100%!important}

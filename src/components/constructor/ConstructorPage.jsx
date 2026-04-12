@@ -294,7 +294,12 @@ function TextQuickToolbar({
   };
 
   return (
-    <div style={{ display: "flex", alignItems: "stretch", gap: 6, marginBottom: 14, width: "100%", minWidth: 0, flexWrap: "nowrap" }}>
+    <div className="constructor-text-toolbar-wrapper">
+      <button type="button" className="constructor-text-toolbar-toggle" onClick={(e) => { e.currentTarget.closest(".constructor-text-toolbar-wrapper").classList.toggle("constructor-text-toolbar-open"); }} style={{ display: "none", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", padding: "10px 0", marginBottom: 10, background: "rgba(108,92,231,.08)", border: "1.5px solid rgba(108,92,231,.25)", borderRadius: 12, cursor: "pointer", color: "#6c5ce7", fontSize: 13, fontWeight: 500, fontFamily: "'Outfit',sans-serif" }}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        Редактировать текст
+      </button>
+      <div className="constructor-text-toolbar-body" style={{ display: "flex", alignItems: "stretch", gap: 6, marginBottom: 14, width: "100%", minWidth: 0, flexWrap: "nowrap" }}>
       <div style={{ flex: "1 1 180px", minWidth: 150 }}>
         <ToolChip active={fontPanelActive} onClick={() => onTextToolPanelChange("font")} disabled={disabled} minWidth={0} fullWidth>
         <span style={{ display: "inline-flex", alignItems: "center", gap: 8, maxWidth: "100%" }}>
@@ -401,6 +406,7 @@ function TextQuickToolbar({
           <span>Эффекты</span>
         </span>
       </ToolChip>
+    </div>
     </div>
   );
 }
@@ -724,6 +730,7 @@ export default function ConstructorPage({ onBack, products }) {
     toggleLayerVisibility,
     toggleLayerLock,
     getShapeByKey,
+    resetConstructor,
   } = useConstructorState({
     products,
     runtimeTextLayerBoundsBySide,
@@ -910,6 +917,20 @@ export default function ConstructorPage({ onBack, products }) {
     selectLayer(layerId);
   };
 
+  const handleAddTextLayer = () => {
+    addTextLayer();
+    if (window.innerWidth <= 860) {
+      setActiveTab(null);
+    }
+  };
+
+  const handleAddShapeLayer = (shapeKey) => {
+    addShapeLayer(shapeKey);
+    if (window.innerWidth <= 860) {
+      setActiveTab(null);
+    }
+  };
+
   const handleLayerEditOpen = (layerId) => {
     const targetLayer = layers.find((layer) => layer.id === layerId) || null;
     if (targetLayer?.type !== "text") {
@@ -919,7 +940,12 @@ export default function ConstructorPage({ onBack, products }) {
       closeShapeSidebarOverlay({ resetToolPanel: true });
     }
     resetShapeReplaceMode({ showShapeCatalog: targetLayer?.type === "shape" || activeTab === "shapes" });
+    const isMobile = window.innerWidth <= 860;
+    const prevTab = activeTab;
     openLayerEditor(layerId);
+    if (isMobile && targetLayer?.type === "text") {
+      setActiveTab(prevTab);
+    }
   };
 
   const handlePreviewLayerPointerDown = (layerId, event) => {
@@ -1164,10 +1190,18 @@ export default function ConstructorPage({ onBack, products }) {
       <style>{STYLES}</style>
 
       <div className="page-shell" style={{ maxWidth: 1680, margin: "0 auto", padding: "28px 16px 56px" }}>
-        <button type="button" onClick={onBack} style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 12, background: "none", border: "none", color: "inherit", padding: 0, font: "inherit" }}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#e84393" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
-          <LogoMini />
-        </button>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <button type="button" onClick={onBack} style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 12, background: "none", border: "none", color: "inherit", padding: 0, font: "inherit" }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#e84393" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
+            <LogoMini />
+          </button>
+          {layers.length > 0 && (
+            <button type="button" onClick={resetConstructor} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(255,80,80,.08)", border: "1px solid rgba(255,80,80,.2)", borderRadius: 10, cursor: "pointer", color: "#ff6b6b", fontSize: 12, fontWeight: 500, fontFamily: "'Outfit',sans-serif", padding: "7px 14px", transition: "all .3s" }} onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,80,80,.15)"; e.currentTarget.style.borderColor = "rgba(255,80,80,.4)"; }} onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,80,80,.08)"; e.currentTarget.style.borderColor = "rgba(255,80,80,.2)"; }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 12a9 9 0 1 1 3 6.7"/><path d="M3 22v-6h6"/></svg>
+              Сбросить результат
+            </button>
+          )}
+        </div>
 
         <div style={{ textAlign: "center", margin: "34px auto 28px", maxWidth: 860 }}>
           <h1 style={{ fontSize: "clamp(28px,4vw,46px)", fontWeight: 200, marginTop: 0 }}>
@@ -1181,7 +1215,12 @@ export default function ConstructorPage({ onBack, products }) {
         <div className="constructor-shell" style={{ display: "grid", gridTemplateColumns: "minmax(236px,272px) minmax(0,1fr) minmax(236px,288px)", gap: 18, alignItems: "start", width: "100%", padding: "0 0 96px", boxSizing: "border-box" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 12, justifySelf: "start", width: "100%", minWidth: 0 }}>
             <ConstructorTabsNav tabs={CONSTRUCTOR_TABS} activeTab={activeTab} onTabChange={handleSidebarTabChange} />
-            <ConstructorSidebarPanel activeTab={activeTab} onTabChange={handleSidebarTabChange} printArea={printArea} products={products} product={product} productKey={productKey} onProductChange={handleProductChange} size={size} onSizeChange={setSize} onSizeGuideOpen={() => setSizeGuideOpen(true)} qty={qty} onQtyChange={setQty} color={color} onColorChange={handleColorChange} resolveColorSwatch={resolveColorSwatch} layers={sideLayers} activeLayer={activeLayer} activeLayerId={activeLayerId} selectedLayerIds={selectedLayerIds} isMultiSelection={isMultiSelection} uploadedFiles={uploadedFiles} activeUploadLayer={activeUploadLayer} activeTextLayer={activeTextLayer} activeTextMetricsCm={activeTextMetricsCm} activeTextToolPanel={activeTextToolPanel} textSidebarOverlayOpen={textSidebarOverlayOpen} onCloseTextSidebarOverlay={() => closeTextSidebarOverlay({ resetToolPanel: true })} onTextToolPanelChange={handleTextToolbarPanelChange} activeShapeLayer={activeShapeLayer} activeShapeVisualMetricsCm={activeShapeVisualMetricsCm} activeShapeToolPanel={activeShapeToolPanel} shapeSidebarOverlayOpen={shapeSidebarOverlayOpen} onCloseShapeSidebarOverlay={() => closeShapeSidebarOverlay({ resetToolPanel: true })} shapeCatalogMode={effectiveShapeCatalogMode} onShapeCatalogModeChange={setShapeCatalogMode} onShapeToolPanelChange={setActiveShapeToolPanel} onLayerSelect={handleLayerEditOpen} onLayerActivate={handleLayerActivate} onLayerEditOpen={handleLayerEditOpen} onLayerReorder={(nextLayerIds) => reorderLayers(nextLayerIds, side)} onAddTextLayer={addTextLayer} onAddShapeLayer={addShapeLayer} onDuplicateActiveLayer={duplicateActiveLayer} onRemoveLayer={handleRemoveLayer} onRemoveActiveLayer={handleRemoveActiveLayer} onMoveLayer={moveActiveLayer} onToggleLayerVisibility={toggleLayerVisibility} onToggleLayerLock={toggleLayerLock} handleUploadChange={handleUploadChange} onAddUploadedFileAsLayer={addUploadedFileAsLayer} onRemoveUploadedFile={removeUploadedFile} uploadWidthCm={uploadWidthCm} uploadHeightCm={uploadHeightCm} handleUploadScaleChange={handleUploadScaleChange} setUploadDimensionCm={setUploadDimensionCm} centerActiveLayerPosition={centerActiveLayerPosition} textFillMode={textFillMode} textColor={textColor} onTextColorChange={setTextColor} textGradientKey={textGradientKey} onTextGradientKeyChange={setTextGradientKey} textFontKey={textFontKey} onTextFontKeyChange={setTextFontKey} textLineHeight={textLineHeight} onTextLineHeightChange={setTextLineHeight} textLetterSpacing={textLetterSpacing} onTextLetterSpacingChange={setTextLetterSpacing} textStrokeWidth={textStrokeWidth} onTextStrokeWidthChange={setTextStrokeWidth} textStrokeColor={textStrokeColor} onTextStrokeColorChange={setTextStrokeColor} textShadowEnabled={textShadowEnabled} onTextShadowEnabledChange={setTextShadowEnabled} textShadowColor={textShadowColor} onTextShadowColorChange={setTextShadowColor} textShadowOffsetX={textShadowOffsetX} onTextShadowOffsetXChange={setTextShadowOffsetX} textShadowOffsetY={textShadowOffsetY} onTextShadowOffsetYChange={setTextShadowOffsetY} textShadowBlur={textShadowBlur} onTextShadowBlurChange={setTextShadowBlur} shapeKey={shapeKey} onShapeKeyChange={setShapeKey} shapeFillMode={shapeFillMode} shapeColor={shapeColor} onShapeColorChange={setShapeColor} shapeGradientKey={shapeGradientKey} onShapeGradientKeyChange={setShapeGradientKey} shapeStrokeStyle={shapeStrokeStyle} onShapeStrokeStyleChange={setShapeStrokeStyle} shapeStrokeWidth={shapeStrokeWidth} onShapeStrokeWidthChange={setShapeStrokeWidth} shapeStrokeColor={shapeStrokeColor} onShapeStrokeColorChange={setShapeStrokeColor} shapeEffectType={shapeEffectType} onShapeEffectTypeChange={setShapeEffectType} shapeEffectAngle={shapeEffectAngle} onShapeEffectAngleChange={setShapeEffectAngle} shapeEffectDistance={shapeEffectDistance} onShapeEffectDistanceChange={setShapeEffectDistance} shapeEffectColor={shapeEffectColor} onShapeEffectColorChange={setShapeEffectColor} shapeDistortionColorA={shapeDistortionColorA} onShapeDistortionColorAChange={setShapeDistortionColorA} shapeDistortionColorB={shapeDistortionColorB} onShapeDistortionColorBChange={setShapeDistortionColorB} shapeWidthCm={shapeWidthCm} shapeHeightCm={shapeHeightCm} onShapeWidthCmChange={setShapeWidthCm} setShapeDimensionCm={setShapeDimensionCm} />
+            <div style={{ position: "relative" }}>
+              {activeTab && (
+                <button type="button" className="constructor-sidebar-close" onClick={() => handleSidebarTabChange(activeTab)} style={{ display: "none", position: "absolute", top: 0, right: 0, zIndex: 5, width: 32, height: 32, alignItems: "center", justifyContent: "center", background: "rgba(255,255,255,.06)", border: "1px solid rgba(255,255,255,.1)", borderRadius: 10, cursor: "pointer", color: "rgba(240,238,245,.5)", fontSize: 18, fontFamily: "'Outfit',sans-serif", lineHeight: 1, transition: "all .3s" }} onPointerEnter={e => { e.currentTarget.style.background = "rgba(255,80,80,.12)"; e.currentTarget.style.borderColor = "rgba(255,80,80,.3)"; e.currentTarget.style.color = "#ff6b6b"; }} onPointerLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,.06)"; e.currentTarget.style.borderColor = "rgba(255,255,255,.1)"; e.currentTarget.style.color = "rgba(240,238,245,.5)"; }}>✕</button>
+              )}
+              <ConstructorSidebarPanel activeTab={activeTab} onTabChange={handleSidebarTabChange} printArea={printArea} products={products} product={product} productKey={productKey} onProductChange={handleProductChange} size={size} onSizeChange={setSize} onSizeGuideOpen={() => setSizeGuideOpen(true)} qty={qty} onQtyChange={setQty} color={color} onColorChange={handleColorChange} resolveColorSwatch={resolveColorSwatch} layers={sideLayers} activeLayer={activeLayer} activeLayerId={activeLayerId} selectedLayerIds={selectedLayerIds} isMultiSelection={isMultiSelection} uploadedFiles={uploadedFiles} activeUploadLayer={activeUploadLayer} activeTextLayer={activeTextLayer} activeTextMetricsCm={activeTextMetricsCm} activeTextToolPanel={activeTextToolPanel} textSidebarOverlayOpen={textSidebarOverlayOpen} onCloseTextSidebarOverlay={() => closeTextSidebarOverlay({ resetToolPanel: true })} onTextToolPanelChange={handleTextToolbarPanelChange} activeShapeLayer={activeShapeLayer} activeShapeVisualMetricsCm={activeShapeVisualMetricsCm} activeShapeToolPanel={activeShapeToolPanel} shapeSidebarOverlayOpen={shapeSidebarOverlayOpen} onCloseShapeSidebarOverlay={() => closeShapeSidebarOverlay({ resetToolPanel: true })} shapeCatalogMode={effectiveShapeCatalogMode} onShapeCatalogModeChange={setShapeCatalogMode} onShapeToolPanelChange={setActiveShapeToolPanel} onLayerSelect={handleLayerEditOpen} onLayerActivate={handleLayerActivate} onLayerEditOpen={handleLayerEditOpen} onLayerReorder={(nextLayerIds) => reorderLayers(nextLayerIds, side)} onAddTextLayer={handleAddTextLayer} onAddShapeLayer={handleAddShapeLayer} onDuplicateActiveLayer={duplicateActiveLayer} onRemoveLayer={handleRemoveLayer} onRemoveActiveLayer={handleRemoveActiveLayer} onMoveLayer={moveActiveLayer} onToggleLayerVisibility={toggleLayerVisibility} onToggleLayerLock={toggleLayerLock} handleUploadChange={handleUploadChange} onAddUploadedFileAsLayer={addUploadedFileAsLayer} onRemoveUploadedFile={removeUploadedFile} uploadWidthCm={uploadWidthCm} uploadHeightCm={uploadHeightCm} handleUploadScaleChange={handleUploadScaleChange} setUploadDimensionCm={setUploadDimensionCm} centerActiveLayerPosition={centerActiveLayerPosition} textFillMode={textFillMode} textColor={textColor} onTextColorChange={setTextColor} textGradientKey={textGradientKey} onTextGradientKeyChange={setTextGradientKey} textFontKey={textFontKey} onTextFontKeyChange={setTextFontKey} textLineHeight={textLineHeight} onTextLineHeightChange={setTextLineHeight} textLetterSpacing={textLetterSpacing} onTextLetterSpacingChange={setTextLetterSpacing} textStrokeWidth={textStrokeWidth} onTextStrokeWidthChange={setTextStrokeWidth} textStrokeColor={textStrokeColor} onTextStrokeColorChange={setTextStrokeColor} textShadowEnabled={textShadowEnabled} onTextShadowEnabledChange={setTextShadowEnabled} textShadowColor={textShadowColor} onTextShadowColorChange={setTextShadowColor} textShadowOffsetX={textShadowOffsetX} onTextShadowOffsetXChange={setTextShadowOffsetX} textShadowOffsetY={textShadowOffsetY} onTextShadowOffsetYChange={setTextShadowOffsetY} textShadowBlur={textShadowBlur} onTextShadowBlurChange={setTextShadowBlur} shapeKey={shapeKey} onShapeKeyChange={setShapeKey} shapeFillMode={shapeFillMode} shapeColor={shapeColor} onShapeColorChange={setShapeColor} shapeGradientKey={shapeGradientKey} onShapeGradientKeyChange={setShapeGradientKey} shapeStrokeStyle={shapeStrokeStyle} onShapeStrokeStyleChange={setShapeStrokeStyle} shapeStrokeWidth={shapeStrokeWidth} onShapeStrokeWidthChange={setShapeStrokeWidth} shapeStrokeColor={shapeStrokeColor} onShapeStrokeColorChange={setShapeStrokeColor} shapeEffectType={shapeEffectType} onShapeEffectTypeChange={setShapeEffectType} shapeEffectAngle={shapeEffectAngle} onShapeEffectAngleChange={setShapeEffectAngle} shapeEffectDistance={shapeEffectDistance} onShapeEffectDistanceChange={setShapeEffectDistance} shapeEffectColor={shapeEffectColor} onShapeEffectColorChange={setShapeEffectColor} shapeDistortionColorA={shapeDistortionColorA} onShapeDistortionColorAChange={setShapeDistortionColorA} shapeDistortionColorB={shapeDistortionColorB} onShapeDistortionColorBChange={setShapeDistortionColorB} shapeWidthCm={shapeWidthCm} shapeHeightCm={shapeHeightCm} onShapeWidthCmChange={setShapeWidthCm} setShapeDimensionCm={setShapeDimensionCm} />
+            </div>
           </div>
 
           <div style={{ minWidth: 0, position: "relative", alignSelf: "start" }}>

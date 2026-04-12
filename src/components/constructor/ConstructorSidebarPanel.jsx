@@ -1098,7 +1098,7 @@ export default function ConstructorSidebarPanel({
         </label>
         {uploadedFiles.length ? (
           <SidebarFieldRow label="Загруженные файлы" minHeight={128}>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8 }}>
+            <div className="constructor-upload-grid" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8 }}>
               {uploadedFiles.map((file) => (
                 <div key={file.id} style={{ display: "grid", gap: 7, padding: 7, borderRadius: 16, border: "1px solid rgba(255,255,255,.08)", background: "rgba(255,255,255,.03)", minWidth: 0 }}>
                   <div style={{ width: "100%", aspectRatio: "1 / 1", borderRadius: 12, backgroundColor: "rgba(255,255,255,.03)", backgroundImage: `url(${file.src})`, backgroundPosition: "center", backgroundRepeat: "no-repeat", backgroundSize: "contain" }} />
@@ -1227,6 +1227,9 @@ export default function ConstructorSidebarPanel({
     );
   }
 
+  const isMobileTextTab = !showTextSidebarOverlay && typeof window !== "undefined" && window.innerWidth <= 860;
+  const isMobileView = typeof window !== "undefined" && window.innerWidth <= 860;
+
   if (showTextPanel && !showShapesPanel) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
@@ -1238,7 +1241,7 @@ export default function ConstructorSidebarPanel({
             <ActionButton onClick={onAddTextLayer} variant="primary">+ Новый текстовый слой</ActionButton>
           </div>
         ) : null}
-        {showTextLayerList && displayedTextLayers.length ? (
+        {showTextLayerList && displayedTextLayers.length && !(isMobileView && showTextSidebarOverlay && currentTextToolPanel !== "font") ? (
           <SidebarFieldRow label="Текстовые слои" minHeight={96}>
             <div style={{ display: "grid", gap: 8 }}>
               {displayedTextLayers.map((layer) => {
@@ -1276,6 +1279,11 @@ export default function ConstructorSidebarPanel({
                           {textLayerLabel}
                         </span>
                       </div>
+                      {isMobileTextTab && active && activeTextMetricsCm ? (
+                        <div style={{ fontSize: 11, lineHeight: 1.2, color: "rgba(240,238,245,.46)", marginTop: 2, paddingLeft: 18 }}>
+                          {activeTextMetricsCm.contentWidthCm} × {activeTextMetricsCm.contentHeightCm} см
+                        </div>
+                      ) : null}
                     </button>
                     <button
                       type="button"
@@ -1327,7 +1335,7 @@ export default function ConstructorSidebarPanel({
             </div>
           </SidebarFieldRow>
         ) : null}
-        {activeTextLayer && currentTextToolPanel === "font" ? (
+        {activeTextLayer && currentTextToolPanel === "font" && !isMobileView ? (
             <SidebarFieldRow label="Размер текста в см" minHeight={72}>
               <div style={{ display: "grid", gap: 8 }}>
                 <div style={{ padding: "8px 10px", borderRadius: 12, background: "rgba(255,255,255,.03)", border: "1px solid rgba(255,255,255,.08)" }}>
@@ -1341,9 +1349,9 @@ export default function ConstructorSidebarPanel({
         ) : null}
         {activeTextLayer ? (
           <>
-            {currentTextToolPanel === "font" ? (
-              <SidebarFieldRow label="Шрифт" minHeight={96}>
-                <div style={{ display: "grid", gap: 10 }}>
+            {currentTextToolPanel === "font" && !isMobileTextTab ? (
+              <SidebarFieldRow label="Шрифт" minHeight={isMobileView ? 64 : 96}>
+                <div style={{ display: "grid", gap: isMobileView ? 6 : 10 }}>
                   <div style={{ display: "grid", gridTemplateColumns: fontSearch ? "minmax(0, 1fr) auto" : "minmax(0, 1fr)", gap: 8, alignItems: "center" }}>
                     <input
                       className="inf"
@@ -1357,7 +1365,7 @@ export default function ConstructorSidebarPanel({
                       aria-expanded={filteredTextFonts.length > 0}
                       aria-controls={fontListId}
                       aria-activedescendant={keyboardVisibleFonts.find((font) => font.key === currentKeyboardFontKey)?.optionId}
-                      style={{ minHeight: 42, fontSize: 14 }}
+                      style={{ minHeight: isMobileView ? 36 : 42, fontSize: isMobileView ? 13 : 14 }}
                     />
                     {fontSearch ? (
                       <button
@@ -1371,7 +1379,7 @@ export default function ConstructorSidebarPanel({
                   </div>
 
                   {filteredTextFonts.length ? (
-                    <div id={fontListId} role="listbox" aria-label="Список шрифтов" style={{ display: "grid", gap: 10, maxHeight: 340, overflowY: "auto", paddingRight: 4 }}>
+                    <div id={fontListId} role="listbox" aria-label="Список шрифтов" style={{ display: "grid", gap: 10, maxHeight: isMobileView ? 220 : 340, overflowY: "auto", paddingRight: 4 }}>
                       {recentFonts.length > 0 ? (
                         <div style={{ display: "grid", gap: 6 }}>
                           <div style={{ fontSize: 11, lineHeight: 1.2, letterSpacing: ".08em", textTransform: "uppercase", color: "rgba(240,238,245,.38)" }}>

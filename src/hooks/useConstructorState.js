@@ -1,6 +1,7 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getConstructorLineMinAspectRatio, getConstructorLineVisualMetrics, getConstructorPrintFormat, getConstructorShape, getConstructorShapeTightBounds, getConstructorTextFont, getConstructorTextGradient, readImageContentBounds, resolveConstructorPrintArea, supportsConstructorShapeCornerRoundness } from "../components/constructor/constructorConfig.js";
 import { getShapeFrameMetricsPx } from "../utils/constructor/shapeFrame.js";
+import { saveConstructorMeta, loadConstructorMeta, clearConstructorMeta, saveImage, loadImage, clearImages } from "../utils/persistStorage.js";
 
 const FALLBACK_PRODUCT = {
   key: "",
@@ -563,12 +564,12 @@ export default function useConstructorState({
   const initialProduct = products[0] || FALLBACK_PRODUCT;
   const initialSize = getPreferredProductSize(initialProduct);
 
-  const [activeTab, setActiveTab] = useState("textile");
-  const [productKey, setProductKey] = useState(initialProduct.key || "");
-  const [side, setSide] = useState("front");
-  const [color, setColor] = useState(initialProduct.colors?.[0] || "Чёрный");
-  const [size, setSizeState] = useState(initialSize);
-  const [qty, setQty] = useState(1);
+  const [activeTab, setActiveTab] = useState(() => { const m = loadConstructorMeta(); return m?.activeTab || "textile"; });
+  const [productKey, setProductKey] = useState(() => { const m = loadConstructorMeta(); return m?.productKey || initialProduct.key || ""; });
+  const [side, setSide] = useState(() => { const m = loadConstructorMeta(); return m?.side || "front"; });
+  const [color, setColor] = useState(() => { const m = loadConstructorMeta(); return m?.color || initialProduct.colors?.[0] || "Чёрный"; });
+  const [size, setSizeState] = useState(() => { const m = loadConstructorMeta(); return m?.size || initialSize; });
+  const [qty, setQty] = useState(() => { const m = loadConstructorMeta(); return m?.qty ?? 1; });
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const [layers, setLayers] = useState([]);
   const [activeLayerId, setActiveLayerId] = useState(null);
@@ -577,12 +578,85 @@ export default function useConstructorState({
   const [editingTextLayerId, setEditingTextLayerId] = useState(null);
   const [activeSnapGuides, setActiveSnapGuides] = useState([]);
   const printAreaRef = useRef(null);
-  const layerIdRef = useRef(0);
-  const uploadedFileIdRef = useRef(0);
+  const layerIdRef = useRef(null);
+  const uploadedFileIdRef = useRef(null);
   const copiedLayerRef = useRef(null);
   const historyPastRef = useRef([]);
   const historyFutureRef = useRef([]);
   const lastHistorySnapshotRef = useRef(null);
+  const restoredRef = useRef(false);
+
+  if (layerIdRef.current === null) {
+    const m = loadConstructorMeta();
+    layerIdRef.current = m?.layerIdCounter ?? 0;
+  }
+  if (uploadedFileIdRef.current === null) {
+    const m = loadConstructorMeta();
+    uploadedFileIdRef.current = m?.uploadedFileIdCounter ?? 0;
+  }
+
+  useEffect(() => {
+    if (restoredRef.current) return;
+    restoredRef.current = true;
+    const meta = loadConstructorMeta();
+    if (!meta?.layers?.length) return;
+    (async () => {
+      const restoredLayers = await Promise.all(meta.layers.map(async (layer) => {
+        if (layer.type === "upload" && layer._imgKey) {
+          const src = await loadImage(layer._imgKey);
+          if (src) { const { _imgKey, ...rest } = layer; return { ...rest, src }; }
+          return null;
+        }
+        return layer;
+      }));
+      const validLayers = restoredLayers.filter(Boolean);
+      if (validLayers.length) setLayers(validLayers);
+
+      if (meta.uploadedFiles?.length) {
+        const restoredFiles = await Promise.all(meta.uploadedFiles.map(async (file) => {
+          if (file._imgKey) {
+            const src = await loadImage(file._imgKey);
+            if (src) { const { _imgKey, ...rest } = file; return { ...rest, src }; }
+            return null;
+          }
+          return file;
+        }));
+        setUploadedFiles(restoredFiles.filter(Boolean));
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (!restoredRef.current) return;
+    const timer = setTimeout(async () => {
+      const layersToSave = await Promise.all(layers.map(async (layer) => {
+        if (layer.type === "upload" && layer.src) {
+          const imgKey = `layer-${layer.id}`;
+          await saveImage(imgKey, layer.src);
+          const { src, ...rest } = layer;
+          return { ...rest, _imgKey: imgKey };
+        }
+        return layer;
+      }));
+      const filesToSave = await Promise.all(uploadedFiles.map(async (file) => {
+        if (file.src) {
+          const imgKey = `file-${file.id}`;
+          await saveImage(imgKey, file.src);
+          const { src, ...rest } = file;
+          return { ...rest, _imgKey: imgKey };
+        }
+        return file;
+      }));
+      saveConstructorMeta({
+        activeTab, productKey, side, color, size, qty,
+        layers: layersToSave,
+        uploadedFiles: filesToSave,
+        layerIdCounter: layerIdRef.current,
+        uploadedFileIdCounter: uploadedFileIdRef.current,
+      });
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [layers, uploadedFiles, activeTab, productKey, side, color, size, qty]);
 
   const product = products.find((item) => item.key === productKey) || initialProduct;
   const safeColors = product.colors?.length ? product.colors : ["Чёрный"];
@@ -2998,6 +3072,27 @@ export default function useConstructorState({
     return getShapeVisualMetricsCm(activeShapeLayer, getLayerSide(activeShapeLayer));
   })();
 
+  const resetConstructor = () => {
+    clearConstructorMeta();
+    clearImages();
+    setActiveTab("textile");
+    setProductKey(initialProduct.key || "");
+    setSide("front");
+    setColor(initialProduct.colors?.[0] || "Чёрный");
+    setSizeState(initialSize);
+    setQty(1);
+    setUploadedFiles([]);
+    setLayers([]);
+    setActiveLayerId(null);
+    setSelectedLayerIds([]);
+    setEditingTextLayerId(null);
+    layerIdRef.current = 0;
+    uploadedFileIdRef.current = 0;
+    historyPastRef.current = [];
+    historyFutureRef.current = [];
+    lastHistorySnapshotRef.current = null;
+  };
+
   return {
     activeTab,
     setActiveTab,
@@ -3150,5 +3245,6 @@ export default function useConstructorState({
     toggleLayerVisibility,
     toggleLayerLock,
     getShapeByKey,
+    resetConstructor,
   };
 }

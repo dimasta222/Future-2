@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import LogoMini from "../LogoMini.jsx";
 import TshirtSizeGuideTable from "../TshirtSizeGuideTable.jsx";
 import ConstructorOrderPanel from "./ConstructorOrderPanel.jsx";
+import ConstructorOrderModal from "./ConstructorOrderModal.jsx";
 import ConstructorPreviewPanel from "./ConstructorPreviewPanel.jsx";
 import ConstructorOnboarding from "./ConstructorOnboarding.jsx";
 import ConstructorSidebarPanel from "./ConstructorSidebarPanel.jsx";
@@ -11,6 +12,7 @@ import useConstructorState from "../../hooks/useConstructorState.js";
 import STYLES from "../../shared/appStyles.js";
 import { resolveColorSwatch } from "../../shared/textileHelpers.js";
 import { buildTshirtMockupSvg, svgToDataUri } from "../../shared/textilePreviewHelpers.js";
+import { buildOrderPayload, submitOrder, downloadOrderLocally } from "../../utils/submitOrder.js";
 
 const TEXT_FONT_SIZE_STEP = 1;
 const MAX_SHAPE_STROKE_WIDTH = 100;
@@ -699,7 +701,6 @@ export default function ConstructorPage({ onBack, products }) {
     canSubmitOrder,
     currentTotal,
     orderMeta,
-    telegramLink,
     handleProductChange,
     handleColorChange,
     handleUploadChange,
@@ -731,6 +732,7 @@ export default function ConstructorPage({ onBack, products }) {
     toggleLayerLock,
     getShapeByKey,
     resetConstructor,
+    getResolvedPrintArea,
   } = useConstructorState({
     products,
     runtimeTextLayerBoundsBySide,
@@ -753,6 +755,8 @@ export default function ConstructorPage({ onBack, products }) {
   const [textSidebarOverlayOpen, setTextSidebarOverlayOpen] = useState(false);
   const [shapeSidebarOverlayOpen, setShapeSidebarOverlayOpen] = useState(false);
   const [sizeGuideOpen, setSizeGuideOpen] = useState(false);
+  const [orderModalOpen, setOrderModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const shapeToolbarOverlayRef = useRef(null);
   const shapeStrokeButtonRef = useRef(null);
   const shapeCornerButtonRef = useRef(null);
@@ -984,6 +988,46 @@ export default function ConstructorPage({ onBack, products }) {
     closeShapeSidebarOverlay({ resetToolPanel: true });
     resetShapeReplaceMode({ showShapeCatalog: activeTab === "shapes" || Boolean(activeShapeLayer) });
     selectLayerIds(layerIds, options);
+  };
+
+  const handleOrderSubmit = async (contact) => {
+    setIsSubmitting(true);
+    try {
+      const frontPrintArea = getResolvedPrintArea("front");
+      const backPrintArea = getResolvedPrintArea("back");
+      const resolveMockupSrc = (targetSide) => {
+        const src = resolveConstructorMockupSrc(product.printAreas, targetSide, size, color);
+        return src || svgToDataUri(buildTshirtMockupSvg({ model: product.model, colorName: color, view: targetSide, showViewLabel: false, showHeader: false }));
+      };
+      const payload = await buildOrderPayload({
+        layers,
+        uploadedFiles,
+        printAreas: { front: frontPrintArea, back: backPrintArea },
+        previewSrcFront: resolveMockupSrc("front"),
+        previewSrcBack: resolveMockupSrc("back"),
+        product,
+        color,
+        size,
+        qty,
+        orderMeta,
+        currentTotal,
+        contact,
+      });
+      const result = await submitOrder(payload);
+      if (result.success) {
+        setOrderModalOpen(false);
+        alert("Заказ успешно отправлен! Мы свяжемся с вами в ближайшее время.");
+      } else {
+        await downloadOrderLocally(payload);
+        setOrderModalOpen(false);
+        alert("Файлы заказа сохранены. Бэкенд пока не настроен — свяжитесь с нами в Telegram для оформления.");
+      }
+    } catch (err) {
+      console.error("Order submit error:", err);
+      alert("Произошла ошибка при оформлении заказа. Попробуйте ещё раз.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   useEffect(() => {
@@ -1232,7 +1276,7 @@ export default function ConstructorPage({ onBack, products }) {
             </div>
           </div>
 
-          <ConstructorOrderPanel currentTotal={currentTotal} orderMeta={orderMeta} canSubmitOrder={canSubmitOrder} telegramLink={telegramLink} />
+          <ConstructorOrderPanel currentTotal={currentTotal} orderMeta={orderMeta} canSubmitOrder={canSubmitOrder} onOrderClick={() => setOrderModalOpen(true)} />
         </div>
       </div>
       {sizeGuideOpen ? (
@@ -1297,6 +1341,15 @@ export default function ConstructorPage({ onBack, products }) {
         </div>
       ) : null}
       <ConstructorOnboarding />
+      {orderModalOpen && (
+        <ConstructorOrderModal
+          orderMeta={orderMeta}
+          currentTotal={currentTotal}
+          onClose={() => setOrderModalOpen(false)}
+          onSubmit={handleOrderSubmit}
+          isSubmitting={isSubmitting}
+        />
+      )}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-export default function ConstructorOrderPanel({ currentTotal, orderMeta, canSubmitOrder, telegramLink }) {
+export default function ConstructorOrderPanel({ currentTotal, orderMeta, canSubmitOrder, onOrderClick }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18, position: "sticky", top: 28, minWidth: 0, justifySelf: "end", width: "100%" }}>
       <div className="cs constructor-panel" style={{ padding: 22, border: "1px solid rgba(255,255,255,.06)", display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
@@ -34,7 +34,7 @@ export default function ConstructorOrderPanel({ currentTotal, orderMeta, canSubm
           </div>
         </div>
 
-        <a href={canSubmitOrder ? telegramLink : undefined} target="_blank" rel="noopener noreferrer" className="btg" style={{ width: "100%", justifyContent: "center", pointerEvents: canSubmitOrder ? "auto" : "none", opacity: canSubmitOrder ? 1 : 0.45, filter: canSubmitOrder ? "none" : "grayscale(.18)", textDecoration: "none" }}>Оформить заказ</a>
+        <button type="button" onClick={canSubmitOrder ? onOrderClick : undefined} className="btg" style={{ width: "100%", justifyContent: "center", pointerEvents: canSubmitOrder ? "auto" : "none", opacity: canSubmitOrder ? 1 : 0.45, filter: canSubmitOrder ? "none" : "grayscale(.18)", border: "none", cursor: canSubmitOrder ? "pointer" : "default" }}>Оформить заказ</button>
         {!canSubmitOrder && <div style={{ minWidth: 0, fontSize: 12, lineHeight: 1.6, color: "rgba(240,238,245,.42)", overflowWrap: "anywhere" }}>Чтобы оформить заказ, добавьте хотя бы один слой: файл, текст или фигуру.</div>}
       </div>
     </div>

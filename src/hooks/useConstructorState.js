@@ -604,7 +604,12 @@ export default function useConstructorState({
       const restoredLayers = await Promise.all(meta.layers.map(async (layer) => {
         if (layer.type === "upload" && layer._imgKey) {
           const src = await loadImage(layer._imgKey);
-          if (src) { const { _imgKey, ...rest } = layer; return { ...rest, src }; }
+          if (src) {
+            const { _imgKey, _hasOrigData, _hasOrigSvg, ...rest } = layer;
+            const originalData = _hasOrigData ? await loadImage(`${_imgKey}-orig`) : null;
+            const originalSvgText = _hasOrigSvg ? await loadImage(`${_imgKey}-svg`) : null;
+            return { ...rest, src, originalData, originalSvgText };
+          }
           return null;
         }
         return layer;
@@ -616,7 +621,12 @@ export default function useConstructorState({
         const restoredFiles = await Promise.all(meta.uploadedFiles.map(async (file) => {
           if (file._imgKey) {
             const src = await loadImage(file._imgKey);
-            if (src) { const { _imgKey, ...rest } = file; return { ...rest, src }; }
+            if (src) {
+              const { _imgKey, _hasOrigData, _hasOrigSvg, ...rest } = file;
+              const originalData = _hasOrigData ? await loadImage(`${file._imgKey}-orig`) : null;
+              const originalSvgText = _hasOrigSvg ? await loadImage(`${file._imgKey}-svg`) : null;
+              return { ...rest, src, originalData, originalSvgText };
+            }
             return null;
           }
           return file;
@@ -633,8 +643,10 @@ export default function useConstructorState({
         if (layer.type === "upload" && layer.src) {
           const imgKey = `layer-${layer.id}`;
           await saveImage(imgKey, layer.src);
-          const { src: _src, ...rest } = layer;
-          return { ...rest, _imgKey: imgKey };
+          const { src: _src, originalData: _od, originalSvgText: _os, ...rest } = layer;
+          if (_od) await saveImage(`${imgKey}-orig`, _od);
+          if (_os) await saveImage(`${imgKey}-svg`, _os);
+          return { ...rest, _imgKey: imgKey, _hasOrigData: Boolean(_od), _hasOrigSvg: Boolean(_os) };
         }
         return layer;
       }));
@@ -642,8 +654,10 @@ export default function useConstructorState({
         if (file.src) {
           const imgKey = `file-${file.id}`;
           await saveImage(imgKey, file.src);
-          const { src: _src, ...rest } = file;
-          return { ...rest, _imgKey: imgKey };
+          const { src: _src, originalData: _od, originalSvgText: _os, ...rest } = file;
+          if (_od) await saveImage(`${imgKey}-orig`, _od);
+          if (_os) await saveImage(`${imgKey}-svg`, _os);
+          return { ...rest, _imgKey: imgKey, _hasOrigData: Boolean(_od), _hasOrigSvg: Boolean(_os) };
         }
         return file;
       }));
@@ -783,12 +797,8 @@ export default function useConstructorState({
   const getPhysicalPrintArea = (targetSide = side, targetSize = size) => {
     const targetArea = getResolvedPrintArea(targetSide, targetSize);
     const widthCm = Number(targetArea?.physicalWidthCm) || 0;
-    const rawHeightCm = Number(targetArea?.physicalHeightCm) || 0;
-    const pxSize = getPrintAreaPixelSize(targetSide, targetSize);
-    const effectiveHeightCm = (widthCm > 0 && pxSize.widthPx > 0 && pxSize.heightPx > 0)
-      ? widthCm * (pxSize.heightPx / pxSize.widthPx)
-      : rawHeightCm;
-    return { widthCm, heightCm: effectiveHeightCm };
+    const heightCm = Number(targetArea?.physicalHeightCm) || 0;
+    return { widthCm, heightCm };
   };
   const getPrintAreaPixelSize = (targetSide = side, targetSize = size) => {
     if (targetSide === side && printAreaRef.current) {
@@ -1029,12 +1039,17 @@ export default function useConstructorState({
       : isIntrinsicShapeState
         ? (getShapeDisplayDimensionsCm(layer.shapeKey, visualBaseWidthCm, layerSide).heightCm || storedHeightCm)
         : storedHeightCm;
-    const baseWidthPx = isLineShape
-      ? getStoredLineCanvasDimensions(layer, layerSide).lineWidthPx
-      : visualBaseWidthCm * LOGICAL_PRINT_PX_PER_CM;
-    const baseHeightPx = isLineShape
-      ? getStoredLineCanvasDimensions(layer, layerSide).lineHeightPx
-      : visualBaseHeightCm * LOGICAL_PRINT_PX_PER_CM;
+    let baseWidthPx, baseHeightPx;
+    if (isLineShape) {
+      const stored = getStoredLineCanvasDimensions(layer, layerSide);
+      const lineAspectRatio = Math.max(0.2, stored.lineWidthPx / Math.max(1, stored.lineHeightPx));
+      const lineVisualMetrics = getConstructorLineVisualMetrics(layer.shapeKey, layer.strokeWidth, lineAspectRatio);
+      baseWidthPx = stored.lineWidthPx * (lineVisualMetrics.visibleWidthPx / Math.max(1, lineVisualMetrics.layoutWidthPx));
+      baseHeightPx = stored.lineHeightPx * (lineVisualMetrics.visibleHeightPx / Math.max(1, lineVisualMetrics.layoutHeightPx));
+    } else {
+      baseWidthPx = visualBaseWidthCm * LOGICAL_PRINT_PX_PER_CM;
+      baseHeightPx = visualBaseHeightCm * LOGICAL_PRINT_PX_PER_CM;
+    }
     const frameMetrics = getShapeFrameMetricsPx(layer, {
       baseWidthPx,
       baseHeightPx,
@@ -1574,7 +1589,7 @@ export default function useConstructorState({
     }, resolvedSide);
   };
 
-  const buildUploadLayer = ({ id: _sourceId, src, uploadName, width, height, ...overrides }) => {
+  const buildUploadLayer = ({ id: _sourceId, src, uploadName, width, height, sourceType: _srcType, originalData: _origData, originalSvgText: _origSvg, ...overrides }) => {
     const resolvedSide = overrides.side || side;
     const sameSideUploadLayersCount = layers.filter((layer) => layer.type === "upload" && getLayerSide(layer) === resolvedSide).length;
     const uploadCascadeStep = 3.5;
@@ -1602,6 +1617,9 @@ export default function useConstructorState({
       width,
       height,
       renderFrame: overrides.renderFrame || null,
+      sourceType: _srcType || "raster",
+      originalData: _origData || null,
+      originalSvgText: _origSvg || null,
       widthCm: defaultDimensions.widthCm,
       heightCm: defaultDimensions.heightCm,
       desiredWidthCm: defaultDimensions.widthCm,
@@ -2006,20 +2024,58 @@ export default function useConstructorState({
     const files = Array.from(event.target.files || []);
     if (!files.length) return;
 
-    const nextUploadedFiles = await Promise.all(files.map(async (file) => {
+    const nextUploadedFiles = (await Promise.all(files.map(async (file) => {
+      const ext = (file.name || "").split(".").pop().toLowerCase();
+      const isPdf = file.type === "application/pdf" || ext === "pdf";
+      const isSvg = file.type === "image/svg+xml" || ext === "svg";
+
+      if (isPdf) {
+        try {
+          const arrayBuf = await file.arrayBuffer();
+          const pdfjsLib = await import("pdfjs-dist");
+          pdfjsLib.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.mjs", import.meta.url).href;
+          const pdfDoc = await pdfjsLib.getDocument({ data: arrayBuf }).promise;
+          const page = await pdfDoc.getPage(1);
+          const viewport = page.getViewport({ scale: 2 });
+          const canvas = document.createElement("canvas");
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
+          const ctx = canvas.getContext("2d");
+          await page.render({ canvasContext: ctx, viewport }).promise;
+          const src = canvas.toDataURL("image/png");
+          return {
+            id: nextUploadedFileId(),
+            src,
+            uploadName: file.name,
+            width: viewport.width,
+            height: viewport.height,
+            renderFrame: null,
+            sourceType: "pdf",
+            originalData: arrayBuf,
+          };
+        } catch { return null; }
+      }
+
       const src = await readFileAsDataUrl(file);
       const dimensions = await readImageSize(src);
       const renderFrame = await readImageContentBounds(src);
 
-      return {
+      const baseFile = {
         id: nextUploadedFileId(),
         src,
         uploadName: file.name,
         width: dimensions.width,
         height: dimensions.height,
         renderFrame,
+        sourceType: isSvg ? "svg" : "raster",
       };
-    }));
+
+      if (isSvg) {
+        baseFile.originalSvgText = await file.text();
+      }
+
+      return baseFile;
+    }))).filter(Boolean);
 
     setUploadedFiles((currentFiles) => [...currentFiles, ...nextUploadedFiles]);
     event.target.value = "";
@@ -3095,5 +3151,6 @@ export default function useConstructorState({
     toggleLayerLock,
     getShapeByKey,
     resetConstructor,
+    getResolvedPrintArea,
   };
 }

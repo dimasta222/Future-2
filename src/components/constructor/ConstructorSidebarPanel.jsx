@@ -1092,9 +1092,9 @@ export default function ConstructorSidebarPanel({
             overflow: "hidden",
           }}
         >
-          <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" multiple onChange={handleUploadChange} style={{ display: "none" }} />
+          <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml,application/pdf" multiple onChange={handleUploadChange} style={{ display: "none" }} />
           <div style={{ fontSize: 15, fontWeight: 500, color: isUploadDropzoneHovered ? "#fff7ff" : "#f0eef5", transition: "color .24s ease" }}>Загрузить файлы</div>
-          <div style={{ fontSize: 12, color: isUploadDropzoneHovered ? "rgba(255,247,255,.82)" : "rgba(240,238,245,.45)", maxWidth: 320, transition: "color .24s ease" }}>PNG, JPG, WEBP или SVG.</div>
+          <div style={{ fontSize: 12, color: isUploadDropzoneHovered ? "rgba(255,247,255,.82)" : "rgba(240,238,245,.45)", maxWidth: 320, transition: "color .24s ease" }}>PNG, JPG, WEBP, SVG или PDF.</div>
         </label>
         {uploadedFiles.length ? (
           <SidebarFieldRow label="Загруженные файлы" minHeight={128}>

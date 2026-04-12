@@ -93,7 +93,7 @@ export function resizeShapeLayer({
   printAreaBounds,
   dragState,
   physicalWidthCm,
-  physicalHeightCm,
+  _physicalHeightCm,
 }) {
   if (!handle || !pointer || !printAreaBounds || !dragState) return null;
 

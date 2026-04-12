@@ -639,7 +639,7 @@ function CalcPage({ onBack }) {
   const valid = activeItems.length > 0;
   const oversized = activeItems.some(i => Math.min(i.w, i.h) > BED_W);
 
-  const packItems = activeItems.map((it, idx) => ({ w: it.w, h: it.h, qty: it.qty, color: COLORS[items.indexOf(it) % COLORS.length] }));
+  const packItems = activeItems.map((it) => ({ w: it.w, h: it.h, qty: it.qty, color: COLORS[items.indexOf(it) % COLORS.length] }));
   const pack = valid && !oversized ? packOnBed(packItems) : { length: 0, placements: [] };
 
   const totalQty = activeItems.reduce((s, i) => s + i.qty, 0);

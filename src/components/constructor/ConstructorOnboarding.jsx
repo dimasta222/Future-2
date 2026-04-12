@@ -88,23 +88,29 @@ export default function ConstructorOnboarding() {
     const el = document.querySelector(STEPS[step]?.target);
     if (!el) return undefined;
 
-    setRect(getAbsoluteRect(el));
-    scrollToShowTooltip(el);
+    const rafId = requestAnimationFrame(() => {
+      setRect(getAbsoluteRect(el));
+      scrollToShowTooltip(el);
+    });
 
     const handleResize = () => {
       setRect(getAbsoluteRect(el));
     };
     window.addEventListener("resize", handleResize);
     return () => {
+      cancelAnimationFrame(rafId);
       window.removeEventListener("resize", handleResize);
     };
   }, [visible, step]);
 
   /* Initial measurement for step 0 (no scroll needed) */
   useEffect(() => {
-    if (!visible) return;
+    if (!visible) return undefined;
     const el = document.querySelector(STEPS[0]?.target);
-    setRect(getAbsoluteRect(el));
+    const rafId = requestAnimationFrame(() => {
+      setRect(getAbsoluteRect(el));
+    });
+    return () => cancelAnimationFrame(rafId);
   }, [visible]);
 
   const finish = useCallback(() => {

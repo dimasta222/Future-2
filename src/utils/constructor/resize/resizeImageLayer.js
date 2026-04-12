@@ -59,10 +59,6 @@ export function resizeImageLayer({
   const toPositionX = (xPx) => (xPx / printAreaBounds.width) * 100;
   const toPositionY = (yPx) => (yPx / printAreaBounds.height) * 100;
 
-  const safeStartWidth = Math.max(MIN_ASSET_WIDTH_PX, startRenderedWidth);
-  const safeStartHeight = Math.max(MIN_ASSET_HEIGHT_PX, startRenderedHeight);
-  const aspectRatio = safeStartWidth / safeStartHeight;
-
   if (isCornerHandle(handle)) {
     const fixedLeft = handle.x > 0 ? startBoundsLeft : null;
     const fixedRight = handle.x < 0 ? startBoundsRight : null;

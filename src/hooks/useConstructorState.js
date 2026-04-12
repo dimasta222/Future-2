@@ -633,7 +633,7 @@ export default function useConstructorState({
         if (layer.type === "upload" && layer.src) {
           const imgKey = `layer-${layer.id}`;
           await saveImage(imgKey, layer.src);
-          const { src, ...rest } = layer;
+          const { src: _src, ...rest } = layer;
           return { ...rest, _imgKey: imgKey };
         }
         return layer;
@@ -642,7 +642,7 @@ export default function useConstructorState({
         if (file.src) {
           const imgKey = `file-${file.id}`;
           await saveImage(imgKey, file.src);
-          const { src, ...rest } = file;
+          const { src: _src, ...rest } = file;
           return { ...rest, _imgKey: imgKey };
         }
         return file;
@@ -833,7 +833,6 @@ export default function useConstructorState({
     const bounds = getConstructorShapeTightBounds(shapeKey);
     return Math.max(0.05, (Number(bounds?.width) || 1) / Math.max(1, Number(bounds?.height) || 1));
   };
-  const isBasicShapeKey = (shapeKey) => getConstructorShape(shapeKey).category === "basic-shapes";
   const isLineShapeKey = (shapeKey) => getConstructorShape(shapeKey).category === "lines";
   const getLogicalPrintAreaSize = (layerSide = side, targetSize = size) => {
     const { widthCm, heightCm } = getPhysicalPrintArea(layerSide, targetSize);
@@ -1044,137 +1043,6 @@ export default function useConstructorState({
     return {
       widthCm: Number((frameMetrics.frameWidthPx / LOGICAL_PRINT_PX_PER_CM).toFixed(3)),
       heightCm: Number((frameMetrics.frameHeightPx / LOGICAL_PRINT_PX_PER_CM).toFixed(3)),
-    };
-  };
-  const resolveOrderLayerBoundsPx = (layer, areaMetrics) => {
-    if (layer?.type === "upload") {
-      const baseWidthPx = Math.max(0, (Number(layer.widthCm) || 0) * LOGICAL_PRINT_PX_PER_CM);
-      const baseHeightPx = Math.max(0, (Number(layer.heightCm) || 0) * LOGICAL_PRINT_PX_PER_CM);
-      const rotDeg = normalizeRotationDeg(layer.rotationDeg ?? 0);
-      const rotRad = (rotDeg * Math.PI) / 180;
-      const widthPx = rotDeg
-        ? (Math.abs(baseWidthPx * Math.cos(rotRad)) + Math.abs(baseHeightPx * Math.sin(rotRad)))
-        : baseWidthPx;
-      const heightPx = rotDeg
-        ? (Math.abs(baseWidthPx * Math.sin(rotRad)) + Math.abs(baseHeightPx * Math.cos(rotRad)))
-        : baseHeightPx;
-      const centerXPx = ((Number(layer.position?.x) || 50) / 100) * areaMetrics.areaWidthPx;
-      const centerYPx = ((Number(layer.position?.y) || 50) / 100) * areaMetrics.areaHeightPx;
-
-      return {
-        left: centerXPx - (widthPx / 2),
-        right: centerXPx + (widthPx / 2),
-        top: centerYPx - (heightPx / 2),
-        bottom: centerYPx + (heightPx / 2),
-      };
-    }
-
-    if (layer?.type === "text") {
-      const resolvedText = String(layer.value || "");
-      const geometryWidthPx = Math.max(1, Number(areaMetrics.areaGeometryWidth) || Number(areaMetrics.areaWidthPx) || 1);
-      const geometryHeightPx = Math.max(1, Number(areaMetrics.areaGeometryHeight) || Number(areaMetrics.areaHeightPx) || 1);
-      const widthPercent = Math.min(100, Math.max(1, layer.textBoxWidth ?? DEFAULT_TEXT_BOX_WIDTH));
-      const boxWidthPx = Math.min(geometryWidthPx, geometryWidthPx * (widthPercent / 100));
-      const resolvedFont = getConstructorTextFont(layer.fontKey || DEFAULT_TEXT_FONT.key);
-      const fontFamily = layer.fontFamily || resolvedFont.family || DEFAULT_TEXT_FONT.family;
-      const fontWeight = resolvedFont.supportsBold
-        ? (layer.weight ?? resolvedFont.regularWeight ?? DEFAULT_TEXT_WEIGHT)
-        : (resolvedFont.regularWeight ?? 400);
-      const fontStyle = resolvedFont.supportsItalic && layer.italic ? "italic" : "normal";
-      const contentMetrics = getTextContentMetricsPx({
-        text: layer.uppercase ? resolvedText.toUpperCase() : resolvedText,
-        fontFamily,
-        fontSize: layer.size ?? 36,
-        fontWeight,
-        fontStyle,
-        lineHeight: layer.lineHeight ?? DEFAULT_TEXT_LINE_HEIGHT,
-        letterSpacing: layer.letterSpacing ?? 1,
-        boxWidthPx,
-      });
-      const visualPadding = getTextVisualPaddingPx({
-        strokeWidth: layer.strokeWidth,
-        shadowOffsetX: layer.shadowEnabled ? layer.shadowOffsetX : 0,
-        shadowOffsetY: layer.shadowEnabled ? layer.shadowOffsetY : 0,
-        shadowBlur: layer.shadowEnabled ? layer.shadowBlur : 0,
-        underline: layer.underline,
-        fontSize: layer.size ?? 36,
-      });
-      const hasVisibleText = resolvedText.trim().length > 0;
-      const contentWidthPx = hasVisibleText
-        ? Math.min(geometryWidthPx, Math.max(1, contentMetrics.contentWidthPx + visualPadding.leftPaddingPx + visualPadding.rightPaddingPx))
-        : Math.max(1, boxWidthPx);
-      const contentHeightPx = hasVisibleText
-        ? Math.min(geometryHeightPx, Math.max(1, contentMetrics.contentHeightPx + visualPadding.topPaddingPx + visualPadding.bottomPaddingPx))
-        : Math.max(1, (layer.size ?? 36) * (layer.lineHeight ?? DEFAULT_TEXT_LINE_HEIGHT));
-      const contentWidthCm = (contentWidthPx / geometryWidthPx) * areaMetrics.areaWidthCm;
-      const contentHeightCm = (contentHeightPx / geometryHeightPx) * areaMetrics.areaHeightCm;
-      const boxWidthCm = (boxWidthPx / geometryWidthPx) * areaMetrics.areaWidthCm;
-      const widthPx = Math.max(0, contentWidthCm * LOGICAL_PRINT_PX_PER_CM);
-      const heightPx = Math.max(0, contentHeightCm * LOGICAL_PRINT_PX_PER_CM);
-      const logicalBoxWidthPx = Math.max(widthPx, boxWidthCm * LOGICAL_PRINT_PX_PER_CM);
-      const centerXPx = ((Number(layer.position?.x) || 50) / 100) * areaMetrics.areaWidthPx;
-      const centerYPx = ((Number(layer.position?.y) || 50) / 100) * areaMetrics.areaHeightPx;
-      const boxLeft = centerXPx - (logicalBoxWidthPx / 2);
-      const boxRight = centerXPx + (logicalBoxWidthPx / 2);
-      const textAlign = layer.textAlign || "center";
-
-      let left = centerXPx - (widthPx / 2);
-      let right = centerXPx + (widthPx / 2);
-
-      if (textAlign === "left") {
-        left = boxLeft;
-        right = boxLeft + widthPx;
-      } else if (textAlign === "right") {
-        right = boxRight;
-        left = boxRight - widthPx;
-      }
-
-      const textRotDeg = normalizeRotationDeg(layer.rotationDeg ?? 0);
-      if (textRotDeg) {
-        const textRotRad = (textRotDeg * Math.PI) / 180;
-        const aabbW = Math.abs(widthPx * Math.cos(textRotRad)) + Math.abs(heightPx * Math.sin(textRotRad));
-        const aabbH = Math.abs(widthPx * Math.sin(textRotRad)) + Math.abs(heightPx * Math.cos(textRotRad));
-        return {
-          left: centerXPx - (aabbW / 2),
-          right: centerXPx + (aabbW / 2),
-          top: centerYPx - (aabbH / 2),
-          bottom: centerYPx + (aabbH / 2),
-        };
-      }
-
-      return {
-        left,
-        right,
-        top: centerYPx - (heightPx / 2),
-        bottom: centerYPx + (heightPx / 2),
-      };
-    }
-
-    if (layer?.type !== "shape") {
-      return null;
-    }
-
-    const visualMetricsCm = getShapeVisualMetricsCm(layer, getLayerSide(layer));
-    if (!visualMetricsCm) return null;
-
-    const baseWidthPx = Number(visualMetricsCm.widthCm) * LOGICAL_PRINT_PX_PER_CM;
-    const baseHeightPx = Number(visualMetricsCm.heightCm) * LOGICAL_PRINT_PX_PER_CM;
-    const shapeRotDeg = normalizeRotationDeg(layer.rotationDeg ?? 0);
-    const shapeRotRad = (shapeRotDeg * Math.PI) / 180;
-    const widthPx = shapeRotDeg
-      ? (Math.abs(baseWidthPx * Math.cos(shapeRotRad)) + Math.abs(baseHeightPx * Math.sin(shapeRotRad)))
-      : baseWidthPx;
-    const heightPx = shapeRotDeg
-      ? (Math.abs(baseWidthPx * Math.sin(shapeRotRad)) + Math.abs(baseHeightPx * Math.cos(shapeRotRad)))
-      : baseHeightPx;
-    const centerXPx = ((Number(layer.position?.x) || 50) / 100) * areaMetrics.areaWidthPx;
-    const centerYPx = ((Number(layer.position?.y) || 50) / 100) * areaMetrics.areaHeightPx;
-
-    return {
-      left: centerXPx - (widthPx / 2),
-      right: centerXPx + (widthPx / 2),
-      top: centerYPx - (heightPx / 2),
-      bottom: centerYPx + (heightPx / 2),
     };
   };
   const getTextVisualMetricsCm = (layer, areaMetrics) => {
@@ -1434,7 +1302,9 @@ export default function useConstructorState({
     if (layer?.type !== "text") return null;
     return runtimeTextLayerBoundsBySide?.[getLayerSide(layer)]?.[layer.id] || null;
   };
+  // eslint-disable-next-line react-hooks/refs -- getPrintAreaPixelSize needs ref for pricing calculations
   const frontPrintAreaPixelSize = getPrintAreaPixelSize("front", size);
+  // eslint-disable-next-line react-hooks/refs -- getPrintAreaPixelSize needs ref for pricing calculations
   const backPrintAreaPixelSize = getPrintAreaPixelSize("back", size);
   const frontResolvedPrintArea = getResolvedPrintArea("front", size);
   const backResolvedPrintArea = getResolvedPrintArea("back", size);
@@ -1466,11 +1336,6 @@ export default function useConstructorState({
   });
 
   const activePrintSidesCount = [frontPrintPricing, backPrintPricing].filter(Boolean).length;
-  const printTypeLabel = activePrintSidesCount >= 2 ? "Печать двусторонняя" : activePrintSidesCount === 1 ? "Печать односторонняя" : "Печать";
-  const printTypeDetails = [
-    frontPrintPricing ? `спереди ${frontPrintPricing.formatName}` : null,
-    backPrintPricing ? `сзади ${backPrintPricing.formatName}` : null,
-  ].filter(Boolean).join(" + ");
   const isSmallOrder = qty < SMALL_ORDER_QTY_THRESHOLD && activePrintSidesCount > 0;
   let resolvedFrontPrintPrice = frontPrintPricing?.price || 0;
   let resolvedBackPrintPrice = backPrintPricing?.price || 0;
@@ -1545,22 +1410,6 @@ export default function useConstructorState({
 
   const getUploadAspectRatio = (layer) => getAssetCmAspectRatio(getVisibleLayerAspectRatio(layer), getLayerSide(layer));
 
-  const getUploadDimensionsFromWidthCm = (layer, nextWidthCm) => {
-    const { widthCm: maxWidthCm, heightCm: maxHeightCm } = getPhysicalPrintArea(getLayerSide(layer));
-    const aspectRatio = getUploadAspectRatio(layer);
-    const clampedWidthCm = clampCm(nextWidthCm, maxWidthCm);
-    const derivedHeightCm = Number((clampedWidthCm / aspectRatio).toFixed(3));
-
-    if (derivedHeightCm <= maxHeightCm) {
-      return { widthCm: clampedWidthCm, heightCm: derivedHeightCm };
-    }
-
-    const fitHeightCm = clampCm(maxHeightCm, maxHeightCm);
-    return {
-      widthCm: Number((fitHeightCm * aspectRatio).toFixed(3)),
-      heightCm: fitHeightCm,
-    };
-  };
   const getDefaultUploadDimensionsCm = ({ width, height, layerSide = side }) => {
     const { widthCm: maxWidthCm, heightCm: maxHeightCm } = getPhysicalPrintArea(layerSide);
     const naturalWidth = Number(width);
@@ -1828,7 +1677,7 @@ export default function useConstructorState({
     const { width: areaWidth, height: areaHeight } = printAreaRef.current.getBoundingClientRect();
     if (!areaWidth || !areaHeight) return null;
 
-    const { widthCm: areaWidthCm, heightCm: areaHeightCm } = getPhysicalPrintArea(getLayerSide(resolvedLayer));
+    const { widthCm: areaWidthCm } = getPhysicalPrintArea(getLayerSide(resolvedLayer));
 
     if (resolvedLayer.type === "upload") {
       const widthCm = resolvedLayer.widthCm;

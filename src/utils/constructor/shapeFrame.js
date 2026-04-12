@@ -1,4 +1,4 @@
-import { getConstructorShape, getConstructorShapeTightBounds } from "../../components/constructor/constructorConfig.js";
+import { getConstructorShape } from "../../components/constructor/constructorConfig.js";
 
 function getDirectionalOffset(angle, distance) {
   const radians = ((Number(angle) || 0) * Math.PI) / 180;
@@ -10,13 +10,8 @@ function getDirectionalOffset(angle, distance) {
   };
 }
 
-function getShapeStrokePaddingPx(layer, shape, baseWidthPx, baseHeightPx) {
+function getShapeStrokePaddingPx(layer, shape, _baseWidthPx, _baseHeightPx) {
   const resolvedShape = shape || getConstructorShape(layer?.shapeKey);
-  const bounds = getConstructorShapeTightBounds(resolvedShape.key);
-  const safeBoundsWidth = Math.max(1, Number(bounds?.width) || 1);
-  const safeBoundsHeight = Math.max(1, Number(bounds?.height) || 1);
-  const safeBaseWidthPx = Math.max(0, Number(baseWidthPx) || 0);
-  const safeBaseHeightPx = Math.max(0, Number(baseHeightPx) || 0);
   const rawStrokeWidth = Math.max(0, Number(layer?.strokeWidth) || 0);
   const hasVisibleStroke = rawStrokeWidth > 0 && (resolvedShape.category === "lines" || layer?.strokeStyle !== "none");
 

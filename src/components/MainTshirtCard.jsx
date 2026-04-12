@@ -40,9 +40,9 @@ export default function MainTshirtCard({ item, onOpen }) {
   return (
     <div className="main-card main-showcase-card" style={{ padding: 0, display: "flex", flexDirection: "column", height: "100%", minWidth: 0 }}>
       <div className="main-showcase-shell">
-        <div className="main-card-header" style={{ marginBottom: 16, gap: 12, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-          <h3 style={{ fontSize: 17, fontWeight: 500 }}>{item.name}</h3>
-          <span style={{ fontSize: 18, fontWeight: 600, background: "linear-gradient(135deg,#e84393,#6c5ce7)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", whiteSpace: "nowrap", lineHeight: 1.1 }}>{priceLabel}</span>
+        <div className="main-card-header" style={{ marginBottom: 16, gap: 6, display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+          <h3 style={{ fontSize: "clamp(11px, 3vw, 17px)", fontWeight: 500, whiteSpace: "nowrap" }}>{item.name}</h3>
+          <span style={{ fontSize: "clamp(11px, 3vw, 16px)", fontWeight: 600, background: "linear-gradient(135deg,#e84393,#6c5ce7)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", whiteSpace: "nowrap", lineHeight: 1.1 }}>{priceLabel}</span>
         </div>
 
         <div className="main-showcase-meta">
@@ -61,8 +61,8 @@ export default function MainTshirtCard({ item, onOpen }) {
                     setSelectedColor(nextDefaultColor);
                   }}
                   style={{
-                    minWidth: 92,
-                    flexShrink: 0,
+                    minWidth: 0,
+                    flexShrink: 1,
                     padding: "7px 9px",
                     borderRadius: 9,
                     cursor: densityVariants.length > 1 ? "pointer" : "default",
@@ -97,7 +97,7 @@ export default function MainTshirtCard({ item, onOpen }) {
             />
 
             <div className="main-showcase-swatches">
-              <div className="main-showcase-swatches-title">Цвет • {previewColor}</div>
+              <div className="main-showcase-swatches-title"><span>Цвет •</span><br />{previewColor}</div>
               {colorOptions.map((color) => {
                 const swatch = resolveColorSwatch(color);
                 const active = previewColor === color;

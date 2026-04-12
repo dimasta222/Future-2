@@ -141,7 +141,13 @@ input[type=number]{-moz-appearance:textfield}
 	.hero-stat-value{white-space:nowrap!important;line-height:1.05!important}
 	.hero-stat-label{display:flex!important;align-items:flex-start!important;justify-content:center!important;min-height:32px!important;line-height:1.35!important;text-align:center!important}
 	.textile-card-grid,.reviews-grid,.contact-grid,.size-guide-grid,.constructor-shell{grid-template-columns:1fr!important}
-	.main-tshirt-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr))!important;gap:14px!important}
+	.main-tshirt-grid{display:flex!important;flex-wrap:nowrap!important;overflow-x:auto!important;-webkit-overflow-scrolling:touch!important;scroll-snap-type:x mandatory!important;gap:14px!important;padding-bottom:8px!important;justify-content:flex-start!important}
+	.main-tshirt-grid::-webkit-scrollbar{height:4px}
+	.main-tshirt-grid::-webkit-scrollbar-track{background:rgba(255,255,255,.04);border-radius:4px}
+	.main-tshirt-grid::-webkit-scrollbar-thumb{background:linear-gradient(90deg,#e84393,#6c5ce7);border-radius:4px}
+	.main-tshirt-grid>*{flex:0 0 210px!important;scroll-snap-align:start!important;min-width:210px!important;max-width:210px!important;overflow:visible!important}
+	.main-showcase-card .main-card-header h3{font-size:13px!important}
+	.main-showcase-card .main-card-header span{font-size:13px!important}
 	.main-showcase-shell{width:100%!important}
 	.constructor-preview{position:relative!important;top:auto!important}
 	.constructor-shape-toolbar{flex-wrap:wrap!important}

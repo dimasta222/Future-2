@@ -1101,7 +1101,7 @@ export default function ConstructorPreviewPanel({
 
   return (
     <div className="constructor-preview" style={{ minWidth: 0, position: "relative", overflowAnchor: "none" }}>
-      <div style={{ position: "relative", minHeight: 640, overflowAnchor: "none" }} onPointerDown={handlePreviewBackgroundPointerDown}>
+      <div className="constructor-preview-stage" style={{ position: "relative", minHeight: 640, overflowAnchor: "none" }} onPointerDown={handlePreviewBackgroundPointerDown}>
         <img src={previewSrc} alt={`${productName} — ${color}`} draggable={false} style={{ width: "100%", display: "block", userSelect: "none", WebkitUserDrag: "none", pointerEvents: "none" }} />
         <div ref={printAreaRef} style={{ position: "absolute", left: `${printArea.left}%`, top: `${printArea.top}%`, width: `${printArea.width}%`, height: printArea.height ? `${printArea.height}%` : undefined, aspectRatio: printArea.height ? undefined : `${physicalWidthCm} / ${physicalHeightCm}`, transform: "translate(-50%, -50%)", display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
           {activeSnapGuides.map((guide, index) => {

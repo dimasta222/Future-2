@@ -114,8 +114,9 @@ input[type=number]{-moz-appearance:textfield}
 	.constructor-shape-toolbar{flex-wrap:wrap!important}
 	.constructor-shape-toolbar-main{flex:1 1 100%!important;min-width:0!important}
 	.constructor-shape-popover{width:100%!important}
-	.constructor-tabs-grid{grid-template-columns:1fr!important}
-	.constructor-tabs-button{min-height:44px!important}
+	.constructor-tabs-grid{display:flex!important;flex-wrap:wrap!important;gap:6px!important}
+	.constructor-tabs-button{min-height:auto!important;width:auto!important;flex:0 1 auto!important;padding:6px 10px!important}
+	.constructor-preview-stage{min-height:auto!important}
 	.constructor-order-row{grid-template-columns:1fr!important;gap:6px!important}
 	.constructor-order-label{white-space:normal!important}
 	.constructor-order-value{text-align:left!important;overflow-wrap:break-word!important;word-break:normal!important}
@@ -130,7 +131,7 @@ input[type=number]{-moz-appearance:textfield}
 	.mobile-pricing-list{display:grid!important;gap:8px!important}
 	.mobile-pricing-note{display:block!important;margin-top:4px;font-size:10px;font-weight:400;color:rgba(240,238,245,.48);line-height:1.35}
 	.main-showcase-stage{margin-top:12px!important}
-	.main-showcase-shell{width:min(100%,300px)!important}
+	.main-showcase-shell{width:100%!important}
 	.main-showcase-swatches{left:clamp(8px,2.4vw,16px)!important;top:clamp(10px,2.8vw,18px)!important}
 	.hero-rating{flex-wrap:wrap!important;justify-content:center!important;padding:8px 16px!important}
 	.hero-actions{width:100%!important;gap:10px!important;margin-top:28px!important}
@@ -139,7 +140,9 @@ input[type=number]{-moz-appearance:textfield}
 	.hero-stat{display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:flex-start!important;min-width:0!important}
 	.hero-stat-value{white-space:nowrap!important;line-height:1.05!important}
 	.hero-stat-label{display:flex!important;align-items:flex-start!important;justify-content:center!important;min-height:32px!important;line-height:1.35!important;text-align:center!important}
-	.textile-card-grid,.main-tshirt-grid,.reviews-grid,.contact-grid,.size-guide-grid,.constructor-shell{grid-template-columns:1fr!important}
+	.textile-card-grid,.reviews-grid,.contact-grid,.size-guide-grid,.constructor-shell{grid-template-columns:1fr!important}
+	.main-tshirt-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr))!important;gap:14px!important}
+	.main-showcase-shell{width:100%!important}
 	.constructor-preview{position:relative!important;top:auto!important}
 	.constructor-shape-toolbar{flex-wrap:wrap!important}
 	.constructor-shape-toolbar-main{flex:1 1 100%!important;min-width:0!important}
@@ -166,7 +169,7 @@ input[type=number]{-moz-appearance:textfield}
 	.field-row-label{width:auto!important;min-width:0!important}
 	.field-row-content{width:100%!important}
 	.field-value{text-align:left!important;margin-left:0!important}
-	.main-showcase-shell{width:min(100%,250px)!important}
+	.main-showcase-shell{width:100%!important}
 	.main-showcase-card .main-card-header{flex-direction:row!important;align-items:flex-start!important;justify-content:space-between!important}
 	.main-showcase-card .field-row{flex-direction:row!important;align-items:center!important;gap:14px!important}
 	.main-showcase-card .field-row-label{width:92px!important;min-width:92px!important}

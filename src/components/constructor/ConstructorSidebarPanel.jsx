@@ -1920,6 +1920,8 @@ export default function ConstructorSidebarPanel({
     );
   }
 
+  if (!activeTab) return null;
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
       <SidebarTitle>Слои</SidebarTitle>

@@ -817,7 +817,11 @@ export default function ConstructorPage({ onBack, products }) {
       setActiveShapeToolPanel("edit");
     }
 
-    setActiveTab(nextTab);
+    if (nextTab === activeTab) {
+      setActiveTab(null);
+    } else {
+      setActiveTab(nextTab);
+    }
   };
 
   const handleShapeToolbarPanelChange = (nextPanel) => {

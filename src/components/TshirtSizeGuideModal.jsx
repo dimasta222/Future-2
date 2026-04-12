@@ -39,8 +39,8 @@ export default function TshirtSizeGuideModal({ sections, onClose }) {
             type="button"
             onClick={onClose}
             style={{
-              width: 42,
-              height: 42,
+              width: 44,
+              height: 44,
               borderRadius: "50%",
               border: "1px solid rgba(255,255,255,.08)",
               background: "rgba(255,255,255,.04)",

@@ -531,7 +531,7 @@ function TextilePage({ type, onBack, onNavigate }) {
         </div>
 
         {/* Product cards */}
-        <div className="textile-card-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(360px,1fr))", gap: 24, marginBottom: 48 }}>
+        <div className="textile-card-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(min(100%,360px),1fr))", gap: 24, marginBottom: 48 }}>
           {data.items.map((item, index) => <ProductCard key={index} item={item} index={index} type={type} onAddTshirtSelection={type === "tshirts" ? addTshirtSelection : undefined} onOpenGallery={type === "tshirts" ? setGalleryModal : undefined} />)}
         </div>
 

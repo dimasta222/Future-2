@@ -86,10 +86,10 @@ export default function MainNavigation({
                 <a href="mailto:future178@yandex.ru" style={{ color: "rgba(240,238,245,.58)", textDecoration: "none", fontSize: 12, fontWeight: 300, letterSpacing: 0.3, whiteSpace: "nowrap", transition: "color .3s" }} onMouseEnter={(event) => { event.currentTarget.style.color = "#e84393"; }} onMouseLeave={(event) => { event.currentTarget.style.color = "rgba(240,238,245,.58)"; }}>future178@yandex.ru</a>
               </div>
               <div className="nav-socials">
-                <a href="https://t.me/FUTURE_178" target="_blank" rel="noopener noreferrer" aria-label="Telegram" className="nav-social-btn" style={{ width: 38, height: 38, borderRadius: "50%", display: "inline-flex", alignItems: "center", justifyContent: "center", textDecoration: "none", background: "linear-gradient(135deg,#0088cc,#6c5ce7)", boxShadow: "0 8px 24px rgba(0,136,204,.2)" }}>
+                <a href="https://t.me/FUTURE_178" target="_blank" rel="noopener noreferrer" aria-label="Telegram" className="nav-social-btn" style={{ width: 44, height: 44, borderRadius: "50%", display: "inline-flex", alignItems: "center", justifyContent: "center", textDecoration: "none", background: "linear-gradient(135deg,#0088cc,#6c5ce7)", boxShadow: "0 8px 24px rgba(0,136,204,.2)" }}>
                   <TG />
                 </a>
-                <a href="https://wa.me/79500003464" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp" className="nav-social-btn" style={{ width: 38, height: 38, borderRadius: "50%", display: "inline-flex", alignItems: "center", justifyContent: "center", textDecoration: "none", background: "linear-gradient(135deg,#25D366,#128C7E)", boxShadow: "0 8px 24px rgba(37,211,102,.2)" }}>
+                <a href="https://wa.me/79500003464" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp" className="nav-social-btn" style={{ width: 44, height: 44, borderRadius: "50%", display: "inline-flex", alignItems: "center", justifyContent: "center", textDecoration: "none", background: "linear-gradient(135deg,#25D366,#128C7E)", boxShadow: "0 8px 24px rgba(37,211,102,.2)" }}>
                   <WA />
                 </a>
               </div>

@@ -5,9 +5,9 @@ export default function ContactSection({ Reveal: _Reveal, formData, setFormData,
     <section id="contact" className="section-shell" style={{ padding: "100px 5% 60px" }}>
       <div style={{ maxWidth: 900, margin: "0 auto" }}>
         <_Reveal className="text-center mb-12"><span style={{ fontSize: 12, fontWeight: 500, letterSpacing: 4, color: "#6c5ce7", textTransform: "uppercase" }}>Свяжитесь с нами</span><h2 style={{ fontSize: "clamp(28px,4vw,44px)", fontWeight: 200, marginTop: 12 }}>Оставить <span style={{ fontWeight: 600 }}>заявку</span></h2></_Reveal>
-        <div className="contact-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))", gap: 32 }}>
+        <div className="contact-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,300px),1fr))", gap: 32 }}>
           <_Reveal delay={0.1}>
-            <form className="cg contact-card" style={{ padding: "36px 32px" }} onSubmit={onSubmit}>
+            <form className="cg contact-card" style={{ padding: "clamp(20px, 4vw, 36px) clamp(18px, 3vw, 32px)" }} onSubmit={onSubmit}>
               <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                 <input className="inf" placeholder="Ваше имя" value={formData.n} onChange={(event) => setFormData({ ...formData, n: event.target.value })} required />
                 <input className="inf" placeholder="Телефон" value={formData.p} onChange={(event) => setFormData({ ...formData, p: event.target.value })} required />

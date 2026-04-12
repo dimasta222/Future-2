@@ -37,8 +37,8 @@ export default function TshirtGalleryModal({ galleryModal, onClose, onSelectInde
             type="button"
             onClick={onClose}
             style={{
-              width: 42,
-              height: 42,
+              width: 44,
+              height: 44,
               borderRadius: "50%",
               border: "1px solid rgba(255,255,255,.08)",
               background: "rgba(255,255,255,.04)",
@@ -77,7 +77,7 @@ export default function TshirtGalleryModal({ galleryModal, onClose, onSelectInde
                   gap: 12,
                   padding: 8,
                   borderRadius: 16,
-                  minWidth: 220,
+                  minWidth: 180,
                   border: active ? "1px solid rgba(232,67,147,.28)" : "1px solid rgba(255,255,255,.06)",
                   background: active ? "rgba(255,255,255,.06)" : "rgba(255,255,255,.02)",
                   cursor: "pointer",

@@ -16,7 +16,7 @@ export function SizeSelector({ options, value, onChange }) {
               onClick={() => onChange(active ? "" : option)}
               style={{
                 minWidth: 46,
-                padding: "8px 12px",
+                padding: "10px 14px",
                 borderRadius: 10,
                 border: active ? "1px solid rgba(232,67,147,.35)" : "1px solid rgba(255,255,255,.08)",
                 background: active ? "linear-gradient(135deg,rgba(232,67,147,.16),rgba(108,92,231,.16))" : "rgba(255,255,255,.03)",
@@ -57,7 +57,7 @@ export function ColorSelector({ options, value, onChange }) {
                 display: "inline-flex",
                 alignItems: "center",
                 gap: 8,
-                padding: "7px 10px 7px 7px",
+                padding: "10px 12px 10px 10px",
                 borderRadius: 999,
                 border: active ? "1px solid rgba(232,67,147,.35)" : "1px solid rgba(255,255,255,.08)",
                 background: active ? "rgba(255,255,255,.08)" : "rgba(255,255,255,.03)",
@@ -66,7 +66,7 @@ export function ColorSelector({ options, value, onChange }) {
                 fontFamily: "'Outfit',sans-serif",
               }}
             >
-              <span style={{ width: 24, height: 24, borderRadius: "50%", background: swatch.background, border: `1px solid ${swatch.border}` }} />
+              <span style={{ width: 28, height: 28, borderRadius: "50%", background: swatch.background, border: `1px solid ${swatch.border}` }} />
               <span style={{ fontSize: 13, fontWeight: active ? 600 : 400, color: active ? "#f0eef5" : "rgba(240,238,245,.56)" }}>{option}</span>
             </button>
           );
@@ -89,8 +89,8 @@ export function QtySelector({ value, onChange }) {
             type="button"
             onClick={() => onChange(control.next)}
             style={{
-              width: 34,
-              height: 34,
+              width: 44,
+              height: 44,
               borderRadius: 10,
               border: "1px solid rgba(255,255,255,.08)",
               background: "rgba(255,255,255,.03)",

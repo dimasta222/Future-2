@@ -45,7 +45,7 @@ export default function ProductCard({ item, index, type, onAddTshirtSelection, o
 
   return (
     <div className="cs product-card" style={{
-      padding: 32, display: "flex", flexDirection: "column",
+      padding: "clamp(20px, 4vw, 32px)", display: "flex", flexDirection: "column",
       opacity: 0, animation: `fadeUp 0.6s ${index * 0.08}s forwards`,
       border: "1px solid rgba(255,255,255,.06)",
       transition: "border-color 0.4s, transform 0.4s",
@@ -80,7 +80,7 @@ export default function ProductCard({ item, index, type, onAddTshirtSelection, o
                   setSelectedColor(nextDefaultColor);
                 }}
                   style={{
-                    minWidth: 110,
+                    minWidth: 92,
                     flexShrink: 0,
                     padding: "9px 10px", borderRadius: 10, cursor: "pointer",
                     fontSize: 13, fontWeight: variantIndex === variantItemIndex ? 600 : 400, fontFamily: "'Outfit',sans-serif",

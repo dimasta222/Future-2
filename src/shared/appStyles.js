@@ -186,6 +186,13 @@ input[type=number]{-moz-appearance:textfield}
 	.calc-item-grid{grid-template-columns:1fr!important}
 	.qty-inline{width:100%!important;justify-content:space-between!important}
 	.mobile-quick-actions{left:12px;right:12px;bottom:12px;gap:8px}
+	.size-guide-grid{grid-template-columns:1fr!important}
+	.gallery-thumb-grid{flex-wrap:nowrap!important;overflow-x:auto!important;-webkit-overflow-scrolling:touch!important;scroll-snap-type:x mandatory!important}
+	.gallery-thumb-grid>*{scroll-snap-align:start!important;min-width:200px!important;flex-shrink:0!important}
+	.review-card{padding:20px!important}
+	.contact-card{padding:20px!important}
+	.modal-shell{padding:12px!important}
+	.modal-card{padding:16px!important}
 }
 @media(max-width:480px){
 	.page-shell,.page-shell-narrow{padding-left:16px!important;padding-right:16px!important}
@@ -194,8 +201,9 @@ input[type=number]{-moz-appearance:textfield}
 	.nav-left{gap:12px!important}
 	.hero-rating{width:100%!important}
 	.pricing-table table{min-width:540px!important}
-	.main-card,.product-card,.review-card,.contact-card,.constructor-panel,.calc-panel{padding:20px!important}
-	.textile-card-grid,.main-tshirt-grid,.reviews-grid,.contact-grid{gap:18px!important}
+	.main-card,.product-card,.review-card,.contact-card,.constructor-panel,.calc-panel{padding:18px!important}
+	.textile-card-grid,.main-tshirt-grid,.reviews-grid,.contact-grid{gap:16px!important}
+	.gallery-thumb-grid>*{min-width:180px!important}
 }
 `;
 

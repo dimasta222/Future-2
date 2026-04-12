@@ -609,6 +609,7 @@ function CalcPage({ onBack }) {
   const [items, setItems] = useState([{ id: 1, w: 20, h: 30, qty: 10 }]);
   const [nid, setNid] = useState(2);
   const [layoutOpen, setLayoutOpen] = useState(false);
+  const [mobileLayoutVisible, setMobileLayoutVisible] = useState(false);
   const layoutViewportRef = useRef(null);
 
   const add = () => {
@@ -744,6 +745,16 @@ function CalcPage({ onBack }) {
             </div>
 
             {valid && !oversized && lengthCm > 0 && (
+              <>
+              <button
+                className="calc-layout-toggle-mobile"
+                onClick={() => setMobileLayoutVisible(v => !v)}
+                style={{ display: "none", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", padding: "12px 0", background: "rgba(108,92,231,.08)", border: "1.5px solid rgba(108,92,231,.25)", borderRadius: 14, cursor: "pointer", color: "#6c5ce7", fontSize: 13, fontWeight: 500, fontFamily: "'Outfit',sans-serif", transition: "all .3s" }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="3" /><line x1="7" y1="8" x2="17" y2="8" /><line x1="7" y1="12" x2="13" y2="12" /></svg>
+                {mobileLayoutVisible ? "Скрыть раскладку" : "Посмотреть раскладку на полотне"}
+              </button>
+              <div className={`calc-layout-block${mobileLayoutVisible ? " calc-layout-block-visible" : ""}`}>
               <div className="cs calc-panel" style={{ padding: 20, overflow: "hidden" }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: layoutOpen ? 14 : 0 }}>
                   <div style={{ fontSize: 11, fontWeight: 500, letterSpacing: 2, color: "#6c5ce7", textTransform: "uppercase" }}>Раскладка на полотне</div>
@@ -800,6 +811,8 @@ function CalcPage({ onBack }) {
                   {layoutOpen ? "Свернуть раскладку" : "Открыть полную раскладку"}
                 </button>
               </div>
+              </div>
+              </>
             )}
           </div>
 
@@ -836,9 +849,6 @@ function CalcPage({ onBack }) {
                   <div style={{ borderTop: "1px solid rgba(255,255,255,.05)", paddingTop: 18, display: "flex", flexDirection: "column", gap: 14 }}>
                     {isSmallOrder || isMixed ? (
                       <>
-                        <div style={{ padding: "8px 12px", borderRadius: 10, background: "rgba(108,92,231,.06)", border: "1px solid rgba(108,92,231,.15)", marginBottom: 4 }}>
-                          <div style={{ fontSize: 12, fontWeight: 400, color: "#6c5ce7" }}>{isMixed ? "Расчёт: формат + метраж" : "Расчёт по формату (до 15 шт/размер)"}</div>
-                        </div>
                         {formatItems.map((it, i) => (
                           <div key={`f${i}`} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                             <div>

@@ -1,4 +1,7 @@
-const TSHIRT_SIZE_OPTIONS = ["XS", "S", "M", "L", "XL", "2XL", "3XL"];
+const SIZE_RANGES = {
+  "XS – 3XL": ["XS", "S", "M", "L", "XL", "2XL", "3XL"],
+  "S – 2XL": ["S", "M", "L", "XL", "2XL"],
+};
 
 const COLOR_SWATCHES = {
   "чёрный": { background: "#111111", border: "rgba(255,255,255,.2)", labelColor: "#f0eef5" },
@@ -13,6 +16,10 @@ const COLOR_SWATCHES = {
   "бежевый": { background: "#d8c1a2", border: "rgba(255,255,255,.14)", labelColor: "#1a1a1a" },
   "бежевое": { background: "#d8c1a2", border: "rgba(255,255,255,.14)", labelColor: "#1a1a1a" },
   "натуральный": { background: "#d9cdb5", border: "rgba(255,255,255,.14)", labelColor: "#1a1a1a" },
+  "молочный": { background: "#f5f0e1", border: "rgba(255,255,255,.14)", labelColor: "#1a1a1a" },
+  "хаки": { background: "#6b7c52", border: "rgba(255,255,255,.14)", labelColor: "#f0eef5" },
+  "коричневый": { background: "#8b6542", border: "rgba(255,255,255,.14)", labelColor: "#f0eef5" },
+  "синий": { background: "#3a6fbf", border: "rgba(255,255,255,.14)", labelColor: "#f0eef5" },
   "цветные": { background: "linear-gradient(135deg,#e84393,#6c5ce7)", border: "rgba(255,255,255,.14)", labelColor: "#f0eef5" },
 };
 
@@ -47,7 +54,8 @@ export function normalizeVariantLabel(variantLabel = "") {
 }
 
 export function getTshirtSizes(item) {
-  return item?.sizes === "XS – 3XL" ? TSHIRT_SIZE_OPTIONS : [];
+  const sizeKey = item?.sizes || "";
+  return SIZE_RANGES[sizeKey] || [];
 }
 
 export function parsePriceValue(price) {

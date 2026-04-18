@@ -1,104 +1,141 @@
+import { useEffect, useCallback } from "react";
+
 export default function TshirtGalleryModal({ galleryModal, onClose, onSelectIndex }) {
+  const { slides, activeIndex } = galleryModal;
+  const total = slides.length;
+
+  const goPrev = useCallback(() => onSelectIndex((activeIndex - 1 + total) % total), [activeIndex, total, onSelectIndex]);
+  const goNext = useCallback(() => onSelectIndex((activeIndex + 1) % total), [activeIndex, total, onSelectIndex]);
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "ArrowLeft") goPrev();
+      else if (e.key === "ArrowRight") goNext();
+      else if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [goPrev, goNext, onClose]);
+
+  /* Touch swipe */
+  let touchStartX = 0;
+  const onTouchStart = (e) => { touchStartX = e.touches[0].clientX; };
+  const onTouchEnd = (e) => {
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    if (Math.abs(dx) > 50) dx > 0 ? goPrev() : goNext();
+  };
+
   return (
     <div
       onClick={onClose}
-      className="modal-shell"
       style={{
         position: "fixed",
         inset: 0,
         zIndex: 75,
-        background: "rgba(5,5,9,.84)",
-        backdropFilter: "blur(12px)",
+        background: "rgba(0,0,0,.92)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        padding: "24px",
+        cursor: "pointer",
       }}
     >
       <div
-        className="cs modal-card"
-        onClick={(event) => event.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
         style={{
-          width: "min(1180px, 100%)",
-          maxHeight: "min(88vh, 980px)",
-          overflow: "auto",
-          padding: 24,
-          border: "1px solid rgba(255,255,255,.08)",
-          boxShadow: "0 28px 90px rgba(0,0,0,.5)",
+          position: "relative",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          width: "100%",
+          height: "100%",
+          cursor: "default",
         }}
       >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, marginBottom: 18 }}>
-          <div>
-            <div style={{ fontSize: 12, fontWeight: 500, letterSpacing: 2, color: "#6c5ce7", textTransform: "uppercase", marginBottom: 8 }}>Фото изделия</div>
-            <div style={{ fontSize: "clamp(24px,3vw,34px)", fontWeight: 500 }}>{galleryModal.title}</div>
-            <div style={{ fontSize: 14, color: "rgba(240,238,245,.45)", marginTop: 8 }}>Листайте стрелками ← → или переключайте миниатюры ниже.</div>
-          </div>
+        {/* Close button */}
+        <button
+          type="button"
+          onClick={onClose}
+          style={{
+            position: "absolute", top: 16, right: 16, zIndex: 2,
+            width: 40, height: 40, borderRadius: "50%",
+            border: "none", background: "rgba(255,255,255,.1)",
+            color: "#fff", cursor: "pointer", fontSize: 22, lineHeight: 1,
+            fontFamily: "'Outfit',sans-serif",
+          }}
+        >×</button>
+
+        {/* Arrow left */}
+        {total > 1 && (
           <button
             type="button"
-            onClick={onClose}
+            onClick={goPrev}
             style={{
-              width: 44,
-              height: 44,
-              borderRadius: "50%",
-              border: "1px solid rgba(255,255,255,.08)",
-              background: "rgba(255,255,255,.04)",
-              color: "#f0eef5",
-              cursor: "pointer",
-              flexShrink: 0,
-              fontSize: 20,
-              lineHeight: 1,
+              position: "absolute", left: 16, top: "50%", transform: "translateY(-50%)", zIndex: 2,
+              width: 44, height: 44, borderRadius: "50%",
+              border: "none", background: "rgba(255,255,255,.1)",
+              color: "#fff", cursor: "pointer", fontSize: 22, lineHeight: 1,
               fontFamily: "'Outfit',sans-serif",
             }}
-          >
-            ×
-          </button>
-        </div>
+          >‹</button>
+        )}
 
-        <div style={{ borderRadius: 24, overflow: "hidden", border: "1px solid rgba(255,255,255,.08)", background: "rgba(255,255,255,.02)" }}>
-          <img
-            src={galleryModal.slides[galleryModal.activeIndex]?.src}
-            alt={galleryModal.slides[galleryModal.activeIndex]?.alt}
-            draggable={false}
-            style={{ width: "100%", display: "block", maxHeight: "68vh", objectFit: "contain", userSelect: "none", WebkitUserDrag: "none" }}
-          />
-        </div>
+        {/* Photo */}
+        <img
+          src={slides[activeIndex]?.src}
+          alt={slides[activeIndex]?.alt || ""}
+          draggable={false}
+          style={{
+            maxWidth: "92vw",
+            maxHeight: "calc(92vh - 80px)",
+            objectFit: "contain",
+            userSelect: "none",
+            WebkitUserDrag: "none",
+            borderRadius: 4,
+          }}
+        />
 
-        <div className="gallery-thumb-grid" style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 16 }}>
-          {galleryModal.slides.map((slide, index) => {
-            const active = galleryModal.activeIndex === index;
-            return (
+        {/* Arrow right */}
+        {total > 1 && (
+          <button
+            type="button"
+            onClick={goNext}
+            style={{
+              position: "absolute", right: 16, top: "50%", transform: "translateY(-50%)", zIndex: 2,
+              width: 44, height: 44, borderRadius: "50%",
+              border: "none", background: "rgba(255,255,255,.1)",
+              color: "#fff", cursor: "pointer", fontSize: 22, lineHeight: 1,
+              fontFamily: "'Outfit',sans-serif",
+            }}
+          >›</button>
+        )}
+
+        {/* Thumbnails */}
+        {total > 1 && (
+          <div style={{
+            position: "absolute", bottom: 16, left: "50%", transform: "translateX(-50%)",
+            display: "flex", gap: 8, zIndex: 2,
+          }}>
+            {slides.map((slide, i) => (
               <button
-                key={`${slide.key}-${slide.colorName}`}
+                key={i}
                 type="button"
-                onClick={() => onSelectIndex(index)}
+                onClick={() => onSelectIndex(i)}
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 12,
-                  padding: 8,
-                  borderRadius: 16,
-                  minWidth: 180,
-                  border: active ? "1px solid rgba(232,67,147,.28)" : "1px solid rgba(255,255,255,.06)",
-                  background: active ? "rgba(255,255,255,.06)" : "rgba(255,255,255,.02)",
-                  cursor: "pointer",
-                  fontFamily: "'Outfit',sans-serif",
-                  textAlign: "left",
+                  width: 52, height: 52, padding: 0, borderRadius: 8,
+                  border: i === activeIndex ? "2px solid #e84393" : "2px solid rgba(255,255,255,.2)",
+                  background: "rgba(0,0,0,.4)",
+                  cursor: "pointer", overflow: "hidden",
+                  opacity: i === activeIndex ? 1 : 0.6,
+                  transition: "all .2s",
                 }}
               >
-                <img
-                  src={slide.src}
-                  alt={slide.alt}
-                  draggable={false}
-                  style={{ width: 66, height: 66, borderRadius: 12, objectFit: "cover", display: "block", userSelect: "none", WebkitUserDrag: "none" }}
-                />
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: active ? 600 : 500, color: "#f0eef5" }}>{slide.label}</div>
-                  <div style={{ fontSize: 12, color: "rgba(240,238,245,.45)", marginTop: 4 }}>{slide.colorName}</div>
-                </div>
+                <img src={slide.src} alt="" draggable={false} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
               </button>
-            );
-          })}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

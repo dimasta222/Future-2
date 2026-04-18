@@ -1,134 +1,93 @@
-import { useState } from "react";
-import FieldRow from "./FieldRow.jsx";
-import TG from "./TG.jsx";
-import TshirtPhotoGallery from "./TshirtPhotoGallery.jsx";
-import { ColorSelector, QtySelector, SizeSelector } from "./TextileSelectors.jsx";
-import { CONTROL_STRIP_STYLE } from "../shared/fieldUi.js";
-import { buildTelegramOrderLink } from "../shared/textileOrderLinks.js";
-import { getDefaultTshirtColor, getTshirtSizes, parseColorOptions } from "../shared/textileHelpers.js";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { getDefaultTshirtColor, parseColorOptions, normalizeVariantLabel } from "../shared/textileHelpers.js";
+import { resolveTextileCatalogPreview, preloadHomepageTshirtPreview, buildHomepageTshirtPlaceholderSvg, svgToDataUri } from "../shared/textilePreviewHelpers.js";
 
-export default function ProductCard({ item, index, type, onAddTshirtSelection, onOpenGallery }) {
-  const [variantIndex, setVariantIndex] = useState(0);
+export default function ProductCard({ item, index, type, onOpenDetail }) {
   const hasVariants = item.variants && item.variants.length > 0;
-  const isTshirt = type === "tshirts";
-  const activeVariant = hasVariants ? item.variants[variantIndex] : null;
-  const displayVariant = activeVariant;
-  const material = hasVariants ? displayVariant?.material : item.material;
-  const colors = hasVariants ? (isTshirt ? (activeVariant?.colors || "") : displayVariant?.colors) : item.colors;
-  const price = hasVariants && displayVariant?.price ? displayVariant.price : item.price;
-  const desc = hasVariants && displayVariant?.desc ? displayVariant.desc : item.desc;
-  const sizeOptions = isTshirt ? getTshirtSizes(item) : [];
-  const colorOptions = isTshirt ? parseColorOptions(colors) : [];
-  const defaultColor = isTshirt ? getDefaultTshirtColor(colorOptions) : "";
-  const [selectedSize, setSelectedSize] = useState("");
-  const [selectedColor, setSelectedColor] = useState(defaultColor);
-  const [selectedQty, setSelectedQty] = useState(1);
-  const galleryColor = selectedColor || colorOptions[0] || "Чёрный";
-  const orderLink = isTshirt
-    ? buildTelegramOrderLink({ itemName: item.name, material, price, size: selectedSize, color: selectedColor })
-    : "https://t.me/FUTURE_178";
-  const variantLabel = activeVariant?.label || "";
-  const canAddTshirtSelection = Boolean(isTshirt && variantLabel && selectedSize && selectedQty >= 1);
+  const firstVariant = hasVariants ? item.variants[0] : null;
+  const price = firstVariant?.price || item.price || "";
+  const colors = firstVariant?.colors || item.colors || "";
+  const colorOptions = parseColorOptions(colors);
+  const defaultColor = getDefaultTshirtColor(colorOptions, firstVariant?.defaultColor) || colorOptions[0] || "Чёрный";
+  const hasGallery = Boolean(item.galleryModel);
+  const densityValue = normalizeVariantLabel(firstVariant?.label) || "180";
 
-  const handleAddTshirtSelection = (event) => {
-    if (!onAddTshirtSelection || !canAddTshirtSelection) return;
-    const originRect = event.currentTarget.getBoundingClientRect();
-    onAddTshirtSelection({
-      itemName: item.name,
-      variantLabel,
-      size: selectedSize,
-      color: selectedColor,
-      qty: selectedQty,
-      price,
-    }, originRect);
-  };
+  const [colorIndex, setColorIndex] = useState(0);
+  const [hovering, setHovering] = useState(false);
+  const intervalRef = useRef(null);
+
+  const activeColor = hovering && colorOptions.length > 1
+    ? colorOptions[colorIndex % colorOptions.length]
+    : defaultColor;
+
+  const resolvePreview = useCallback((color) => {
+    if (!hasGallery) return "";
+    return resolveTextileCatalogPreview(item.galleryModel, color, densityValue)
+      || svgToDataUri(buildHomepageTshirtPlaceholderSvg({ model: item.galleryModel, colorName: color }));
+  }, [hasGallery, item.galleryModel, densityValue]);
+
+  const previewSrc = resolvePreview(activeColor);
+
+  // Preload all color previews
+  useEffect(() => {
+    if (!hasGallery) return;
+    colorOptions.forEach((color) => {
+      const src = resolveTextileCatalogPreview(item.galleryModel, color, densityValue);
+      preloadHomepageTshirtPreview(src);
+    });
+  }, [item.galleryModel, densityValue, hasGallery, colorOptions]);
+
+  const defaultIdx = colorOptions.indexOf(defaultColor);
+  const tickRef = useRef(0);
+
+  // Auto-cycle colors on hover
+  useEffect(() => {
+    if (!hovering || colorOptions.length <= 1) return undefined;
+    tickRef.current = defaultIdx >= 0 ? defaultIdx : 0;
+
+    const advance = () => {
+      tickRef.current += 1;
+      setColorIndex(tickRef.current);
+    };
+
+    // First switch after 800ms delay, then cycle every 2.5s
+    const firstTimer = setTimeout(advance, 800);
+    intervalRef.current = setInterval(advance, 2500);
+
+    return () => { clearTimeout(firstTimer); clearInterval(intervalRef.current); };
+  }, [hovering]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="cs product-card" style={{
-      padding: "clamp(20px, 4vw, 32px)", display: "flex", flexDirection: "column",
-      opacity: 0, animation: `fadeUp 0.6s ${index * 0.08}s forwards`,
+      padding: 0, display: "flex", flexDirection: "column",
+      opacity: 0, animation: `fadeUp 0.5s ${index * 0.06}s forwards`,
       border: "1px solid rgba(255,255,255,.06)",
-      transition: "border-color 0.4s, transform 0.4s",
+      transition: "border-color 0.3s, transform 0.3s",
+      cursor: "pointer", overflow: "hidden",
     }}
-      onMouseEnter={event => { event.currentTarget.style.borderColor = "rgba(232,67,147,.2)"; }}
-      onMouseLeave={event => { event.currentTarget.style.borderColor = "rgba(255,255,255,.06)"; }}>
-      <div className="product-card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16, gap: 12 }}>
-        <h3 style={{ fontSize: 18, fontWeight: 500 }}>{item.name}</h3>
-        <span className="price-pill" style={{ background: "linear-gradient(135deg,rgba(232,67,147,.15),rgba(108,92,231,.15))", padding: "6px 14px", borderRadius: 20, fontSize: 14, fontWeight: 600, color: "#e84393", whiteSpace: "nowrap" }}>{price}</span>
-      </div>
-      {isTshirt && (
-        <TshirtPhotoGallery
-          itemName={item.name}
-          galleryModel={item.galleryModel || "oversize"}
-          activeColor={galleryColor}
-          activeVariantLabel={variantLabel}
-          onOpen={onOpenGallery}
-        />
-      )}
-      <p style={{ fontSize: 14, fontWeight: 300, color: "rgba(240,238,245,.5)", lineHeight: 1.7, marginBottom: 18, flex: 1 }}>{desc}</p>
-
-      {hasVariants && isTshirt && (
-        <div style={{ marginBottom: 14 }}>
-          <FieldRow label="Плотность">
-            <div style={{ ...CONTROL_STRIP_STYLE, gap: 6 }}>
-              {item.variants.map((variant, variantItemIndex) => (
-                <button key={variantItemIndex} onClick={() => {
-                  const nextVariant = item.variants[variantItemIndex];
-                  const nextDefaultColor = getDefaultTshirtColor(parseColorOptions(nextVariant?.colors || ""));
-                  setVariantIndex(variantItemIndex);
-                  setSelectedSize("");
-                  setSelectedColor(nextDefaultColor);
-                }}
-                  style={{
-                    minWidth: 92,
-                    flexShrink: 0,
-                    padding: "9px 10px", borderRadius: 10, cursor: "pointer",
-                    fontSize: 13, fontWeight: variantIndex === variantItemIndex ? 600 : 400, fontFamily: "'Outfit',sans-serif",
-                    background: variantIndex === variantItemIndex ? "linear-gradient(135deg,rgba(232,67,147,.15),rgba(108,92,231,.15))" : "rgba(255,255,255,.03)",
-                    color: variantIndex === variantItemIndex ? "#e84393" : "rgba(240,238,245,.45)",
-                    border: variantIndex === variantItemIndex ? "1px solid rgba(232,67,147,.25)" : "1px solid rgba(255,255,255,.06)",
-                    transition: "all .3s",
-                  }}>
-                  {variant.label}
-                </button>
-              ))}
-            </div>
-          </FieldRow>
-        </div>
-      )}
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <FieldRow label="Материал">
-          <div className="field-value" style={{ fontSize: 13, fontWeight: 400, color: "rgba(240,238,245,.65)", textAlign: "right", marginLeft: "auto" }}>{material}</div>
-        </FieldRow>
-        {isTshirt ? (
-          <>
-            <SizeSelector options={sizeOptions} value={selectedSize} onChange={setSelectedSize} />
-            <ColorSelector options={colorOptions} value={selectedColor} onChange={setSelectedColor} />
-            <QtySelector value={selectedQty} onChange={setSelectedQty} />
-          </>
+      onClick={() => onOpenDetail?.(item)}
+      onMouseEnter={() => setHovering(true)}
+      onMouseLeave={() => { setHovering(false); setColorIndex(0); }}
+    >
+      {/* Photo — auto-cycles colors on hover */}
+      <div style={{ aspectRatio: "1 / 1", overflow: "hidden", background: "rgba(255,255,255,.02)", position: "relative" }}>
+        {previewSrc ? (
+          <img src={previewSrc} alt={`${item.name} — ${activeColor}`} draggable={false}
+            style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", transition: "opacity .4s ease" }} />
         ) : (
-          [["Цвета", colors], ["Размеры", item.sizes]].map(([label, value]) => (
-            <FieldRow key={label} label={label}>
-              <div className="field-value" style={{ fontSize: 13, fontWeight: 400, color: "rgba(240,238,245,.65)", textAlign: "right", marginLeft: "auto" }}>{value}</div>
-            </FieldRow>
-          ))
+          <div style={{ width: "100%", height: "100%", display: "grid", placeItems: "center" }}>
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="rgba(240,238,245,.15)" strokeWidth="1">
+              <rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="m21 15-5-5L5 21" />
+            </svg>
+          </div>
         )}
       </div>
-      {isTshirt ? (
-        <>
-          <div style={{ minHeight: 18, marginTop: 14, fontSize: 12, color: "rgba(240,238,245,.4)", textAlign: "center", opacity: canAddTshirtSelection ? 0 : 1, transition: "opacity .2s ease" }}>
-            {canAddTshirtSelection ? " " : "Для заказа выберите размер."}
-          </div>
-          <button onClick={handleAddTshirtSelection} className="btg" disabled={!canAddTshirtSelection} style={{ width: "100%", justifyContent: "center", marginTop: 18, display: "flex", padding: "12px 24px", fontSize: 14, opacity: canAddTshirtSelection ? 1 : 0.45, cursor: canAddTshirtSelection ? "pointer" : "not-allowed", filter: canAddTshirtSelection ? "none" : "grayscale(.15)" }}>
-            + Добавить в заказ
-          </button>
-        </>
-      ) : (
-        <a href={orderLink} target="_blank" rel="noopener noreferrer" className="btg" style={{ width: "100%", justifyContent: "center", marginTop: 18, display: "flex", padding: "12px 24px", fontSize: 14 }}>
-          <TG /> Заказать
-        </a>
-      )}
+
+      {/* Name + Price */}
+      <div style={{ padding: "14px 16px 18px", display: "flex", flexDirection: "column", gap: 4 }}>
+        <h3 style={{ fontSize: 15, fontWeight: 500, margin: 0, lineHeight: 1.3 }}>{item.name}</h3>
+        <span style={{ fontSize: 17, fontWeight: 700, background: "linear-gradient(135deg,#e84393,#6c5ce7)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{price}</span>
+      </div>
     </div>
   );
 }

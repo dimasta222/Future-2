@@ -13,6 +13,8 @@ const TSHIRT_REAL_GALLERY_PATHS = {
     shared: {},
     variants: {
       "180": {
+        "черный": "/tshirts/oversize/180/black",
+        "белый": "/tshirts/oversize/180/white",
         "розовый": "/tshirts/oversize/180/pink",
         "темно-серый": "/tshirts/oversize/180/dark-gray",
         "меланж": "/tshirts/oversize/180/melange",
@@ -34,6 +36,97 @@ const TSHIRT_REAL_GALLERY_PATHS = {
       },
     },
   },
+  "oversize-washed": {
+    shared: {},
+    variants: {
+      "230": {
+        "молочный": "/tshirts/oversize-washed/230/milky",
+        "черный": "/tshirts/oversize-washed/230/black",
+        "серый": "/tshirts/oversize-washed/230/gray",
+        "розовый": "/tshirts/oversize-washed/230/pink",
+        "хаки": "/tshirts/oversize-washed/230/khaki",
+        "коричневый": "/tshirts/oversize-washed/230/brown",
+        "синий": "/tshirts/oversize-washed/230/blue",
+      },
+    },
+  },
+  "sweatshirt-washed": {
+    shared: {},
+    variants: {
+      "350": {
+        "серый": "/tshirts/sweatshirt-washed/350/gray",
+        "черный": "/tshirts/sweatshirt-washed/350/black",
+      },
+    },
+  },
+  "hoodie-fleece": {
+    shared: {},
+    variants: {
+      "350": {
+        "черный": "/tshirts/hoodie-fleece/350/black",
+      },
+    },
+  },
+  "hoodie-washed": {
+    shared: {},
+    variants: {
+      "350": {
+        "серый": "/tshirts/hoodie-washed/350/gray",
+        "черный": "/tshirts/hoodie-washed/350/black",
+        "хаки": "/tshirts/hoodie-washed/350/khaki",
+      },
+    },
+  },
+};
+
+const TEXTILE_THUMBNAIL_PATHS = {
+  oversize: {
+    "180": {
+      "черный": "/tshirts/thumbnails/oversize/180/black/01.jpg",
+      "белый": "/tshirts/thumbnails/oversize/180/white/01.jpg",
+      "розовый": "/tshirts/thumbnails/oversize/180/pink/01.jpg",
+      "темно-серый": "/tshirts/thumbnails/oversize/180/dark-gray/01.jpg",
+      "меланж": "/tshirts/thumbnails/oversize/180/melange/01.jpg",
+    },
+    "240": {
+      "черный": "/tshirts/thumbnails/oversize/240/black/01.jpg",
+      "белый": "/tshirts/thumbnails/oversize/240/white/01.jpg",
+      "розовый": "/tshirts/thumbnails/oversize/240/pink/01.jpg",
+      "бежевый": "/tshirts/thumbnails/oversize/240/beige/01.jpg",
+    },
+  },
+  classic: {
+    "180": {},
+  },
+  "oversize-washed": {
+    "230": {
+      "молочный": "/tshirts/thumbnails/oversize-washed/230/milky/01.jpg",
+      "черный": "/tshirts/thumbnails/oversize-washed/230/black/01.jpg",
+      "серый": "/tshirts/thumbnails/oversize-washed/230/gray/01.jpg",
+      "розовый": "/tshirts/thumbnails/oversize-washed/230/pink/01.jpg",
+      "хаки": "/tshirts/thumbnails/oversize-washed/230/khaki/01.jpg",
+      "коричневый": "/tshirts/thumbnails/oversize-washed/230/brown/01.jpg",
+      "синий": "/tshirts/thumbnails/oversize-washed/230/blue/01.jpg",
+    },
+  },
+  "sweatshirt-washed": {
+    "350": {
+      "серый": "/tshirts/thumbnails/sweatshirt-washed/350/gray/01.jpg",
+      "черный": "/tshirts/thumbnails/sweatshirt-washed/350/black/01.jpg",
+    },
+  },
+  "hoodie-fleece": {
+    "350": {
+      "черный": "/tshirts/thumbnails/hoodie-fleece/350/black/01.jpg",
+    },
+  },
+  "hoodie-washed": {
+    "350": {
+      "серый": "/tshirts/thumbnails/hoodie-washed/350/gray/01.jpg",
+      "черный": "/tshirts/thumbnails/hoodie-washed/350/black/01.jpg",
+      "хаки": "/tshirts/thumbnails/hoodie-washed/350/khaki/01.jpg",
+    },
+  },
 };
 
 const HOME_TSHIRT_PREVIEW_PATHS = {
@@ -43,16 +136,30 @@ const HOME_TSHIRT_PREVIEW_PATHS = {
       "белый": "/tshirts/home img t-shirt/oversize/180/white/futbolka_oversize_white_180.png",
       "розовый": "/tshirts/home img t-shirt/oversize/180/pink/futbolka_oversize_pink_180.png",
       "темно-серый": "/tshirts/home img t-shirt/oversize/180/dark-gray/futbolka_oversize_dark-gray_180.png",
+      "меланж": "/tshirts/home img t-shirt/oversize/180/melange/futbolka_oversize_melange_180.jpg",
     },
     "240": {
       "черный": "/tshirts/home img t-shirt/oversize/240/black/futbolka_oversize_black_240.png",
       "белый": "/tshirts/home img t-shirt/oversize/240/white/futbolka_oversize_white_240.png",
+      "розовый": "/tshirts/home img t-shirt/oversize/240/pink/futbolka_oversize_pink_240.jpg",
+      "бежевый": "/tshirts/home img t-shirt/oversize/240/beige/futbolka_oversize_beige_240.webp",
     },
   },
   classic: {
     "180": {
       "черный": "/tshirts/home img t-shirt/classic/180/black/futbolka_classic_black_180.jpg",
       "белый": "/tshirts/home img t-shirt/classic/180/white/futbolka_classic_white_180.png",
+    },
+  },
+  "oversize-washed": {
+    "230": {
+      "молочный": "/tshirts/home img t-shirt/oversize-washed/230/milky/futbolka_oversize-washed_milky_230.webp",
+      "черный": "/tshirts/home img t-shirt/oversize-washed/230/black/futbolka_oversize-washed_black_230.webp",
+      "серый": "/tshirts/home img t-shirt/oversize-washed/230/gray/futbolka_oversize-washed_gray_230.webp",
+      "розовый": "/tshirts/home img t-shirt/oversize-washed/230/pink/futbolka_oversize-washed_pink_230.webp",
+      "хаки": "/tshirts/home img t-shirt/oversize-washed/230/khaki/futbolka_oversize-washed_khaki_230.webp",
+      "коричневый": "/tshirts/home img t-shirt/oversize-washed/230/brown/futbolka_oversize-washed_brown_230.webp",
+      "синий": "/tshirts/home img t-shirt/oversize-washed/230/blue/futbolka_oversize-washed_blue_230.webp",
     },
   },
 };
@@ -67,8 +174,10 @@ const TSHIRT_GALLERY_COLORS = {
   "белый": { base: "#f4f1ed", shade: "#d5d0c9", highlight: "#ffffff", accent: "rgba(0,0,0,.08)", text: "#1b1b1d" },
   "розовый": { base: "#e7a6c0", shade: "#bf7f98", highlight: "#f3c8db", accent: "rgba(255,255,255,.18)", text: "#1b1b1d" },
   "темно-серый": { base: "#5f6670", shade: "#3f464f", highlight: "#89919c", accent: "rgba(255,255,255,.16)", text: "#f0eef5" },
+  "серый": { base: "#8d939d", shade: "#6b7280", highlight: "#b0b5bd", accent: "rgba(255,255,255,.16)", text: "#1b1b1d" },
   "меланж": { base: "#b8bcc3", shade: "#9299a3", highlight: "#d8dce2", accent: "rgba(255,255,255,.18)", text: "#1b1b1d", pattern: "speckle" },
   "бежевый": { base: "#d8c0a2", shade: "#b39674", highlight: "#ead9c3", accent: "rgba(255,255,255,.16)", text: "#1b1b1d" },
+  "хаки": { base: "#6b7c5e", shade: "#4f5d44", highlight: "#8fa07a", accent: "rgba(255,255,255,.16)", text: "#f0eef5" },
 };
 
 function resolveTshirtGalleryColor(colorName) {
@@ -129,6 +238,17 @@ export function resolveHomepageTshirtPreview(model, colorName, variantLabel) {
     : "";
 
   return toPublicAssetUrl(previewSrc);
+}
+
+export function resolveTextileCatalogPreview(model, colorName, variantLabel) {
+  const normalizedModel = model || "classic";
+  const normalizedColor = normalizeColorName(colorName);
+  const normalizedVariant = normalizeVariantLabel(variantLabel);
+  const thumbSrc = normalizedVariant
+    ? TEXTILE_THUMBNAIL_PATHS[normalizedModel]?.[normalizedVariant]?.[normalizedColor]
+    : "";
+
+  return toPublicAssetUrl(thumbSrc);
 }
 
 export function preloadHomepageTshirtPreview(src) {

@@ -10,9 +10,12 @@ export function buildTelegramOrderLink({ itemName, material, price, size, color 
   return `https://t.me/FUTURE_178?text=${encodeURIComponent(details)}`;
 }
 
-export function buildTelegramBasketLink(lines) {
+export function buildTelegramBasketLink(lines, { customerName, customerPhone } = {}) {
   const message = [
-    "Здравствуйте! Хочу заказать футболки:",
+    customerName ? `Имя: ${customerName}` : null,
+    customerPhone ? `Телефон: ${customerPhone}` : null,
+    "",
+    "Заказ:",
     "",
     ...lines.map((line, index) => {
       const parts = [
@@ -24,7 +27,7 @@ export function buildTelegramBasketLink(lines) {
       ].filter(Boolean);
       return parts.join(", ");
     }),
-  ].join("\n");
+  ].filter((v) => v !== null).join("\n");
 
   return `https://t.me/FUTURE_178?text=${encodeURIComponent(message)}`;
 }

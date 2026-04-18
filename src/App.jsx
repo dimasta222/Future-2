@@ -1,6 +1,5 @@
 import { lazy, Suspense, useState, useEffect, useRef } from "react";
 import ContactSection from "./components/ContactSection.jsx";
-import FieldRow from "./components/FieldRow.jsx";
 import HeroSection from "./components/HeroSection.jsx";
 import HomeTshirtsSection from "./components/HomeTshirtsSection.jsx";
 import LogoMini from "./components/LogoMini.jsx";
@@ -11,10 +10,10 @@ import ProductCard from "./components/ProductCard.jsx";
 import ReviewsSection from "./components/ReviewsSection.jsx";
 import useYandexReviews from "./hooks/useYandexReviews.js";
 import TG from "./components/TG.jsx";
-import TshirtOrderFlyingBadge from "./components/TshirtOrderFlyingBadge.jsx";
+import TextileOrderModal from "./components/TextileOrderModal.jsx";
+import TextileProductDetail from "./components/TextileProductDetail.jsx";
 import TshirtSizeGuideTrigger from "./components/TshirtSizeGuideTrigger.jsx";
 import STYLES from "./shared/appStyles.js";
-import { buildTelegramBasketLink } from "./shared/textileOrderLinks.js";
 import { parsePriceValue } from "./shared/textileHelpers.js";
 import { saveCalcState, loadCalcState, clearCalcState } from "./utils/persistStorage.js";
 import { PRINT_FORMATS } from "./data/printFormats.js";
@@ -307,35 +306,51 @@ const TEXTILE_DATA = {
   tshirts: {
     title: "Футболки",
     subtitle: "Для печати DTF",
-    desc: "Широкий выбор футболок для нанесения DTF-принтов. Наши футболки создаются напрямую на фабрике по собственным лекалам, которые мы разрабатывали лично. Мы внимательно подошли к каждой детали: от кроя и посадки до выбора ткани и цвета. Всё для того, чтобы футболка идеально сидела, подходила разным типам фигуры, не сковывала движения и выглядела достойно в любой ситуации. Мы предлагаем качественный текстиль под любые задачи: от повседневной носки до брендинга и мерча.",
+    desc: "Футболки собственного производства по нашим лекалам. Продуманный крой, качественная ткань, идеальная основа для DTF-принтов.",
     items: [
       { name: "Футболка оверсайз", galleryModel: "oversize", sizes: "XS – 3XL", variants: [
-        { label: "180 г/м²", material: "100% хлопок", colors: "Чёрный, Белый, Розовый, Тёмно-серый, Меланж", defaultColor: "Розовый", price: "800 ₽", desc: "Средней плотности футболка свободного кроя. Идеальна для ярких принтов. Не садится после стирки." },
-        { label: "240 г/м²", material: "100% хлопок", colors: "Чёрный, Белый, Бежевый, Розовый", defaultColor: "Белый", price: "1 000 ₽", desc: "Плотная футболка свободного кроя. Идеальна для ярких принтов. Не садится после стирки." },
+        { label: "180 г/м²", material: "100% хлопок", fabric: "—", colors: "Чёрный, Белый, Розовый, Тёмно-серый, Меланж", defaultColor: "Розовый", price: "800 ₽", desc: "Средней плотности, свободный крой. Не садится после стирки." },
+        { label: "240 г/м²", material: "100% хлопок", fabric: "—", colors: "Чёрный, Белый, Бежевый, Розовый", defaultColor: "Белый", price: "1 000 ₽", desc: "Плотная футболка свободного кроя. Не садится после стирки." },
       ] },
-      { name: "Футболка классика", galleryModel: "classic", sizes: "XS – 3XL", variants: [
-        { label: "180 г/м²", material: "100% хлопок", colors: "Чёрный, Белый", price: "650 ₽", desc: "Классический крой, мягкий хлопок. Отлично подходит для корпоративных тиражей и мерча." },
+      { name: "Футболка варёнка", galleryModel: "oversize-washed", sizes: "S – 2XL", variants: [
+        { label: "230 г/м²", material: "100% хлопок", fabric: "кулирка, пенье", colors: "Молочный, Чёрный, Серый, Розовый, Хаки, Коричневый, Синий", defaultColor: "Синий", price: "1 200 ₽", desc: "Варёный хлопок с винтажной фактурой. Каждая уникальна по оттенку." },
+      ] },
+      { name: "Футболка классика", sizes: "XS – 3XL", variants: [
+        { label: "180 г/м²", material: "100% хлопок", fabric: "—", colors: "Чёрный, Белый", defaultColor: "Чёрный", price: "650 ₽", desc: "Классический крой, мягкий хлопок. Для тиражей и мерча." },
       ] },
     ]
   },
   hoodies: {
     title: "Худи",
     subtitle: "Для печати DTF",
-    desc: "Худи и толстовки с DTF-печатью — популярный формат для мерча, корпоративной одежды и подарков.",
+    desc: "Худи с DTF-печатью — для мерча, корпоративной одежды и подарков.",
     items: [
-      { name: "Худи оверсайз", material: "80% хлопок, 20% полиэстер, 320 г/м²", colors: "Белое, чёрное, серое, бежевое", sizes: "S – 3XL", price: "от 1 800 ₽", desc: "Плотное худи с капюшоном и карманом-кенгуру. Мягкий начёс внутри." },
-      { name: "Худи классика", material: "80% хлопок, 20% полиэстер, 280 г/м²", colors: "15+ цветов", sizes: "XS – 4XL", price: "от 1 400 ₽", desc: "Классический крой, средняя плотность. Удобно для повседневной носки и принтов." },
-      { name: "Свитшот", material: "80% хлопок, 20% полиэстер, 280 г/м²", colors: "Белый, чёрный, серый, цветные", sizes: "S – 3XL", price: "от 1 200 ₽", desc: "Без капюшона, круглый ворот. Чистый фасад для крупных принтов." },
+      { name: "Худи с начёсом", sizes: "S – 2XL", galleryModel: "hoodie-fleece", variants: [
+        { label: "350 г/м²", material: "80% хлопок, 20% полиэстер", fabric: "футер 3-нитка, пенье", colors: "Чёрный", defaultColor: "Чёрный", price: "1 800 ₽", desc: "Плотное худи с мягким начёсом внутри, капюшон и карман-кенгуру." },
+      ] },
+      { name: "Худи варёное", sizes: "S – 2XL", galleryModel: "hoodie-washed", variants: [
+        { label: "350 г/м²", material: "100% хлопок", fabric: "дабл фейс, пенье", colors: "Серый, Чёрный, Хаки", defaultColor: "Чёрный", price: "2 100 ₽", desc: "Варёный хлопок, уникальная текстура. Модель без брендинга." },
+      ] },
+    ]
+  },
+  sweatshirts: {
+    title: "Свитшоты",
+    subtitle: "Для печати DTF",
+    desc: "Свитшоты с DTF-печатью — чистый фасад для крупных принтов.",
+    items: [
+      { name: "Свитшот варёный", sizes: "S – 2XL", galleryModel: "sweatshirt-washed", variants: [
+        { label: "350 г/м²", material: "100% хлопок", fabric: "дабл фейс, пенье", colors: "Серый, Чёрный", defaultColor: "Чёрный", price: "1 850 ₽", desc: "Без капюшона, круглый ворот, варёный хлопок." },
+      ] },
     ]
   },
   shoppers: {
     title: "Шопперы",
     subtitle: "Для печати DTF",
-    desc: "Экологичные шопперы и сумки с DTF-печатью — отличный вариант для мерча, промо-акций и подарков.",
+    desc: "Экологичные шопперы с DTF-печатью — для мерча, промо и подарков.",
     items: [
-      { name: "Шоппер хлопковый", material: "100% хлопок, 210 г/м²", colors: "Натуральный, белый, чёрный", sizes: "38×42 см", price: "от 330 ₽", desc: "Плотная хлопковая сумка с длинными ручками. Вмещает до 15 кг." },
-      { name: "Шоппер с дном", material: "100% хлопок, 240 г/м²", colors: "Натуральный, чёрный", sizes: "38×42×10 см", price: "от 450 ₽", desc: "Расширенное дно для большей вместимости. Удобен для покупок." },
-      { name: "Сумка-мешок", material: "100% хлопок, 160 г/м²", colors: "Белый, чёрный, натуральный", sizes: "35×45 см", price: "от 280 ₽", desc: "Лёгкая сумка на затяжках. Компактная, идеальна для промо." },
+      { name: "Шоппер из саржи", sizes: "38×42 см", variants: [
+        { label: "210 г/м²", material: "100% хлопок", fabric: "саржа, пенье", colors: "Чёрный, Натуральный", defaultColor: "Чёрный", price: "350 ₽", desc: "Плотная саржа, длина ручки 70 см." },
+      ] },
     ]
   }
 };
@@ -380,24 +395,38 @@ function buildHomepageShowcaseItems(items) {
 
 const HOMEPAGE_TSHIRT_SHOWCASE_ITEMS = buildHomepageShowcaseItems(TEXTILE_DATA.tshirts.items);
 
+function flattenCatalogItems(items) {
+  return items.flatMap((item) => {
+    if (!item?.variants?.length) return [item];
+    return item.variants.map((variant) => ({
+      ...item,
+      name: `${item.name} ${variant.label}`,
+      variants: [variant],
+    }));
+  });
+}
+
 function TextilePage({ type, onBack, onNavigate }) {
   const data = TEXTILE_DATA[type];
-  const [tshirtOrder, setTshirtOrder] = useState([]);
-  const [flyingCartItem, setFlyingCartItem] = useState(null);
-  const [cartPulse, setCartPulse] = useState(false);
+  const [cart, setCart] = useState([]);
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [orderModalOpen, setOrderModalOpen] = useState(false);
   const [sizeGuideOpen, setSizeGuideOpen] = useState(false);
   const [galleryModal, setGalleryModal] = useState(null);
-  const basketSummaryRef = useRef(null);
+  const [prevType, setPrevType] = useState(type);
+
+  if (type !== prevType) {
+    setPrevType(type);
+    setSelectedProduct(null);
+  }
 
   useEffect(() => {
-    if (!sizeGuideOpen && !galleryModal) return undefined;
+    if (!sizeGuideOpen && !galleryModal && !orderModalOpen) return undefined;
 
     const onKeyDown = (event) => {
       if (event.key === "Escape") {
-        if (galleryModal) {
-          setGalleryModal(null);
-          return;
-        }
+        if (orderModalOpen) { setOrderModalOpen(false); return; }
+        if (galleryModal) { setGalleryModal(null); return; }
         setSizeGuideOpen(false);
       }
 
@@ -420,12 +449,12 @@ function TextilePage({ type, onBack, onNavigate }) {
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [sizeGuideOpen, galleryModal]);
+  }, [sizeGuideOpen, galleryModal, orderModalOpen]);
 
   if (!data) return null;
 
-  const addTshirtSelection = (selection, originRect) => {
-    setTshirtOrder((current) => {
+  const addToCart = (selection) => {
+    setCart((current) => {
       const matchIndex = current.findIndex((line) => (
         line.itemName === selection.itemName
         && line.variantLabel === selection.variantLabel
@@ -439,54 +468,22 @@ function TextilePage({ type, onBack, onNavigate }) {
 
       return current.map((line, index) => index === matchIndex ? { ...line, qty: line.qty + selection.qty } : line);
     });
-
-    if (!originRect || !basketSummaryRef.current) return;
-
-    const targetRect = basketSummaryRef.current.getBoundingClientRect();
-    const labelParts = [selection.itemName, selection.size, selection.color, `${selection.qty} шт`].filter(Boolean);
-    const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-
-    setFlyingCartItem({
-      id,
-      label: labelParts.join(" • "),
-      startX: originRect.left + originRect.width / 2,
-      startY: originRect.top + originRect.height / 2,
-      dx: targetRect.left + targetRect.width / 2 - (originRect.left + originRect.width / 2),
-      dy: targetRect.top + targetRect.height / 2 - (originRect.top + originRect.height / 2),
-      lift: Math.min(120, Math.max(54, Math.abs(targetRect.top - originRect.top) * 0.28)),
-    });
-
-    window.setTimeout(() => {
-      setCartPulse(true);
-      window.setTimeout(() => setCartPulse(false), 760);
-    }, 560);
-
-    window.setTimeout(() => {
-      setFlyingCartItem((current) => current && current.id === id ? null : current);
-    }, 980);
   };
 
-  const removeTshirtSelection = (id) => {
-    setTshirtOrder((current) => current.filter((line) => line.id !== id));
+  const updateCartQty = (id, nextQty) => {
+    setCart((current) => current.map((line) => line.id === id ? { ...line, qty: Math.max(1, nextQty) } : line));
   };
 
-  const updateTshirtSelectionQty = (id, nextQty) => {
-    setTshirtOrder((current) => current.map((line) => line.id === id ? { ...line, qty: Math.max(1, nextQty) } : line));
-    setCartPulse(true);
-    window.setTimeout(() => setCartPulse(false), 520);
+  const removeFromCart = (id) => {
+    setCart((current) => current.filter((line) => line.id !== id));
   };
 
-  const tshirtOrderQty = tshirtOrder.reduce((sum, line) => sum + line.qty, 0);
-  const tshirtOrderTotal = tshirtOrder.reduce((sum, line) => sum + parsePriceValue(line.price) * line.qty, 0);
-  const tshirtOrderLink = tshirtOrder.length ? buildTelegramBasketLink(tshirtOrder) : "https://t.me/FUTURE_178";
+  const cartQty = cart.reduce((sum, line) => sum + line.qty, 0);
+  const cartTotal = cart.reduce((sum, line) => sum + parsePriceValue(line.price) * line.qty, 0);
 
   return (
     <div style={{ fontFamily: "'Outfit',sans-serif", background: "#08080c", color: "#f0eef5", minHeight: "100vh" }}>
-      <style>{STYLES}{`@keyframes fadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}@keyframes cartPulseGlow{0%{transform:scale(1);box-shadow:0 0 0 rgba(232,67,147,0)}30%{transform:scale(1.035);box-shadow:0 0 0 6px rgba(232,67,147,.06),0 10px 30px rgba(232,67,147,.18)}65%{transform:scale(1.015);box-shadow:0 0 0 10px rgba(108,92,231,.04),0 12px 34px rgba(108,92,231,.14)}100%{transform:scale(1);box-shadow:0 0 0 rgba(232,67,147,0)}}@keyframes cartFly{0%{transform:translate3d(0,0,0) scale(1) rotate(0deg);opacity:.98;filter:blur(0)}38%{transform:translate3d(calc(var(--dx) * .42),calc(var(--dy) * .34 - var(--lift)),0) scale(.96) rotate(-8deg);opacity:1;filter:blur(0)}72%{transform:translate3d(calc(var(--dx) * .78),calc(var(--dy) * .82 - calc(var(--lift) * .18)),0) scale(.78) rotate(6deg);opacity:.72;filter:blur(.2px)}100%{transform:translate3d(var(--dx),var(--dy),0) scale(.52) rotate(12deg);opacity:0;filter:blur(.8px)}}`}</style>
-
-      {flyingCartItem && (
-        <TshirtOrderFlyingBadge item={flyingCartItem} />
-      )}
+      <style>{STYLES}{`@keyframes fadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}.product-detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:clamp(24px,4vw,48px);align-items:start}@media(max-width:768px){.product-detail-grid{grid-template-columns:1fr}}`}</style>
 
       {type === "tshirts" && sizeGuideOpen && (
         <Suspense fallback={null}>
@@ -494,7 +491,7 @@ function TextilePage({ type, onBack, onNavigate }) {
         </Suspense>
       )}
 
-      {type === "tshirts" && galleryModal && (
+      {galleryModal && (
         <Suspense fallback={null}>
           <TshirtGalleryModal
             galleryModal={galleryModal}
@@ -502,6 +499,10 @@ function TextilePage({ type, onBack, onNavigate }) {
             onSelectIndex={(index) => setGalleryModal((current) => current ? { ...current, activeIndex: index } : current)}
           />
         </Suspense>
+      )}
+
+      {orderModalOpen && (
+        <TextileOrderModal order={cart} onUpdateQty={updateCartQty} onRemove={removeFromCart} onClose={() => setOrderModalOpen(false)} />
       )}
 
       <div className="page-shell" style={{ maxWidth: 1240, margin: "0 auto", padding: "28px 5% 0" }}>
@@ -519,77 +520,51 @@ function TextilePage({ type, onBack, onNavigate }) {
         </div>
 
         {/* Category tabs */}
-        <div className="scroll-tabs" style={{ display: "flex", justifyContent: "center", gap: 8, margin: "28px 0 40px" }}>
-          {[["tshirts", "Футболки"], ["hoodies", "Худи"], ["shoppers", "Шопперы"]].map(([key, label]) => (
+        <div className="scroll-tabs" style={{ display: "flex", justifyContent: "center", gap: 8, margin: "28px 0 40px", flexWrap: "wrap" }}>
+          {[["tshirts", "Футболки"], ["hoodies", "Худи"], ["sweatshirts", "Свитшоты"], ["shoppers", "Шопперы"]].map(([key, label]) => (
             <button key={key} onClick={() => onNavigate(key)} className={`tb ${type === key ? "ta" : "ti"}`}>{label}</button>
           ))}
         </div>
 
-        {/* Product cards */}
-        <div className="textile-card-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(min(100%,360px),1fr))", gap: 24, marginBottom: 48 }}>
-          {data.items.map((item, index) => <ProductCard key={index} item={item} index={index} type={type} onAddTshirtSelection={type === "tshirts" ? addTshirtSelection : undefined} onOpenGallery={type === "tshirts" ? setGalleryModal : undefined} />)}
-        </div>
-
-        {type === "tshirts" && (
-          <TshirtSizeGuideTrigger onToggle={() => setSizeGuideOpen((current) => !current)} />
-        )}
-
-        {type === "tshirts" && (
-          <div className="cs" style={{ padding: 26, marginBottom: 28, border: "1px solid rgba(232,67,147,.15)" }}>
-            <div className="textile-order-summary" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap", marginBottom: tshirtOrder.length ? 18 : 0 }}>
-              <div>
-                <div style={{ fontSize: 22, fontWeight: 500 }}>Ваш заказ по футболкам</div>
-                <div style={{ fontSize: 14, color: "rgba(240,238,245,.45)", marginTop: 6 }}>Добавляйте несколько позиций с разным кроем, плотностью, цветом, размером и количеством.</div>
-              </div>
-              <div className="textile-order-cards" style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "flex-end" }}>
-                <div style={{ padding: "10px 14px", borderRadius: 12, background: "rgba(255,255,255,.03)", minWidth: 160, border: "1px solid transparent" }}>
-                  <div style={{ fontSize: 11, fontWeight: 500, letterSpacing: 1.5, color: "rgba(240,238,245,.38)", textTransform: "uppercase", marginBottom: 6 }}>Всего в заказе</div>
-                  <div style={{ fontSize: 24, fontWeight: 600 }}>{tshirtOrderQty} <span style={{ fontSize: 14, color: "rgba(240,238,245,.45)" }}>шт</span></div>
-                </div>
-                <div ref={basketSummaryRef} style={{ padding: "12px 16px", borderRadius: 14, background: cartPulse ? "linear-gradient(135deg,rgba(232,67,147,.18),rgba(108,92,231,.18))" : "linear-gradient(135deg,rgba(232,67,147,.1),rgba(108,92,231,.1))", minWidth: 220, animation: cartPulse ? "cartPulseGlow .76s cubic-bezier(.22,.8,.24,1)" : "none", border: cartPulse ? "1px solid rgba(232,67,147,.32)" : "1px solid rgba(232,67,147,.16)", transition: "border-color .25s, background .25s, box-shadow .25s", boxShadow: cartPulse ? "0 12px 34px rgba(232,67,147,.16)" : "0 8px 24px rgba(232,67,147,.08)" }}>
-                  <div style={{ fontSize: 11, fontWeight: 500, letterSpacing: 1.5, color: "rgba(240,238,245,.42)", textTransform: "uppercase", marginBottom: 8 }}>Сумма заказа</div>
-                  <div style={{ fontSize: 30, fontWeight: 700, lineHeight: 1, background: "linear-gradient(135deg,#f08ac0,#9c8bff)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{tshirtOrderTotal.toLocaleString("ru-RU")} ₽</div>
-                </div>
-              </div>
+        {/* Detail view or product grid */}
+        {selectedProduct ? (
+          <TextileProductDetail
+            item={selectedProduct}
+            type={type}
+            onBack={() => setSelectedProduct(null)}
+            onAddToCart={addToCart}
+            onOpenGallery={setGalleryModal}
+          />
+        ) : (
+          <>
+            <div className="textile-card-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(min(100%,260px),1fr))", gap: 24, marginBottom: 48 }}>
+              {flattenCatalogItems(data.items).map((item, index) => <ProductCard key={item.name + index} item={item} index={index} type={type} onOpenDetail={setSelectedProduct} />)}
             </div>
 
-            {tshirtOrder.length ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {tshirtOrder.map((line) => (
-                  <div key={line.id} className="textile-order-line" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 14, padding: "12px 14px", background: "rgba(255,255,255,.02)", borderRadius: 12, flexWrap: "wrap" }}>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                      <div style={{ fontSize: 15, fontWeight: 500 }}>{line.itemName}</div>
-                      <div style={{ fontSize: 13, color: "rgba(240,238,245,.45)" }}>
-                        {[line.variantLabel ? `Плотность: ${line.variantLabel}` : null, line.size ? `Размер: ${line.size}` : null, line.color ? `Цвет: ${line.color}` : null].filter(Boolean).join(" • ")}
-                      </div>
-                      <div style={{ fontSize: 13, color: "rgba(240,238,245,.55)" }}>{(parsePriceValue(line.price) * line.qty).toLocaleString("ru-RU")} ₽</div>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginLeft: "auto", flexWrap: "wrap", justifyContent: "flex-end" }}>
-                      <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "6px 8px", borderRadius: 10, background: "rgba(255,255,255,.03)" }}>
-                        <button onClick={() => updateTshirtSelectionQty(line.id, line.qty - 1)} style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid rgba(255,255,255,.08)", background: "rgba(255,255,255,.03)", color: "#f0eef5", cursor: "pointer", fontSize: 18, lineHeight: 1, fontFamily: "'Outfit',sans-serif" }}>
-                          −
-                        </button>
-                        <div style={{ minWidth: 52, textAlign: "center", fontSize: 14, fontWeight: 600 }}>{line.qty} <span style={{ fontSize: 12, fontWeight: 400, color: "rgba(240,238,245,.45)" }}>шт</span></div>
-                        <button onClick={() => updateTshirtSelectionQty(line.id, line.qty + 1)} style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid rgba(255,255,255,.08)", background: "rgba(255,255,255,.03)", color: "#f0eef5", cursor: "pointer", fontSize: 18, lineHeight: 1, fontFamily: "'Outfit',sans-serif" }}>
-                          +
-                        </button>
-                      </div>
-                      <button onClick={() => removeTshirtSelection(line.id)} style={{ background: "none", border: "1px solid rgba(255,255,255,.08)", color: "rgba(240,238,245,.55)", borderRadius: 10, padding: "8px 12px", cursor: "pointer", fontFamily: "'Outfit',sans-serif" }}>
-                        Удалить
-                      </button>
-                    </div>
-                  </div>
-                ))}
-                <a href={tshirtOrderLink} target="_blank" rel="noopener noreferrer" className="btg" style={{ width: "100%", justifyContent: "center", marginTop: 8, display: "flex" }}>
-                  <TG /> Отправить заказ в Telegram
-                </a>
-              </div>
-            ) : (
-              <div style={{ fontSize: 14, color: "rgba(240,238,245,.38)", marginTop: 14 }}>Пока нет добавленных позиций. Выберите параметры в карточках выше и нажмите «Добавить в заказ».</div>
-            )}
-          </div>
+
+          </>
         )}
       </div>
+
+      {/* Floating cart button */}
+      {cartQty > 0 && !orderModalOpen && (
+        <button type="button" onClick={() => setOrderModalOpen(true)} style={{
+          position: "fixed", bottom: 24, right: 24, zIndex: 900,
+          display: "flex", alignItems: "center", gap: 10,
+          padding: "14px 24px", borderRadius: 50, border: "none", cursor: "pointer",
+          background: "linear-gradient(135deg,#e84393,#6c5ce7)",
+          color: "#fff", fontSize: 15, fontWeight: 600, fontFamily: "'Outfit',sans-serif",
+          boxShadow: "0 8px 32px rgba(232,67,147,.35)",
+          animation: "fadeUp 0.3s forwards",
+          transition: "transform .2s",
+        }}
+          onMouseEnter={(e) => { e.currentTarget.style.transform = "scale(1.05)"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.transform = "scale(1)"; }}
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+          {cartQty} шт • {cartTotal.toLocaleString("ru-RU")} ₽
+        </button>
+      )}
 
       <footer style={{ borderTop: "1px solid rgba(255,255,255,.05)", padding: "24px 5%", textAlign: "center" }}><p style={{ fontSize: 12, fontWeight: 300, color: "rgba(240,238,245,.2)" }}>© 2026 Future Studio • СПб • DTF-печать</p></footer>
     </div>
@@ -962,7 +937,7 @@ function CalcPage({ onBack }) {
    ══════════════════════════════════════════ */
 const NAV = ["Главная", "Портфолио", "Текстиль", "Цены", "Отзывы", "Контакты"];
 const SCROLL_NAV = { "Главная": "hero", "Цены": "pricing", "Отзывы": "reviews", "Контакты": "contact" };
-const TEXTILE_MENU = [["tshirts", "Футболки"], ["hoodies", "Худи"], ["shoppers", "Шопперы"]];
+const TEXTILE_MENU = [["tshirts", "Футболки"], ["hoodies", "Худи"], ["sweatshirts", "Свитшоты"], ["shoppers", "Шопперы"]];
 const SERVICES = [
   { icon: "👕", title: "Печать на футболках", desc: "DTF-перенос на футболки оверсайз и классического кроя.", price: "от 650 ₽" },
   { icon: "🧢", title: "Печать на кепках", desc: "Кепки, бейсболки, панамы — любой сложности.", price: "от 250 ₽" },

@@ -2,11 +2,10 @@ import { useEffect, useState } from "react";
 import { buildOrderedGalleryCandidates, buildTshirtFallbackSlides, loadImageCandidate } from "../shared/textilePreviewHelpers.js";
 
 export default function TshirtPhotoGallery({ itemName, galleryModel, activeColor, activeVariantLabel, onOpen }) {
-  const fallbackSlides = buildTshirtFallbackSlides(itemName, galleryModel, activeColor || "Чёрный");
-  const [slides, setSlides] = useState(fallbackSlides);
+  const [slides, setSlides] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeIndex, setActiveIndex] = useState(0);
-  const activeSlide = slides[activeIndex] || slides[0];
+  const activeSlide = slides[activeIndex] || null;
 
   useEffect(() => {
     let cancelled = false;
@@ -14,37 +13,42 @@ export default function TshirtPhotoGallery({ itemName, galleryModel, activeColor
     const loadSlides = async () => {
       setLoading(true);
       const orderedCandidates = buildOrderedGalleryCandidates(galleryModel, activeColor || "Чёрный", activeVariantLabel);
-      const resolvedSlides = [];
 
-      for (let index = 0; index < orderedCandidates.length; index += 1) {
-        const candidate = orderedCandidates[index];
-        const resolvedSrc = await loadImageCandidate(candidate.sources);
-        if (!resolvedSrc) {
-          continue;
-        }
-
-        resolvedSlides.push({
-          key: candidate.key,
-          label: candidate.label,
-          colorName: activeColor || "Чёрный",
-          alt: `${itemName} — ${activeColor || "Чёрный"}, ${candidate.label.toLowerCase()}`,
-          src: resolvedSrc,
-        });
-      }
+      const results = await Promise.all(
+        orderedCandidates.map(async (candidate) => {
+          const resolvedSrc = await loadImageCandidate(candidate.sources);
+          if (!resolvedSrc) return null;
+          return {
+            key: candidate.key,
+            label: candidate.label,
+            colorName: activeColor || "Чёрный",
+            alt: `${itemName} — ${activeColor || "Чёрный"}, ${candidate.label.toLowerCase()}`,
+            src: resolvedSrc,
+          };
+        })
+      );
 
       if (cancelled) return;
+      const resolvedSlides = results.filter(Boolean);
       setSlides(resolvedSlides.length ? resolvedSlides : buildTshirtFallbackSlides(itemName, galleryModel, activeColor || "Чёрный"));
       setActiveIndex(0);
       setLoading(false);
     };
 
     loadSlides();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [galleryModel, activeColor, activeVariantLabel, itemName]);
 
-  if (!activeSlide) return null;
+  if (!activeSlide) {
+    return (
+      <div className="cs" style={{ padding: 14, marginBottom: 16, border: "1px solid rgba(255,255,255,.06)", background: "rgba(255,255,255,.015)" }}>
+        <div style={{ width: "100%", aspectRatio: "1 / 1.08", borderRadius: 18, background: "rgba(255,255,255,.02)", display: "grid", placeItems: "center" }}>
+          <div style={{ width: 32, height: 32, border: "2px solid rgba(255,255,255,.12)", borderTopColor: "#e84393", borderRadius: "50%", animation: "spin .8s linear infinite" }} />
+        </div>
+        <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+      </div>
+    );
+  }
 
   return (
     <div className="cs" style={{ padding: 14, marginBottom: 16, border: "1px solid rgba(255,255,255,.06)", background: "rgba(255,255,255,.015)" }}>
@@ -79,9 +83,6 @@ export default function TshirtPhotoGallery({ itemName, galleryModel, activeColor
             WebkitUserDrag: "none",
           }}
         />
-        <span style={{ position: "absolute", left: 14, top: 14, padding: "7px 11px", borderRadius: 999, background: "rgba(8,8,12,.72)", border: "1px solid rgba(255,255,255,.08)", fontSize: 12, fontWeight: 500, color: "#f0eef5", backdropFilter: "blur(10px)" }}>
-          {activeSlide.colorName}
-        </span>
         <span style={{ position: "absolute", right: 14, bottom: 14, padding: "7px 11px", borderRadius: 999, background: "rgba(8,8,12,.72)", border: "1px solid rgba(255,255,255,.08)", fontSize: 12, fontWeight: 500, color: "rgba(240,238,245,.85)", backdropFilter: "blur(10px)" }}>
           {loading ? "Загружаем фото…" : "Нажмите для увеличения"}
         </span>

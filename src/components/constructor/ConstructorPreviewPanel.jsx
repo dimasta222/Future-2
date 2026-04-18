@@ -1415,7 +1415,7 @@ export default function ConstructorPreviewPanel({
                   </div>
                 )}
                 {showEmptyTextPlaceholder ? (
-                  <span style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: layer.textAlign === "left" ? "flex-start" : layer.textAlign === "right" ? "flex-end" : "center", color: "rgba(240,238,245,.32)", textShadow: "none", pointerEvents: "none", fontSize: "0.58em", lineHeight: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textTransform }}>
+                  <span style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: layer.textAlign === "left" ? "flex-start" : layer.textAlign === "right" ? "flex-end" : "center", color: /^(белый|меланж|розовый|бежевый|молочный)$/i.test(color) ? "rgba(0,0,0,.35)" : "rgba(240,238,245,.32)", textShadow: "none", pointerEvents: "none", fontSize: "0.58em", lineHeight: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textTransform }}>
                     Введите текст
                   </span>
                 ) : null}

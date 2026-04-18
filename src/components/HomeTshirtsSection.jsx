@@ -1,4 +1,4 @@
-export default function HomeTshirtsSection({ Reveal: _Reveal, items, CardComponent: _CardComponent, onOpenCatalog, onOpenConstructor }) {
+export default function HomeTshirtsSection({ Reveal: _Reveal, items, CardComponent: _CardComponent, onOpenItem, onOpenCatalog, onOpenConstructor }) {
   return (
     <section className="section-shell" style={{ padding: "100px 5%" }}>
       <div style={{ maxWidth: 1240, margin: "0 auto" }}>
@@ -10,7 +10,7 @@ export default function HomeTshirtsSection({ Reveal: _Reveal, items, CardCompone
         <div className="main-tshirt-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,240px),1fr))", justifyContent: "center", gap: 20, maxWidth: 1060, margin: "0 auto" }}>
           {items.map((item, index) => (
             <_Reveal key={index} delay={index * 0.1}>
-              <_CardComponent item={item} onOpen={onOpenCatalog} />
+              <_CardComponent item={item} onOpen={(selectedItem) => onOpenItem?.(selectedItem)} />
             </_Reveal>
           ))}
         </div>

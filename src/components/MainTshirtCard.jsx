@@ -129,7 +129,9 @@ export default function MainTshirtCard({ item, onOpen }) {
           </div>
         </div>
 
-        <button onClick={onOpen} className="bo" style={{ width: "100%", marginTop: 14, padding: "10px 20px", fontSize: 13 }}>Подробнее</button>
+        <div style={{ marginTop: "auto", paddingTop: 14 }}>
+          <button onClick={() => onOpen({ ...item, _initialColor: previewColor })} className="bo" style={{ width: "100%", padding: "10px 20px", fontSize: 13 }}>Подробнее</button>
+        </div>
       </div>
     </div>
   );

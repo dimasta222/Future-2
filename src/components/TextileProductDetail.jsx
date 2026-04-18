@@ -13,7 +13,8 @@ export default function TextileProductDetail({ item, type, onBack, onAddToCart, 
   const price = activeVariant?.price || item.price || "";
   const desc = activeVariant?.desc || item.desc || "";
   const colorOptions = parseColorOptions(colors);
-  const defaultColor = getDefaultTshirtColor(colorOptions, activeVariant?.defaultColor);
+  const initialColor = item._initialColor && colorOptions.includes(item._initialColor) ? item._initialColor : null;
+  const defaultColor = initialColor || getDefaultTshirtColor(colorOptions, activeVariant?.defaultColor);
   const sizeOptions = getTshirtSizes(item);
   const hasSizes = sizeOptions.length > 0;
 

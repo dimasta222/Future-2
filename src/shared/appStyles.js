@@ -78,7 +78,7 @@ a{color:inherit}
 .mobile-pricing-note{display:none}
 .main-card.main-showcase-card{background:none!important;border:none!important;backdrop-filter:none!important;box-shadow:none!important;padding:0!important;transition:none!important}
 .main-card.main-showcase-card:hover{background:none!important;border:none!important;transform:none!important}
-.main-showcase-shell{width:min(100%,340px);margin:0 auto}
+.main-showcase-shell{width:min(100%,340px);margin:0 auto;display:flex;flex-direction:column;flex:1}
 .main-showcase-meta{display:flex;flex-direction:column;gap:10px}
 .main-showcase-stage{position:relative;margin-top:12px}
 .main-showcase-media{position:relative;width:100%;margin:0 auto}
@@ -148,11 +148,12 @@ input[type=number]{-moz-appearance:textfield}
 	.hero-stat-value{white-space:nowrap!important;line-height:1.05!important}
 	.hero-stat-label{display:flex!important;align-items:flex-start!important;justify-content:center!important;min-height:32px!important;line-height:1.35!important;text-align:center!important}
 	.textile-card-grid,.reviews-grid,.contact-grid,.size-guide-grid,.constructor-shell{grid-template-columns:1fr!important}
-	.main-tshirt-grid{display:flex!important;flex-wrap:nowrap!important;overflow-x:auto!important;-webkit-overflow-scrolling:touch!important;scroll-snap-type:x mandatory!important;gap:14px!important;padding-bottom:8px!important;justify-content:flex-start!important}
+	.main-tshirt-grid{display:flex!important;flex-wrap:nowrap!important;overflow-x:auto!important;overflow-y:hidden!important;-webkit-overflow-scrolling:touch!important;scroll-snap-type:x mandatory!important;gap:14px!important;padding-bottom:8px!important;justify-content:flex-start!important;align-items:stretch!important;touch-action:pan-x pan-y!important}
 	.main-tshirt-grid::-webkit-scrollbar{height:4px}
 	.main-tshirt-grid::-webkit-scrollbar-track{background:rgba(255,255,255,.04);border-radius:4px}
 	.main-tshirt-grid::-webkit-scrollbar-thumb{background:linear-gradient(90deg,#e84393,#6c5ce7);border-radius:4px}
-	.main-tshirt-grid>*{flex:0 0 210px!important;scroll-snap-align:start!important;min-width:210px!important;max-width:210px!important;overflow:visible!important}
+	.main-tshirt-grid>*{flex:0 0 210px!important;scroll-snap-align:start!important;min-width:210px!important;max-width:210px!important;overflow:hidden!important;height:auto!important}
+	.main-showcase-card{height:100%!important}
 	.main-showcase-card .main-card-header h3{font-size:13px!important}
 	.main-showcase-card .main-card-header span{font-size:13px!important}
 	.main-showcase-shell{width:100%!important}
@@ -192,6 +193,7 @@ input[type=number]{-moz-appearance:textfield}
 	.field-row-content{width:100%!important}
 	.field-value{text-align:left!important;margin-left:0!important}
 	.main-showcase-shell{width:100%!important}
+	.main-showcase-card{height:100%!important}
 	.main-showcase-card .main-card-header{flex-direction:row!important;align-items:flex-start!important;justify-content:space-between!important}
 	.main-showcase-card .field-row{flex-direction:row!important;align-items:center!important;gap:14px!important}
 	.main-showcase-card .field-row-label{width:92px!important;min-width:92px!important}

@@ -406,10 +406,21 @@ function flattenCatalogItems(items) {
   });
 }
 
-function TextilePage({ type, onBack, onNavigate }) {
+function TextilePage({ type, onBack, onNavigate, initialProduct, onClearInitialProduct }) {
   const data = TEXTILE_DATA[type];
   const [cart, setCart] = useState([]);
-  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [selectedProduct, setSelectedProduct] = useState(() => {
+    if (!initialProduct) return null;
+    const catalogItems = flattenCatalogItems(data?.items || []);
+    const match = catalogItems.find((ci) =>
+      ci.galleryModel === initialProduct.galleryModel
+      && ci.variants?.[0]?.label === initialProduct.variants?.[0]?.label
+    ) || catalogItems.find((ci) => ci.galleryModel === initialProduct.galleryModel) || null;
+    if (match && initialProduct._initialColor) {
+      match._initialColor = initialProduct._initialColor;
+    }
+    return match;
+  });
   const [orderModalOpen, setOrderModalOpen] = useState(false);
   const [sizeGuideOpen, setSizeGuideOpen] = useState(false);
   const [galleryModal, setGalleryModal] = useState(null);
@@ -419,6 +430,10 @@ function TextilePage({ type, onBack, onNavigate }) {
     setPrevType(type);
     setSelectedProduct(null);
   }
+
+  useEffect(() => {
+    if (initialProduct) onClearInitialProduct?.();
+  }, []);
 
   useEffect(() => {
     if (!sizeGuideOpen && !galleryModal && !orderModalOpen) return undefined;
@@ -987,6 +1002,7 @@ export default function App() {
   const [sy, setSy] = useState(0);
   const [pt, setPt] = useState("format");
   const [txMenuOpen, setTxMenuOpen] = useState(false);
+  const [initialTextileProduct, setInitialTextileProduct] = useState(null);
   const reviewData = useYandexReviews();
 
   useEffect(() => { const h = () => setSy(window.scrollY); window.addEventListener("scroll", h, { passive: true }); return () => window.removeEventListener("scroll", h); }, []);
@@ -1079,7 +1095,7 @@ export default function App() {
       <PortfolioPage onBack={() => navigateToPage("main")} />
     </Suspense>
   );
-  if (pg.startsWith("textile_")) return <TextilePage type={pg.replace("textile_", "")} onBack={() => navigateToPage("main")} onNavigate={(t) => navigateToPage("textile_" + t)} />;
+  if (pg.startsWith("textile_")) return <TextilePage type={pg.replace("textile_", "")} initialProduct={initialTextileProduct} onClearInitialProduct={() => setInitialTextileProduct(null)} onBack={() => navigateToPage("main")} onNavigate={(t) => navigateToPage("textile_" + t)} />;
 
   return (
     <div style={{ fontFamily: "'Outfit',sans-serif", background: "#08080c", color: "#f0eef5", minHeight: "100vh", overflowX: "hidden" }}>
@@ -1120,7 +1136,11 @@ export default function App() {
       <HomeTshirtsSection
         Reveal={A}
         items={HOMEPAGE_TSHIRT_SHOWCASE_ITEMS}
-          CardComponent={MainTshirtCard}
+        CardComponent={MainTshirtCard}
+        onOpenItem={(selectedItem) => {
+          setInitialTextileProduct(selectedItem || null);
+          navigateToPage("textile_tshirts");
+        }}
         onOpenCatalog={() => navigateToPage("textile_tshirts")}
         onOpenConstructor={goConstructor}
       />

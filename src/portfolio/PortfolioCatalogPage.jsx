@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { PORTFOLIO_CATEGORIES, PORTFOLIO_SECTIONS } from "../data/portfolio";
 
 const STYLES = `
@@ -12,6 +12,16 @@ const STYLES = `
 .ti:hover{background:rgba(255,255,255,.08);color:rgba(240,238,245,.7)}
 .cg{background:rgba(255,255,255,.03);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.06);border-radius:20px;transition:all .5s cubic-bezier(.16,1,.3,1)}
 .cg:hover{background:rgba(255,255,255,.06);border-color:rgba(232,67,147,.2);transform:translateY(-6px)}
+.lb-overlay{position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.92);backdrop-filter:blur(12px);display:flex;align-items:center;justify-content:center;animation:lbFadeIn .2s ease}
+@keyframes lbFadeIn{from{opacity:0}to{opacity:1}}
+.lb-img{max-width:90vw;max-height:85vh;border-radius:12px;object-fit:contain;box-shadow:0 24px 80px rgba(0,0,0,.5);animation:lbZoomIn .25s ease}
+@keyframes lbZoomIn{from{transform:scale(.92);opacity:0}to{transform:scale(1);opacity:1}}
+.lb-btn{position:absolute;top:50%;transform:translateY(-50%);width:48px;height:48px;border-radius:50%;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.5);color:#fff;font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .2s}
+.lb-btn:hover{background:rgba(255,255,255,.1)}
+.lb-close{position:absolute;top:18px;right:18px;width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.5);color:#fff;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .2s}
+.lb-close:hover{background:rgba(255,255,255,.1)}
+.lb-label{position:absolute;bottom:24px;left:50%;transform:translateX(-50%);font-size:15px;font-weight:500;color:rgba(240,238,245,.7);text-align:center;max-width:80vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lb-counter{position:absolute;top:22px;left:50%;transform:translateX(-50%);font-size:13px;color:rgba(240,238,245,.4)}
 `;
 
 function LogoMini() {
@@ -27,7 +37,35 @@ function LogoMini() {
   );
 }
 
-function SectionGrid({ title, items }) {
+function Lightbox({ items, currentIndex, onClose, onPrev, onNext }) {
+  const item = items[currentIndex];
+  if (!item) return null;
+
+  return (
+    <div className="lb-overlay" onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", width: "100%", height: "100%" }}>
+        <img className="lb-img" src={item.image} alt={item.label} draggable={false} />
+        {items.length > 1 && (
+          <>
+            <button className="lb-btn" style={{ left: 16 }} onClick={onPrev} aria-label="Предыдущее">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M15 18l-6-6 6-6" /></svg>
+            </button>
+            <button className="lb-btn" style={{ right: 16 }} onClick={onNext} aria-label="Следующее">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 18l6-6-6-6" /></svg>
+            </button>
+          </>
+        )}
+        <button className="lb-close" onClick={onClose} aria-label="Закрыть">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+        </button>
+        <div className="lb-label">{item.label}</div>
+        {items.length > 1 && <div className="lb-counter">{currentIndex + 1} / {items.length}</div>}
+      </div>
+    </div>
+  );
+}
+
+function SectionGrid({ title, items, onImageClick }) {
   if (!items.length) return null;
 
   return (
@@ -43,11 +81,12 @@ function SectionGrid({ title, items }) {
           gap: 20,
         }}
       >
-        {items.map((item) => (
+        {items.map((item, index) => (
           <article
             key={`${title}-${item.label}`}
             className="cg"
-            style={{ overflow: "hidden", boxShadow: "0 16px 40px rgba(0,0,0,.18)" }}
+            style={{ overflow: "hidden", boxShadow: "0 16px 40px rgba(0,0,0,.18)", cursor: item.image ? "pointer" : "default" }}
+            onClick={() => item.image && onImageClick(index)}
           >
             <div
               style={{
@@ -66,12 +105,6 @@ function SectionGrid({ title, items }) {
                 />
               ) : null}
             </div>
-            <div style={{ padding: 16, display: "grid", gap: 6 }}>
-              <div style={{ fontSize: 16, fontWeight: 500 }}>{item.label}</div>
-              {item.note ? (
-                <div style={{ fontSize: 13, color: "rgba(240,238,245,.5)", lineHeight: 1.5 }}>{item.note}</div>
-              ) : null}
-            </div>
           </article>
         ))}
       </div>
@@ -81,11 +114,53 @@ function SectionGrid({ title, items }) {
 
 export default function PortfolioCatalogPage({ onBack }) {
   const [activeCategory, setActiveCategory] = useState("Все");
+  const [lightboxState, setLightboxState] = useState(null);
 
   const visibleSections = useMemo(() => {
     if (activeCategory === "Все") return PORTFOLIO_SECTIONS;
     return PORTFOLIO_SECTIONS.filter((section) => section.category === activeCategory);
   }, [activeCategory]);
+
+  const lightboxItems = useMemo(() => {
+    if (!lightboxState) return [];
+    const section = visibleSections.find((s) => s.slug === lightboxState.slug);
+    return section ? section.items.filter((i) => i.image) : [];
+  }, [lightboxState, visibleSections]);
+
+  const openLightbox = useCallback((slug, indexInSection) => {
+    const section = visibleSections.find((s) => s.slug === slug);
+    if (!section) return;
+    const imageItems = section.items.filter((i) => i.image);
+    const item = section.items[indexInSection];
+    const imageIndex = imageItems.indexOf(item);
+    if (imageIndex < 0) return;
+    setLightboxState({ slug, index: imageIndex });
+  }, [visibleSections]);
+
+  const closeLightbox = useCallback(() => setLightboxState(null), []);
+
+  const lightboxPrev = useCallback(() => {
+    setLightboxState((prev) => prev ? { ...prev, index: (prev.index - 1 + lightboxItems.length) % lightboxItems.length } : null);
+  }, [lightboxItems.length]);
+
+  const lightboxNext = useCallback(() => {
+    setLightboxState((prev) => prev ? { ...prev, index: (prev.index + 1) % lightboxItems.length } : null);
+  }, [lightboxItems.length]);
+
+  useEffect(() => {
+    if (!lightboxState) return;
+    const handleKey = (e) => {
+      if (e.key === "Escape") closeLightbox();
+      if (e.key === "ArrowLeft") lightboxPrev();
+      if (e.key === "ArrowRight") lightboxNext();
+    };
+    document.addEventListener("keydown", handleKey);
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", handleKey);
+      document.body.style.overflow = "";
+    };
+  }, [lightboxState, closeLightbox, lightboxPrev, lightboxNext]);
 
   return (
     <div
@@ -133,9 +208,19 @@ export default function PortfolioCatalogPage({ onBack }) {
 
         <div style={{ display: "grid", gap: 42 }}>
           {visibleSections.map((section) => (
-            <SectionGrid key={section.slug} title={section.category} items={section.items} />
+            <SectionGrid key={section.slug} title={section.category} items={section.items} onImageClick={(index) => openLightbox(section.slug, index)} />
           ))}
         </div>
+
+        {lightboxState && lightboxItems.length > 0 && (
+          <Lightbox
+            items={lightboxItems}
+            currentIndex={lightboxState.index}
+            onClose={closeLightbox}
+            onPrev={lightboxPrev}
+            onNext={lightboxNext}
+          />
+        )}
 
         <footer style={{ borderTop: "1px solid rgba(255,255,255,.05)", paddingTop: 24, textAlign: "center" }}>
           <p style={{ fontSize: 12, fontWeight: 300, color: "rgba(240,238,245,.2)" }}>© 2026 Future Studio • СПб • DTF-печать</p>

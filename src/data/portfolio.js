@@ -4,164 +4,228 @@ export const PORTFOLIO_SECTIONS = [
     "slug": "futbolki",
     "items": [
       {
-        "label": "MEOW принт",
-        "image": "/portfolio/futbolki/01-meow-print.jpg"
+        "label": "Футболки 1",
+        "image": "/portfolio/futbolki/img_1120.webp"
       },
       {
-        "label": "Арт-принт Horror",
-        "image": "/portfolio/futbolki/02-art-print-horror.jpg"
+        "label": "Футболки 2",
+        "image": "/portfolio/futbolki/img_1316.webp"
       },
       {
-        "label": "Horror крупно",
-        "image": "/portfolio/futbolki/03-horror-krupno.jpg"
+        "label": "Футболки 3",
+        "image": "/portfolio/futbolki/img_6134.webp"
       },
       {
-        "label": "Mamba Forever",
-        "image": "/portfolio/futbolki/04-mamba-forever.jpg"
+        "label": "Футболки 4",
+        "image": "/portfolio/futbolki/img_2107.webp"
       },
       {
-        "label": "Боже, уже 30!",
-        "image": "/portfolio/futbolki/05-bozhe-uzhe-30.jpg"
+        "label": "Футболки 5",
+        "image": "/portfolio/futbolki/img_2123.webp"
       },
       {
-        "label": "Японская маска",
-        "image": "/portfolio/futbolki/06-yaponskaya-maska.jpg"
+        "label": "Футболки 6",
+        "image": "/portfolio/futbolki/img_2357.webp"
       },
       {
-        "label": "Черепашки Ниндзя",
-        "image": "/portfolio/futbolki/07-cherepashki-nindzya.jpg"
+        "label": "Футболки 7",
+        "image": "/portfolio/futbolki/img_2358.webp"
       },
       {
-        "label": "Кино арт",
-        "image": "/portfolio/futbolki/08-kino-art.jpg"
+        "label": "Футболки 8",
+        "image": "/portfolio/futbolki/img_2899.webp"
       },
       {
-        "label": "Слово Котана",
-        "image": "/portfolio/futbolki/09-slovo-kotana.jpg"
+        "label": "Футболки 9",
+        "image": "/portfolio/futbolki/img_3018.webp"
       },
       {
-        "label": "Панк енот",
-        "image": "/portfolio/futbolki/10-pank-enot.jpg"
+        "label": "Футболки 10",
+        "image": "/portfolio/futbolki/img_3112.webp"
       },
       {
-        "label": "Dozor тираж",
-        "image": "/portfolio/futbolki/11-dozor-tirazh.jpg"
+        "label": "Футболки 11",
+        "image": "/portfolio/futbolki/img_3128.webp"
       },
       {
-        "label": "M.E.O.W дизайн",
-        "image": "/portfolio/futbolki/12-m-e-o-w-dizayn.jpg"
+        "label": "Футболки 12",
+        "image": "/portfolio/futbolki/img_3262.webp"
       },
       {
-        "label": "Spritz белая",
-        "image": "/portfolio/futbolki/13-spritz-belaya.jpg"
+        "label": "Футболки 13",
+        "image": "/portfolio/futbolki/img_3304.webp"
       },
       {
-        "label": "Pink розовая",
-        "image": "/portfolio/futbolki/14-pink-rozovaya.jpg"
+        "label": "Футболки 14",
+        "image": "/portfolio/futbolki/img_3598.webp"
       },
       {
-        "label": "Be My Valentine",
-        "image": "/portfolio/futbolki/15-be-my-valentine.jpg"
+        "label": "Футболки 15",
+        "image": "/portfolio/futbolki/img_3821.webp"
       },
       {
-        "label": "Kiss of Fire",
-        "image": "/portfolio/futbolki/16-kiss-of-fire.jpg"
+        "label": "Футболки 16",
+        "image": "/portfolio/futbolki/img_3822.webp"
       },
       {
-        "label": "Годзилла принт",
-        "image": "/portfolio/futbolki/17-godzilla-print.jpg"
+        "label": "Футболки 17",
+        "image": "/portfolio/futbolki/img_3898.webp"
       },
       {
-        "label": "Аниме дракон",
-        "image": "/portfolio/futbolki/18-anime-drakon.jpg"
+        "label": "Футболки 18",
+        "image": "/portfolio/futbolki/img_3951.webp"
       },
       {
-        "label": "Арт портрет",
-        "image": "/portfolio/futbolki/19-art-portret.jpg"
+        "label": "Футболки 19",
+        "image": "/portfolio/futbolki/img_3952.webp"
       },
       {
-        "label": "Champion арт",
-        "image": "/portfolio/futbolki/20-champion-art.jpg"
+        "label": "Футболки 20",
+        "image": "/portfolio/futbolki/img_3956.webp"
       },
       {
-        "label": "Есть такая работа",
-        "image": "/portfolio/futbolki/21-est-takaya-rabota.jpg"
+        "label": "Футболки 21",
+        "image": "/portfolio/futbolki/img_3957.webp"
       },
       {
-        "label": "Woof Woof принт",
-        "image": "/portfolio/futbolki/22-woof-woof-print.jpg"
+        "label": "Футболки 22",
+        "image": "/portfolio/futbolki/img_3971.webp"
       },
       {
-        "label": "Я руковожу цирком",
-        "image": "/portfolio/futbolki/23-ya-rukovozhu-tsirkom.jpg"
+        "label": "Футболки 23",
+        "image": "/portfolio/futbolki/img_3972.webp"
       },
       {
-        "label": "Zvykari перед",
-        "image": "/portfolio/futbolki/24-zvykari-pered.jpg"
+        "label": "Футболки 24",
+        "image": "/portfolio/futbolki/img_3974.webp"
       },
       {
-        "label": "Zvykari спина",
-        "image": "/portfolio/futbolki/25-zvykari-spina.jpg"
+        "label": "Футболки 25",
+        "image": "/portfolio/futbolki/img_4208.webp"
       },
       {
-        "label": "Zvykari Bear",
-        "image": "/portfolio/futbolki/26-zvykari-bear.jpg"
+        "label": "Футболки 26",
+        "image": "/portfolio/futbolki/img_4370.webp"
       },
       {
-        "label": "Hawaii Palm Beach",
-        "image": "/portfolio/futbolki/27-hawaii-palm-beach.jpg"
+        "label": "Футболки 27",
+        "image": "/portfolio/futbolki/img_4861.webp"
       },
       {
-        "label": "Sweet Summer розовая",
-        "image": "/portfolio/futbolki/28-sweet-summer-rozovaya.jpg"
+        "label": "Футболки 28",
+        "image": "/portfolio/futbolki/img_4862.webp"
       },
       {
-        "label": "Sweet Ice Cream",
-        "image": "/portfolio/futbolki/29-sweet-ice-cream.jpg"
+        "label": "Футболки 29",
+        "image": "/portfolio/futbolki/img_4865.webp"
       },
       {
-        "label": "More Amore",
-        "image": "/portfolio/futbolki/30-more-amore.jpg"
+        "label": "Футболки 30",
+        "image": "/portfolio/futbolki/img_4870.webp"
       },
       {
-        "label": "HilZZ Sports",
-        "image": "/portfolio/futbolki/31-hilzz-sports.jpg"
+        "label": "Футболки 31",
+        "image": "/portfolio/futbolki/img_5381.webp"
       },
       {
-        "label": "Леонид 50",
-        "image": "/portfolio/futbolki/32-leonid-50.jpg"
+        "label": "Футболки 32",
+        "image": "/portfolio/futbolki/img_5382.webp"
       },
       {
-        "label": "More Love Together",
-        "image": "/portfolio/futbolki/33-more-love-together.jpg"
+        "label": "Футболки 33",
+        "image": "/portfolio/futbolki/img_5399.webp"
       },
       {
-        "label": "Комикс арт",
-        "image": "/portfolio/futbolki/34-komiks-art.jpg"
+        "label": "Футболки 34",
+        "image": "/portfolio/futbolki/img_5497.webp"
       },
       {
-        "label": "HilZZ Sports спина",
-        "image": "/portfolio/futbolki/35-hilzz-sports-spina.jpg"
+        "label": "Футболки 35",
+        "image": "/portfolio/futbolki/img_5533.webp"
       },
       {
-        "label": "Муся Леонидовна",
-        "image": "/portfolio/futbolki/36-musya-leonidovna.jpg"
+        "label": "Футболки 36",
+        "image": "/portfolio/futbolki/img_5535.webp"
       },
       {
-        "label": "Фото-арт принт",
-        "image": "/portfolio/futbolki/37-foto-art-print.jpg"
+        "label": "Футболки 37",
+        "image": "/portfolio/futbolki/img_5554.webp"
       },
       {
-        "label": "Мышки обсудим",
-        "image": "/portfolio/futbolki/38-myshki-obsudim.jpg"
+        "label": "Футболки 38",
+        "image": "/portfolio/futbolki/img_5673.webp"
       },
       {
-        "label": "Хоккей арт",
-        "image": "/portfolio/futbolki/39-hokkey-art.jpg"
+        "label": "Футболки 39",
+        "image": "/portfolio/futbolki/img_5727.webp"
       },
       {
-        "label": "QR-арт коллаж",
-        "image": "/portfolio/futbolki/40-qr-art-kollazh.jpg"
+        "label": "Футболки 40",
+        "image": "/portfolio/futbolki/img_5728.webp"
+      },
+      {
+        "label": "Футболки 41",
+        "image": "/portfolio/futbolki/img_5760.webp"
+      },
+      {
+        "label": "Футболки 42",
+        "image": "/portfolio/futbolki/img_5791.webp"
+      },
+      {
+        "label": "Футболки 43",
+        "image": "/portfolio/futbolki/img_5792.webp"
+      },
+      {
+        "label": "Футболки 44",
+        "image": "/portfolio/futbolki/img_5820.webp"
+      },
+      {
+        "label": "Футболки 45",
+        "image": "/portfolio/futbolki/img_5993.webp"
+      },
+      {
+        "label": "Футболки 46",
+        "image": "/portfolio/futbolki/img_5995.webp"
+      },
+      {
+        "label": "Футболки 47",
+        "image": "/portfolio/futbolki/img_6115.webp"
+      },
+      {
+        "label": "Футболки 48",
+        "image": "/portfolio/futbolki/img_6124.webp"
+      },
+      {
+        "label": "Футболки 49",
+        "image": "/portfolio/futbolki/img_1971.webp"
+      },
+      {
+        "label": "Футболки 50",
+        "image": "/portfolio/futbolki/img_6144.webp"
+      },
+      {
+        "label": "Футболки 51",
+        "image": "/portfolio/futbolki/img_6147.webp"
+      },
+      {
+        "label": "Футболки 52",
+        "image": "/portfolio/futbolki/img_6193.webp"
+      },
+      {
+        "label": "Футболки 53",
+        "image": "/portfolio/futbolki/img_6222.webp"
+      },
+      {
+        "label": "Футболки 54",
+        "image": "/portfolio/futbolki/img_6473.webp"
+      },
+      {
+        "label": "Футболки 55",
+        "image": "/portfolio/futbolki/img_6670.webp"
+      },
+      {
+        "label": "Футболки 56",
+        "image": "/portfolio/futbolki/img_8450.webp"
       }
     ]
   },
@@ -170,16 +234,20 @@ export const PORTFOLIO_SECTIONS = [
     "slug": "hudi",
     "items": [
       {
-        "label": "Худи оверсайз с принтом",
-        "gradient": "linear-gradient(135deg,#6c5ce7,#0088cc)"
+        "label": "Худи 1",
+        "image": "/portfolio/hudi/img_5515.webp"
       },
       {
-        "label": "Свитшоты для бренда",
-        "gradient": "linear-gradient(135deg,#3d2e7c,#6c5ce7)"
+        "label": "Худи 2",
+        "image": "/portfolio/hudi/img_5809.webp"
       },
       {
-        "label": "Корпоративные худи",
-        "gradient": "linear-gradient(135deg,#0088cc,#6c5ce7)"
+        "label": "Худи 3",
+        "image": "/portfolio/hudi/img_5810.webp"
+      },
+      {
+        "label": "Худи 4",
+        "image": "/portfolio/hudi/img_6127.webp"
       }
     ]
   },
@@ -188,60 +256,64 @@ export const PORTFOLIO_SECTIONS = [
     "slug": "shoppery",
     "items": [
       {
-        "label": "Экосумки Экосборка",
-        "image": "/portfolio/shoppery/01-ekosumki-ekosborka.jpg"
+        "label": "Шопперы 1",
+        "image": "/portfolio/shoppery/img_2067.webp"
       },
       {
-        "label": "Шоппер с QR-кодом",
-        "image": "/portfolio/shoppery/02-shopper-s-qr-kodom.jpg"
+        "label": "Шопперы 2",
+        "image": "/portfolio/shoppery/img_2071.webp"
       },
       {
-        "label": "Шоппер Мурчальня",
-        "image": "/portfolio/shoppery/03-shopper-murchalnya.jpg"
+        "label": "Шопперы 3",
+        "image": "/portfolio/shoppery/img_2079.webp"
       },
       {
-        "label": "Шопперы Петербург",
-        "image": "/portfolio/shoppery/04-shoppery-peterburg.jpg"
+        "label": "Шопперы 4",
+        "image": "/portfolio/shoppery/img_2080.webp"
       },
       {
-        "label": "Шоппер Исаакий",
-        "image": "/portfolio/shoppery/05-shopper-isaakiy.jpg"
+        "label": "Шопперы 5",
+        "image": "/portfolio/shoppery/img_2270.webp"
       },
       {
-        "label": "Шоппер Люблю Петербург",
-        "image": "/portfolio/shoppery/06-shopper-lyublyu-peterburg.jpg"
+        "label": "Шопперы 6",
+        "image": "/portfolio/shoppery/img_2272.webp"
       },
       {
-        "label": "Шопперы с логотипом",
-        "image": "/portfolio/shoppery/07-shoppery-s-logotipom.jpg"
+        "label": "Шопперы 7",
+        "image": "/portfolio/shoppery/img_2566.webp"
       },
       {
-        "label": "Тираж шопперов",
-        "image": "/portfolio/shoppery/08-tirazh-shopperov.jpg"
+        "label": "Шопперы 8",
+        "image": "/portfolio/shoppery/img_2568.webp"
       },
       {
-        "label": "Шопперы производство",
-        "image": "/portfolio/shoppery/09-shoppery-proizvodstvo.jpg"
+        "label": "Шопперы 9",
+        "image": "/portfolio/shoppery/img_2742.webp"
       },
       {
-        "label": "Шопперы чёрные и белые",
-        "image": "/portfolio/shoppery/10-shoppery-chernye-i-belye.jpg"
+        "label": "Шопперы 10",
+        "image": "/portfolio/shoppery/img_2743.webp"
       },
       {
-        "label": "Шоппер SPB",
-        "image": "/portfolio/shoppery/11-shopper-spb.jpg"
+        "label": "Шопперы 11",
+        "image": "/portfolio/shoppery/img_2754.webp"
       },
       {
-        "label": "Шоппер SPB ракурс",
-        "image": "/portfolio/shoppery/12-shopper-spb-rakurs.jpg"
+        "label": "Шопперы 12",
+        "image": "/portfolio/shoppery/img_2768.webp"
       },
       {
-        "label": "Шопперы Экосборка чёрные",
-        "image": "/portfolio/shoppery/13-shoppery-ekosborka-chernye.jpg"
+        "label": "Шопперы 13",
+        "image": "/portfolio/shoppery/img_2773.webp"
       },
       {
-        "label": "Шопперы яркие принты",
-        "image": "/portfolio/shoppery/14-shoppery-yarkie-printy.jpg"
+        "label": "Шопперы 14",
+        "image": "/portfolio/shoppery/img_2776.webp"
+      },
+      {
+        "label": "Шопперы 15",
+        "image": "/portfolio/shoppery/img_2779.webp"
       }
     ]
   },
@@ -250,16 +322,36 @@ export const PORTFOLIO_SECTIONS = [
     "slug": "kepki",
     "items": [
       {
-        "label": "Кепка с вышивкой DTF",
-        "gradient": "linear-gradient(135deg,#6c5ce7,#e84393)"
+        "label": "Кепки 1",
+        "image": "/portfolio/kepki/img_1691.webp"
       },
       {
-        "label": "Бейсболки для команды",
-        "gradient": "linear-gradient(135deg,#0088cc,#c0247a)"
+        "label": "Кепки 2",
+        "image": "/portfolio/kepki/img_2210.webp"
       },
       {
-        "label": "Панамы с принтом",
-        "gradient": "linear-gradient(135deg,#e84393,#0088cc)"
+        "label": "Кепки 3",
+        "image": "/portfolio/kepki/img_5651.webp"
+      },
+      {
+        "label": "Кепки 4",
+        "image": "/portfolio/kepki/img_5670.webp"
+      },
+      {
+        "label": "Кепки 5",
+        "image": "/portfolio/kepki/img_5671.webp"
+      },
+      {
+        "label": "Кепки 6",
+        "image": "/portfolio/kepki/img_5742.webp"
+      },
+      {
+        "label": "Кепки 7",
+        "image": "/portfolio/kepki/img_5748.webp"
+      },
+      {
+        "label": "Кепки 8",
+        "image": "/portfolio/kepki/img_6082.webp"
       }
     ]
   },
@@ -268,68 +360,80 @@ export const PORTFOLIO_SECTIONS = [
     "slug": "sportivnaya-forma",
     "items": [
       {
-        "label": "Форвард футбол",
-        "image": "/portfolio/sportivnaya-forma/01-forvard-futbol.jpg"
+        "label": "Спортивная форма 1",
+        "image": "/portfolio/sportivnaya-forma/img_2282.webp"
       },
       {
-        "label": "Настольный теннис спина",
-        "image": "/portfolio/sportivnaya-forma/02-nastolnyy-tennis-spina.jpg"
+        "label": "Спортивная форма 2",
+        "image": "/portfolio/sportivnaya-forma/img_2287.webp"
       },
       {
-        "label": "Теннис на прессе",
-        "image": "/portfolio/sportivnaya-forma/03-tennis-na-presse.jpg"
+        "label": "Спортивная форма 3",
+        "image": "/portfolio/sportivnaya-forma/img_2290.webp"
       },
       {
-        "label": "Donic перед",
-        "image": "/portfolio/sportivnaya-forma/04-donic-pered.jpg"
+        "label": "Спортивная форма 4",
+        "image": "/portfolio/sportivnaya-forma/img_2297.webp"
       },
       {
-        "label": "Jögel фиолетовая",
-        "image": "/portfolio/sportivnaya-forma/05-j-gel-fioletovaya.jpg"
+        "label": "Спортивная форма 5",
+        "image": "/portfolio/sportivnaya-forma/img_2662.webp"
       },
       {
-        "label": "Jögel полная",
-        "image": "/portfolio/sportivnaya-forma/06-j-gel-polnaya.jpg"
+        "label": "Спортивная форма 6",
+        "image": "/portfolio/sportivnaya-forma/img_3292.webp"
       },
       {
-        "label": "Романов 22",
-        "image": "/portfolio/sportivnaya-forma/07-romanov-22.jpg"
+        "label": "Спортивная форма 7",
+        "image": "/portfolio/sportivnaya-forma/img_5454.webp"
       },
       {
-        "label": "Восток комплект",
-        "image": "/portfolio/sportivnaya-forma/08-vostok-komplekt.jpg"
+        "label": "Спортивная форма 8",
+        "image": "/portfolio/sportivnaya-forma/img_5455.webp"
       },
       {
-        "label": "Восток шорты 658",
-        "image": "/portfolio/sportivnaya-forma/09-vostok-shorty-658.jpg"
+        "label": "Спортивная форма 9",
+        "image": "/portfolio/sportivnaya-forma/img_5465.webp"
       },
       {
-        "label": "Восток CLIFF",
-        "image": "/portfolio/sportivnaya-forma/10-vostok-cliff.jpg"
+        "label": "Спортивная форма 10",
+        "image": "/portfolio/sportivnaya-forma/img_5466.webp"
       },
       {
-        "label": "Восток тираж",
-        "image": "/portfolio/sportivnaya-forma/11-vostok-tirazh.jpg"
+        "label": "Спортивная форма 11",
+        "image": "/portfolio/sportivnaya-forma/img_5468.webp"
       },
       {
-        "label": "Kronung номер",
-        "image": "/portfolio/sportivnaya-forma/12-kronung-nomer.jpg"
+        "label": "Спортивная форма 12",
+        "image": "/portfolio/sportivnaya-forma/img_5502.webp"
       },
       {
-        "label": "Iron Team полосы",
-        "image": "/portfolio/sportivnaya-forma/13-iron-team-polosy.jpg"
+        "label": "Спортивная форма 13",
+        "image": "/portfolio/sportivnaya-forma/img_5505.webp"
       },
       {
-        "label": "Iron Team шорты",
-        "image": "/portfolio/sportivnaya-forma/14-iron-team-shorty.jpg"
+        "label": "Спортивная форма 14",
+        "image": "/portfolio/sportivnaya-forma/img_5508.webp"
       },
       {
-        "label": "Приморский район",
-        "image": "/portfolio/sportivnaya-forma/15-primorskiy-rayon.jpg"
+        "label": "Спортивная форма 15",
+        "image": "/portfolio/sportivnaya-forma/img_5619.webp"
       },
       {
-        "label": "Белов 7",
-        "image": "/portfolio/sportivnaya-forma/16-belov-7.jpg"
+        "label": "Спортивная форма 16",
+        "image": "/portfolio/sportivnaya-forma/img_5620.webp"
+      },
+      {
+        "label": "Спортивная форма 17",
+        "image": "/portfolio/sportivnaya-forma/img_5813.webp"
+      },
+      {
+        "label": "Спортивная форма 18",
+        "image": "/portfolio/sportivnaya-forma/img_5814.webp"
+      },
+      {
+        "label": "Спортивная форма 19",
+        "image": "/portfolio/sportivnaya-forma/img_5818.webp"
       }
     ]
   },
@@ -338,16 +442,124 @@ export const PORTFOLIO_SECTIONS = [
     "slug": "imennye",
     "items": [
       {
-        "label": "Именная футболка",
-        "gradient": "linear-gradient(135deg,#e84393,#ff6b6b)"
+        "label": "Именные 1",
+        "image": "/portfolio/imennye/img_3461.webp"
       },
       {
-        "label": "Именной худи в подарок",
-        "gradient": "linear-gradient(135deg,#ff6b6b,#e84393)"
+        "label": "Именные 2",
+        "image": "/portfolio/imennye/img_3462.webp"
       },
       {
-        "label": "Персональный принт",
-        "gradient": "linear-gradient(135deg,#c0247a,#ff6b6b)"
+        "label": "Именные 3",
+        "image": "/portfolio/imennye/img_3466.webp"
+      },
+      {
+        "label": "Именные 4",
+        "image": "/portfolio/imennye/img_4202.webp"
+      },
+      {
+        "label": "Именные 5",
+        "image": "/portfolio/imennye/img_5153.webp"
+      },
+      {
+        "label": "Именные 6",
+        "image": "/portfolio/imennye/img_5290.webp"
+      },
+      {
+        "label": "Именные 7",
+        "image": "/portfolio/imennye/img_5292.webp"
+      },
+      {
+        "label": "Именные 8",
+        "image": "/portfolio/imennye/img_5612.webp"
+      },
+      {
+        "label": "Именные 9",
+        "image": "/portfolio/imennye/img_5614.webp"
+      },
+      {
+        "label": "Именные 10",
+        "image": "/portfolio/imennye/img_5693.webp"
+      },
+      {
+        "label": "Именные 11",
+        "image": "/portfolio/imennye/img_5708.webp"
+      },
+      {
+        "label": "Именные 12",
+        "image": "/portfolio/imennye/img_5716.webp"
+      },
+      {
+        "label": "Именные 13",
+        "image": "/portfolio/imennye/img_5727.webp"
+      },
+      {
+        "label": "Именные 14",
+        "image": "/portfolio/imennye/img_5730.webp"
+      },
+      {
+        "label": "Именные 15",
+        "image": "/portfolio/imennye/img_5772.webp"
+      },
+      {
+        "label": "Именные 16",
+        "image": "/portfolio/imennye/img_5774.webp"
+      },
+      {
+        "label": "Именные 17",
+        "image": "/portfolio/imennye/img_5788.webp"
+      },
+      {
+        "label": "Именные 18",
+        "image": "/portfolio/imennye/img_5801.webp"
+      },
+      {
+        "label": "Именные 19",
+        "image": "/portfolio/imennye/img_5802.webp"
+      },
+      {
+        "label": "Именные 20",
+        "image": "/portfolio/imennye/img_5852.webp"
+      },
+      {
+        "label": "Именные 21",
+        "image": "/portfolio/imennye/img_5869.webp"
+      },
+      {
+        "label": "Именные 22",
+        "image": "/portfolio/imennye/img_5879.webp"
+      },
+      {
+        "label": "Именные 23",
+        "image": "/portfolio/imennye/img_5886.webp"
+      },
+      {
+        "label": "Именные 24",
+        "image": "/portfolio/imennye/img_5908.webp"
+      },
+      {
+        "label": "Именные 25",
+        "image": "/portfolio/imennye/img_5919.webp"
+      },
+      {
+        "label": "Именные 26",
+        "image": "/portfolio/imennye/img_5988.webp"
+      },
+      {
+        "label": "Именные 27",
+        "image": "/portfolio/imennye/img_5989.webp"
+      },
+      {
+        "label": "Именные 28",
+        "image": "/portfolio/imennye/img_6009.webp"
+      },
+      {
+        "label": "Именные 29",
+        "image": "/portfolio/imennye/img_6023.webp"
+      },
+      {
+        "label": "Именные 30",
+        "image": "/portfolio/imennye/img_6024.webp"
       }
     ]
   },
@@ -356,16 +568,36 @@ export const PORTFOLIO_SECTIONS = [
     "slug": "plenki-s-effektom",
     "items": [
       {
-        "label": "Глиттерная плёнка",
-        "gradient": "linear-gradient(135deg,#e84393,#c0247a)"
+        "label": "Плёнки с эффектом 1",
+        "image": "/portfolio/plenki-s-effektom/img_5415.webp"
       },
       {
-        "label": "Голографический эффект",
-        "gradient": "linear-gradient(135deg,#6c5ce7,#e84393)"
+        "label": "Плёнки с эффектом 2",
+        "image": "/portfolio/plenki-s-effektom/img_5416.webp"
       },
       {
-        "label": "Светоотражающий принт",
-        "gradient": "linear-gradient(135deg,#0088cc,#e84393)"
+        "label": "Плёнки с эффектом 3",
+        "image": "/portfolio/plenki-s-effektom/img_5482.webp"
+      },
+      {
+        "label": "Плёнки с эффектом 4",
+        "image": "/portfolio/plenki-s-effektom/img_5488.webp"
+      },
+      {
+        "label": "Плёнки с эффектом 5",
+        "image": "/portfolio/plenki-s-effektom/img_5651.webp"
+      },
+      {
+        "label": "Плёнки с эффектом 6",
+        "image": "/portfolio/plenki-s-effektom/img_5671.webp"
+      },
+      {
+        "label": "Плёнки с эффектом 7",
+        "image": "/portfolio/plenki-s-effektom/img_5867.webp"
+      },
+      {
+        "label": "Плёнки с эффектом 8",
+        "image": "/portfolio/plenki-s-effektom/img_6048.webp"
       }
     ]
   },
@@ -374,12 +606,12 @@ export const PORTFOLIO_SECTIONS = [
     "slug": "fartuki",
     "items": [
       {
-        "label": "Фартук для барбершопа",
-        "gradient": "linear-gradient(135deg,#8a3a6a,#6c5ce7)"
+        "label": "Фартуки 1",
+        "image": "/portfolio/fartuki/img_5571.webp"
       },
       {
-        "label": "Кухонные фартуки с лого",
-        "gradient": "linear-gradient(135deg,#6c5ce7,#8a3a6a)"
+        "label": "Фартуки 2",
+        "image": "/portfolio/fartuki/img_5590.webp"
       }
     ]
   },
@@ -388,16 +620,16 @@ export const PORTFOLIO_SECTIONS = [
     "slug": "brelki",
     "items": [
       {
-        "label": "Брелки Racing тираж",
-        "image": "/portfolio/brelki/01-brelki-racing-tirazh.jpg"
+        "label": "Брелки 1",
+        "image": "/portfolio/brelki/img_1790.webp"
       },
       {
-        "label": "Брелки с карабином",
-        "image": "/portfolio/brelki/02-brelki-s-karabinom.jpg"
+        "label": "Брелки 2",
+        "image": "/portfolio/brelki/img_2856.webp"
       },
       {
-        "label": "Брелок Racing крупный план",
-        "image": "/portfolio/brelki/03-brelok-racing-krupnyy-plan.jpg"
+        "label": "Брелки 3",
+        "image": "/portfolio/brelki/img_2861.webp"
       }
     ]
   },
@@ -406,16 +638,28 @@ export const PORTFOLIO_SECTIONS = [
     "slug": "rabochaya-forma",
     "items": [
       {
-        "label": "Форма для сотрудников",
-        "gradient": "linear-gradient(135deg,#0088cc,#3d2e7c)"
+        "label": "Рабочая форма 1",
+        "image": "/portfolio/rabochaya-forma/img_2479.webp"
       },
       {
-        "label": "Униформа с логотипом",
-        "gradient": "linear-gradient(135deg,#3d2e7c,#0088cc)"
+        "label": "Рабочая форма 2",
+        "image": "/portfolio/rabochaya-forma/img_2481.webp"
       },
       {
-        "label": "Жилеты рабочие",
-        "gradient": "linear-gradient(135deg,#6c5ce7,#3d2e7c)"
+        "label": "Рабочая форма 3",
+        "image": "/portfolio/rabochaya-forma/img_2484.webp"
+      },
+      {
+        "label": "Рабочая форма 4",
+        "image": "/portfolio/rabochaya-forma/img_2496.webp"
+      },
+      {
+        "label": "Рабочая форма 5",
+        "image": "/portfolio/rabochaya-forma/img_3701.webp"
+      },
+      {
+        "label": "Рабочая форма 6",
+        "image": "/portfolio/rabochaya-forma/img_3702.webp"
       }
     ]
   }

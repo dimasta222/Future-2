@@ -597,15 +597,11 @@ export default function ConstructorPreviewPanel({
     const widthPercent = ((layer.widthCm || 1) / physicalWidthCm) * 100;
     const pxW = printAreaPixelSize.width;
     const pxH = printAreaPixelSize.height;
-    if (pxW > 0 && pxH > 0) {
-      const pxPerCm = pxW / physicalWidthCm;
-      const heightPercent = ((layer.heightCm || 1) * pxPerCm / pxH) * 100;
-      return { width: `${widthPercent}%`, height: `${heightPercent}%` };
-    }
-    return {
-      width: `${widthPercent}%`,
-      height: `${((layer.heightCm || 1) / physicalHeightCm) * 100}%`,
-    };
+    const pxPerCm = pxW > 0 ? pxW / physicalWidthCm : 1;
+    const heightPercent = pxH > 0
+      ? ((layer.heightCm || 1) * pxPerCm / pxH) * 100
+      : ((layer.heightCm || 1) / physicalWidthCm) * 100;
+    return { width: `${widthPercent}%`, height: `${heightPercent}%` };
   };
 
   const getShapeRenderFrame = (layer) => {

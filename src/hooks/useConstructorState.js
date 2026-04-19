@@ -1415,12 +1415,8 @@ export default function useConstructorState({
     return Math.max(0.01, visibleWidth / Math.max(1, visibleHeight));
   };
 
-  const getAssetCmAspectRatio = (intrinsicAspectRatio, layerSide = side) => {
-    const { widthCm: printAreaWidthCm, heightCm: printAreaHeightCm } = getPhysicalPrintArea(layerSide);
-    const { widthPx: printAreaWidthPx, heightPx: printAreaHeightPx } = getPrintAreaPixelSize(layerSide);
-    const scaleX = printAreaWidthPx / Math.max(0.001, printAreaWidthCm);
-    const scaleY = printAreaHeightPx / Math.max(0.001, printAreaHeightCm);
-    return Math.max(0.05, intrinsicAspectRatio * (scaleY / Math.max(0.001, scaleX)));
+  const getAssetCmAspectRatio = (intrinsicAspectRatio) => {
+    return Math.max(0.05, intrinsicAspectRatio);
   };
 
   const getUploadAspectRatio = (layer) => getAssetCmAspectRatio(getVisibleLayerAspectRatio(layer), getLayerSide(layer));
@@ -1451,10 +1447,7 @@ export default function useConstructorState({
     }
 
     if (import.meta.env.DEV) {
-      const { widthPx: printAreaWidthPx, heightPx: printAreaHeightPx } = getPrintAreaPixelSize(layerSide);
-      const previewWidthPx = (widthCm / maxWidthCm) * printAreaWidthPx;
-      const previewHeightPx = (heightCm / maxHeightCm) * printAreaHeightPx;
-      const previewRatio = previewHeightPx > 0 ? (previewWidthPx / previewHeightPx) : sourceRatio;
+      const previewRatio = heightCm > 0 ? (widthCm / heightCm) : sourceRatio;
       const normalizedDelta = sourceRatio > 0 ? Math.abs(previewRatio - sourceRatio) / sourceRatio : 0;
 
       if (normalizedDelta > UPLOAD_RATIO_TOLERANCE) {
@@ -2207,7 +2200,7 @@ export default function useConstructorState({
       const fitted = fitUniformLayerToAreaForSize(
         layer,
         (Number(layer.widthCm) || 0) * widthRatio,
-        (Number(layer.heightCm) || 0) * heightRatio,
+        (Number(layer.heightCm) || 0) * widthRatio,
         nextSize,
       );
       return {
@@ -2231,7 +2224,7 @@ export default function useConstructorState({
       const nextDimensions = fitUniformLayerToAreaForSize(
         layer,
         (Number(layer.widthCm) || 0) * widthRatio,
-        (Number(layer.heightCm) || 0) * heightRatio,
+        (Number(layer.heightCm) || 0) * widthRatio,
         nextSize,
       );
 

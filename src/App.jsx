@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState, useEffect, useRef } from "react";
+import { Fragment, lazy, Suspense, useState, useEffect, useRef } from "react";
 import ContactSection from "./components/ContactSection.jsx";
 import HeroSection from "./components/HeroSection.jsx";
 import HomeTshirtsSection from "./components/HomeTshirtsSection.jsx";
@@ -9,6 +9,7 @@ import PricingSection from "./components/PricingSection.jsx";
 import ProductCard from "./components/ProductCard.jsx";
 import ReviewsSection from "./components/ReviewsSection.jsx";
 import useYandexReviews from "./hooks/useYandexReviews.js";
+import MessengerPicker from "./components/MessengerPicker.jsx";
 import TG from "./components/TG.jsx";
 import TextileOrderModal from "./components/TextileOrderModal.jsx";
 import TextileProductDetail from "./components/TextileProductDetail.jsx";
@@ -32,6 +33,110 @@ const MAX_CALC_ITEMS = 40;
 const ORIENTATION_EXHAUSTIVE_LIMIT = 12;
 const LAYOUT_PREVIEW_HEIGHT = 160;
 const LAYOUT_SCROLL_MAX_HEIGHT = "min(72vh, 820px)";
+const CALC_PRINT_DPI = 300;
+const CALC_DPI_WARN = 150;
+const THUMB_MAX = 256;
+const TIFF_THUMB_LIMIT = 20 * 1024 * 1024; // 20 MB — выше не декодируем пиксели
+
+async function processCalcFile(file) {
+  const ext = file.name.split(".").pop().toLowerCase();
+  const isPdf = file.type === "application/pdf" || ext === "pdf";
+  const isSvg = file.type === "image/svg+xml" || ext === "svg";
+  const isTiff = file.type === "image/tiff" || ext === "tiff" || ext === "tif";
+
+  if (isTiff) {
+    try {
+      const buf = await file.arrayBuffer();
+      const UTIF = await import("utif2");
+      const ifds = UTIF.decode(buf);
+      if (!ifds.length) return null;
+      const ifd = ifds[0];
+      const w = ifd.width, h = ifd.height;
+      const wCm = +(w / CALC_PRINT_DPI * 2.54).toFixed(1);
+      const hCm = +(h / CALC_PRINT_DPI * 2.54).toFixed(1);
+      const maxDim = Math.max(w, h);
+      const dpiWarning = maxDim < 1000;
+      let thumb = null;
+      if (file.size <= TIFF_THUMB_LIMIT) {
+        UTIF.decodeImage(buf, ifd);
+        const rgba = UTIF.toRGBA8(ifd);
+        const ratio = Math.min(THUMB_MAX / w, THUMB_MAX / h, 1);
+        const tw = Math.round(w * ratio), th = Math.round(h * ratio);
+        const tmp = document.createElement("canvas");
+        tmp.width = w; tmp.height = h;
+        const tmpCtx = tmp.getContext("2d");
+        const imgData = tmpCtx.createImageData(w, h);
+        imgData.data.set(new Uint8Array(rgba));
+        tmpCtx.putImageData(imgData, 0, 0);
+        const tc = document.createElement("canvas");
+        tc.width = tw; tc.height = th;
+        tc.getContext("2d").drawImage(tmp, 0, 0, tw, th);
+        thumb = tc.toDataURL("image/jpeg", 0.8);
+      }
+      return { w: wCm, h: hCm, thumb, fileName: file.name, dpiWarning };
+    } catch { return null; }
+  }
+
+  if (isPdf) {
+    try {
+      const buf = await file.arrayBuffer();
+      const pdfjsLib = await import("pdfjs-dist");
+      pdfjsLib.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.mjs", import.meta.url).href;
+      const doc = await pdfjsLib.getDocument({ data: buf }).promise;
+      const page = await doc.getPage(1);
+      const rawVp = page.getViewport({ scale: 1 });
+      const wCm = +(rawVp.width / 72 * 2.54).toFixed(1);
+      const hCm = +(rawVp.height / 72 * 2.54).toFixed(1);
+      const thumbScale = Math.min(THUMB_MAX / rawVp.width, THUMB_MAX / rawVp.height, 2);
+      const vp = page.getViewport({ scale: thumbScale });
+      const canvas = document.createElement("canvas");
+      canvas.width = vp.width; canvas.height = vp.height;
+      await page.render({ canvasContext: canvas.getContext("2d"), viewport: vp }).promise;
+      const thumb = canvas.toDataURL("image/jpeg", 0.8);
+      return { w: wCm, h: hCm, thumb, fileName: file.name, dpiWarning: false };
+    } catch { return null; }
+  }
+
+  if (isSvg) {
+    const text = await file.text();
+    const parser = new DOMParser();
+    const svgDoc = parser.parseFromString(text, "image/svg+xml");
+    const svg = svgDoc.querySelector("svg");
+    if (!svg) return null;
+    let wPx = 0, hPx = 0;
+    const vb = svg.getAttribute("viewBox");
+    if (vb) { const parts = vb.split(/[\s,]+/).map(Number); wPx = parts[2]; hPx = parts[3]; }
+    if (!wPx) wPx = parseFloat(svg.getAttribute("width")) || 300;
+    if (!hPx) hPx = parseFloat(svg.getAttribute("height")) || 300;
+    const wCm = +(wPx / CALC_PRINT_DPI * 2.54).toFixed(1);
+    const hCm = +(hPx / CALC_PRINT_DPI * 2.54).toFixed(1);
+    const blob = new Blob([text], { type: "image/svg+xml" });
+    const thumb = URL.createObjectURL(blob);
+    return { w: wCm, h: hCm, thumb, fileName: file.name, dpiWarning: false };
+  }
+
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const origW = img.naturalWidth, origH = img.naturalHeight;
+      const wCm = +(origW / CALC_PRINT_DPI * 2.54).toFixed(1);
+      const hCm = +(origH / CALC_PRINT_DPI * 2.54).toFixed(1);
+      const maxDim = Math.max(origW, origH);
+      const dpiWarning = maxDim < 1000;
+      const ratio = Math.min(THUMB_MAX / maxDim, 1);
+      const tc = document.createElement("canvas");
+      tc.width = Math.round(origW * ratio); tc.height = Math.round(origH * ratio);
+      tc.getContext("2d").drawImage(img, 0, 0, tc.width, tc.height);
+      const thumb = tc.toDataURL("image/jpeg", 0.8);
+      URL.revokeObjectURL(url);
+      resolve({ w: wCm, h: hCm, thumb, fileName: file.name, dpiWarning });
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+    img.src = url;
+  });
+}
+
 const PRINT_TIERS = [
   { min: 1, max: 2, price: 1400 },
   { min: 3, max: 5, price: 1200 },
@@ -328,7 +433,7 @@ const TEXTILE_DATA = {
       { name: "Худи с начёсом", sizes: "S – 2XL", galleryModel: "hoodie-fleece", variants: [
         { label: "350 г/м²", material: "80% хлопок, 20% полиэстер", fabric: "футер 3-нитка, пенье", colors: "Чёрный", defaultColor: "Чёрный", price: "1 800 ₽", desc: "Плотное худи с мягким начёсом внутри, капюшон и карман-кенгуру." },
       ] },
-      { name: "Худи варёное", sizes: "S – 2XL", galleryModel: "hoodie-washed", variants: [
+      { name: "Худи варёное", sizes: "M – 3XL", galleryModel: "hoodie-washed", variants: [
         { label: "350 г/м²", material: "100% хлопок", fabric: "дабл фейс, пенье", colors: "Серый, Чёрный, Хаки", defaultColor: "Чёрный", price: "2 100 ₽", desc: "Варёный хлопок, уникальная текстура. Модель без брендинга." },
       ] },
     ]
@@ -590,33 +695,67 @@ function TextilePage({ type, onBack, onNavigate, initialProduct, onClearInitialP
    CALCULATOR PAGE
    ══════════════════════════════════════════ */
 function CalcPage({ onBack }) {
-  const [withApply, setWithApply] = useState(() => { const s = loadCalcState(); return s?.withApply ?? true; });
-  const [items, setItems] = useState(() => { const s = loadCalcState(); return s?.items ?? [{ id: 1, w: 20, h: 30, qty: 10 }]; });
+  const [withApply, setWithApply] = useState(() => { const s = loadCalcState(); return s?.withApply ?? false; });
+  const [items, setItems] = useState(() => { const s = loadCalcState(); return s?.items ?? [{ id: 1, w: 0, h: 0, qty: 1 }]; });
   const [nid, setNid] = useState(() => { const s = loadCalcState(); return s?.nid ?? 2; });
   const [layoutOpen, setLayoutOpen] = useState(false);
   const [mobileLayoutVisible, setMobileLayoutVisible] = useState(false);
+  const [printsExpanded, setPrintsExpanded] = useState(false);
   const layoutViewportRef = useRef(null);
 
-  useEffect(() => { saveCalcState({ items, withApply, nid }); }, [items, withApply, nid]);
+  useEffect(() => {
+    const stripped = items.map(({ thumb, ...rest }) => rest);
+    saveCalcState({ items: stripped, withApply, nid });
+  }, [items, withApply, nid]);
 
   const resetCalc = () => {
     clearCalcState();
-    setItems([{ id: 1, w: 20, h: 30, qty: 10 }]);
+    setItems([{ id: 1, w: 0, h: 0, qty: 1 }]);
     setNid(2);
-    setWithApply(true);
+    setWithApply(false);
     setLayoutOpen(false);
   };
 
   const add = () => {
     if (items.length >= MAX_CALC_ITEMS) return;
-    setItems([...items, { id: nid, w: 15, h: 20, qty: 5 }]);
+    setItems([...items, { id: nid, w: 0, h: 0, qty: 1 }]);
     setNid((prev) => prev + 1);
+    setPrintsExpanded(true);
   };
   const rm = (id) => { if (items.length > 1) setItems(items.filter(i => i.id !== id)); };
   const upd = (id, f, v) => {
     let n = parseFloat(v); if (isNaN(n) || n < 0) n = 0;
     if (f === "qty") n = Math.max(0, Math.round(n)); else n = Math.max(0, n);
     setItems(items.map(i => i.id === id ? { ...i, [f]: n } : i));
+  };
+
+  const handleFileUpload = async (id, file) => {
+    const result = await processCalcFile(file);
+    if (!result) return;
+    setItems((prev) => prev.map(i => i.id === id ? { ...i, w: result.w, h: result.h, thumb: result.thumb, fileName: result.fileName, dpiWarning: result.dpiWarning } : i));
+  };
+
+  const handleMultiFileUpload = async (fileList) => {
+    const files = Array.from(fileList).slice(0, MAX_CALC_ITEMS - items.length);
+    if (files.length === 0) return;
+    const results = [];
+    for (const f of files) { const r = await processCalcFile(f); if (r) results.push(r); }
+    if (results.length === 0) return;
+    setPrintsExpanded(true);
+    setItems((prev) => {
+      let nextId = nid;
+      const newItems = results.map((r) => {
+        const item = { id: nextId, w: r.w, h: r.h, qty: 1, thumb: r.thumb, fileName: r.fileName, dpiWarning: r.dpiWarning };
+        nextId++;
+        return item;
+      });
+      setNid(nextId);
+      return [...prev, ...newItems];
+    });
+  };
+
+  const clearFileFromItem = (id) => {
+    setItems((prev) => prev.map(i => i.id === id ? { ...i, thumb: undefined, fileName: undefined, dpiWarning: undefined } : i));
   };
 
   const activeItems = items.filter(i => i.w > 0 && i.h > 0 && i.qty > 0);
@@ -637,7 +776,15 @@ function CalcPage({ onBack }) {
     const idx = items.indexOf(it);
     const fmt = getFormat(it.w, it.h);
     const eligible = withApply && !overThreeMeters && fmt !== null && it.qty <= 15;
-    return { ...it, format: fmt, formatCost: eligible ? fmt.price * it.qty : null, eligible, idx };
+    if (!eligible) return { ...it, format: fmt, formatCost: null, eligible, idx, unitPrice: 0, bulkUnitPrice: 0 };
+    const isLarge = fmt.name === "A3+" || fmt.name === "A3++";
+    let unitPrice;
+    if (isLarge) { unitPrice = fmt.price; }
+    else if (it.qty === 1) { unitPrice = 600; }
+    else if (it.qty < 5) { unitPrice = 500; }
+    else { unitPrice = fmt.price; }
+    const bulkUnitPrice = fmt.price; // цена от 5 шт
+    return { ...it, format: fmt, formatCost: unitPrice * it.qty, eligible, idx, unitPrice, bulkUnitPrice };
   });
   const formatItems = itemFormats.filter(it => it.eligible);
   const meterItems = itemFormats.filter(it => !it.eligible);
@@ -708,32 +855,71 @@ function CalcPage({ onBack }) {
 
         <div className="cg2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 28, marginBottom: 48, alignItems: "start" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            {items.map((it, idx) => (
-              <div key={it.id} className="cs calc-panel" style={{ padding: "20px 22px" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 16, position: "relative", ...(items.length > 5 && !printsExpanded ? { maxHeight: 160, overflow: "hidden" } : {}) }}>
+              {(items.length > 5 && !printsExpanded ? items.slice(0, 2) : items).map((it, idx) => {
+                const globalIdx = items.indexOf(it);
+                return (
+                <div key={it.id} className="cs calc-panel" style={{ padding: "20px 22px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-                  <div style={{ width: 14, height: 14, borderRadius: 4, background: COLORS[idx % COLORS.length], flexShrink: 0 }} />
-                  <span style={{ fontSize: 14, fontWeight: 500 }}>Принт #{idx + 1}</span>
-                  {items.length > 1 && <button onClick={() => rm(it.id)} style={{ marginLeft: "auto", background: "none", border: "none", color: "rgba(240,238,245,.3)", cursor: "pointer", fontSize: 16, fontFamily: "inherit" }} onMouseEnter={e => e.target.style.color = "#e84393"} onMouseLeave={e => e.target.style.color = "rgba(240,238,245,.3)"}>✕</button>}
+                  <div style={{ width: 14, height: 14, borderRadius: 4, background: COLORS[globalIdx % COLORS.length], flexShrink: 0 }} />
+                  <span style={{ fontSize: 14, fontWeight: 500 }}>Принт #{globalIdx + 1}</span>
+                  <label className="calc-file-label" style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 5, background: "rgba(108,92,231,.1)", border: "1px solid rgba(108,92,231,.25)", borderRadius: 8, padding: "4px 10px", cursor: "pointer", color: "#6c5ce7", fontSize: 11, fontWeight: 500, fontFamily: "'Outfit',sans-serif", transition: "all .3s" }} onMouseEnter={e => { e.currentTarget.style.background = "rgba(108,92,231,.2)"; }} onMouseLeave={e => { e.currentTarget.style.background = "rgba(108,92,231,.1)"; }}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    Файл
+                    <input type="file" accept=".png,.jpg,.jpeg,.webp,.svg,.pdf,.tiff,.tif" style={{ display: "none" }} onChange={e => { if (e.target.files[0]) handleFileUpload(it.id, e.target.files[0]); e.target.value = ""; }} />
+                  </label>
+                  {items.length > 1 && <button onClick={() => rm(it.id)} style={{ background: "none", border: "none", color: "rgba(240,238,245,.3)", cursor: "pointer", fontSize: 16, fontFamily: "inherit" }} onMouseEnter={e => e.target.style.color = "#e84393"} onMouseLeave={e => e.target.style.color = "rgba(240,238,245,.3)"}>✕</button>}
                 </div>
                 <div className="calc-item-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
-                  {[["Ширина, см", "w"], ["Высота, см", "h"], ["Кол-во", "qty"]].map(([label, f]) => (
-                    <div key={f}>
-                      <label style={{ fontSize: 10, fontWeight: 400, color: "rgba(240,238,245,.4)", letterSpacing: 1, textTransform: "uppercase", marginBottom: 5, display: "block" }}>{label}</label>
-                      <input type="number" value={it[f] || ""} onChange={e => upd(it.id, f, e.target.value)} className="inf" style={{ padding: "10px 12px", fontSize: 16, fontWeight: 500, textAlign: "center" }} min={f === "qty" ? 1 : 0.1} step={f === "qty" ? 1 : 0.5} />
-                    </div>
-                  ))}
+                  {[["Ширина, см", "w"], ["Высота, см", "h"], ["Кол-во", "qty"]].map(([label, f]) => {
+                    const locked = it.fileName && f !== "qty";
+                    return (
+                      <div key={f}>
+                        <label style={{ fontSize: 10, fontWeight: 400, color: "rgba(240,238,245,.4)", letterSpacing: 1, textTransform: "uppercase", marginBottom: 5, display: "block" }}>{label}</label>
+                        <input type="number" value={it[f] || ""} onChange={e => upd(it.id, f, e.target.value)} readOnly={locked} tabIndex={locked ? -1 : undefined} className="inf" style={{ padding: "10px 12px", fontSize: 16, fontWeight: 500, textAlign: "center", ...(locked ? { opacity: .55, pointerEvents: "none" } : {}) }} min={f === "qty" ? 1 : 0.1} step={f === "qty" ? 1 : 0.5} />
+                      </div>
+                    );
+                  })}
                 </div>
+                {it.fileName && (
+                  <div className="calc-file-info" style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, padding: "8px 10px", borderRadius: 10, background: "rgba(108,92,231,.06)", border: "1px solid rgba(108,92,231,.15)" }}>
+                    {it.thumb && <img src={it.thumb} alt="" style={{ width: 32, height: 32, borderRadius: 6, objectFit: "cover", flexShrink: 0 }} />}
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div className="calc-file-info-name" style={{ fontSize: 12, fontWeight: 500, color: "rgba(240,238,245,.7)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{it.fileName}</div>
+                      {it.dpiWarning && <div className="calc-file-info-dpi" style={{ fontSize: 10, color: "#fdcb6e", marginTop: 2 }}>⚠ Низкое разрешение (&lt; 150 DPI)</div>}
+                    </div>
+                    <button onClick={() => clearFileFromItem(it.id)} style={{ background: "none", border: "none", color: "rgba(240,238,245,.3)", cursor: "pointer", fontSize: 14, fontFamily: "inherit", flexShrink: 0, padding: "2px 4px" }} onMouseEnter={e => e.target.style.color = "#e84393"} onMouseLeave={e => e.target.style.color = "rgba(240,238,245,.3)"}>✕</button>
+                  </div>
+                )}
                 {(Math.min(it.w, it.h) > BED_W && it.w > 0 && it.h > 0) && (
                   <div style={{ marginTop: 10, padding: "8px 12px", borderRadius: 10, background: "rgba(255,80,80,.08)", border: "1px solid rgba(255,80,80,.2)", fontSize: 12, color: "#ff6b6b" }}>
                     Обе стороны &gt; {BED_W} см — не помещается
                   </div>
                 )}
-              </div>
-            ))}
-            {items.length < MAX_CALC_ITEMS && (
-              <button onClick={add} style={{ background: "rgba(255,255,255,.02)", border: "1.5px dashed rgba(255,255,255,.1)", borderRadius: 20, padding: 18, cursor: "pointer", color: "rgba(240,238,245,.35)", fontSize: 14, fontFamily: "'Outfit',sans-serif", transition: "all .3s" }} onMouseEnter={e => { e.target.style.borderColor = "rgba(232,67,147,.4)"; e.target.style.color = "#e84393"; }} onMouseLeave={e => { e.target.style.borderColor = "rgba(255,255,255,.1)"; e.target.style.color = "rgba(240,238,245,.35)"; }}>
-                + Добавить размер
+                </div>
+                );
+              })}
+              {items.length > 5 && !printsExpanded && (
+                <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 80, background: "linear-gradient(transparent, #08080c)", pointerEvents: "none", borderRadius: "0 0 20px 20px" }} />
+              )}
+            </div>
+            {items.length > 5 && (
+              <button onClick={() => setPrintsExpanded(v => { if (v) window.scrollTo({ top: 0, behavior: "smooth" }); return !v; })} style={{ background: "rgba(255,255,255,.03)", border: "1px solid rgba(255,255,255,.08)", borderRadius: 14, padding: "12px 18px", cursor: "pointer", color: "rgba(240,238,245,.5)", fontSize: 13, fontWeight: 400, fontFamily: "'Outfit',sans-serif", transition: "all .3s", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }} onMouseEnter={e => { e.currentTarget.style.borderColor = "rgba(232,67,147,.3)"; e.currentTarget.style.color = "#e84393"; }} onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,.08)"; e.currentTarget.style.color = "rgba(240,238,245,.5)"; }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ transform: printsExpanded ? "rotate(180deg)" : "none", transition: "transform .3s" }}><polyline points="6 9 12 15 18 9"/></svg>
+                {printsExpanded ? "Свернуть" : `Показать все ${items.length} принтов`}
               </button>
+            )}
+            {items.length < MAX_CALC_ITEMS && (
+              <div className="calc-add-row" style={{ display: "flex", gap: 10 }}>
+                <button onClick={add} style={{ flex: 1, background: "rgba(255,255,255,.02)", border: "1.5px dashed rgba(255,255,255,.1)", borderRadius: 20, padding: 18, cursor: "pointer", color: "rgba(240,238,245,.35)", fontSize: 14, fontFamily: "'Outfit',sans-serif", transition: "all .3s" }} onMouseEnter={e => { e.target.style.borderColor = "rgba(232,67,147,.4)"; e.target.style.color = "#e84393"; }} onMouseLeave={e => { e.target.style.borderColor = "rgba(255,255,255,.1)"; e.target.style.color = "rgba(240,238,245,.35)"; }}>
+                  + Добавить размер
+                </button>
+                <label style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: "rgba(108,92,231,.06)", border: "1.5px dashed rgba(108,92,231,.25)", borderRadius: 20, padding: "18px 20px", cursor: "pointer", color: "rgba(108,92,231,.7)", fontSize: 14, fontFamily: "'Outfit',sans-serif", transition: "all .3s", whiteSpace: "nowrap" }} onMouseEnter={e => { e.currentTarget.style.borderColor = "rgba(108,92,231,.5)"; e.currentTarget.style.color = "#6c5ce7"; }} onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(108,92,231,.25)"; e.currentTarget.style.color = "rgba(108,92,231,.7)"; }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                  Загрузить файлы
+                  <input type="file" multiple accept=".png,.jpg,.jpeg,.webp,.svg,.pdf,.tiff,.tif" style={{ display: "none" }} onChange={e => { if (e.target.files.length) handleMultiFileUpload(e.target.files); e.target.value = ""; }} />
+                </label>
+              </div>
             )}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: items.length < MAX_CALC_ITEMS ? -4 : 0 }}>
               <div style={{ fontSize: 12, color: "rgba(240,238,245,.38)" }}>
@@ -784,10 +970,14 @@ function CalcPage({ onBack }) {
                         <rect x={pad} y={bedTop} width={BED_W * scale} height={Math.max(lengthCm * scale, 1)} fill="none" stroke="rgba(255,255,255,.07)" strokeWidth="1" strokeDasharray="4 2" rx="3" />
                         {pack.placements.map((p, i) => {
                           const renderY = lengthCm - p.y - p.h;
+                          const itemThumb = activeItems[p.idx]?.thumb;
                           return (
                             <g key={i}>
                               <rect x={pad + p.x * scale} y={bedTop + renderY * scale} width={Math.max(p.w * scale - .3, 1)} height={Math.max(p.h * scale - .3, 1)} fill={p.color} stroke="rgba(255,255,255,.15)" strokeWidth=".5" rx="2" />
-                              {p.w * scale > 30 && p.h * scale > 16 && (
+                              {itemThumb && p.w * scale > 10 && p.h * scale > 10 && (
+                                <image xlinkHref={itemThumb} href={itemThumb} x={pad + p.x * scale + 1} y={bedTop + renderY * scale + 1} width={Math.max(p.w * scale - 2.3, 1)} height={Math.max(p.h * scale - 2.3, 1)} preserveAspectRatio="xMidYMid meet" opacity=".85" />
+                              )}
+                              {p.w * scale > 30 && p.h * scale > 16 && !itemThumb && (
                                 <text x={pad + (p.x + p.w / 2) * scale} y={bedTop + (renderY + p.h / 2) * scale + 3} textAnchor="middle" fill="rgba(255,255,255,.7)" fontSize="8" fontFamily="Outfit">{p.w}×{p.h}</text>
                               )}
                             </g>
@@ -850,18 +1040,23 @@ function CalcPage({ onBack }) {
                   <div style={{ borderTop: "1px solid rgba(255,255,255,.05)", paddingTop: 18, display: "flex", flexDirection: "column", gap: 14 }}>
                     {isSmallOrder || isMixed ? (
                       <>
-                        {formatItems.map((it, i) => (
+                        {formatItems.map((it, i) => {
+                          const isLarge = it.format.name === "A3+" || it.format.name === "A3++";
+                          const showBulkHint = !isLarge && it.qty < 5 && it.unitPrice > it.bulkUnitPrice;
+                          return (
                           <div key={`f${i}`} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                             <div>
                               <div style={{ fontSize: 14, fontWeight: 400, display: "flex", alignItems: "center", gap: 8 }}>
                                 <div style={{ width: 10, height: 10, borderRadius: 3, background: COLORS[it.idx % COLORS.length], flexShrink: 0 }} />
-                                {it.w}×{it.h} см → {it.format.name}
+                                <span className="calc-result-dims">{it.w}×{it.h} см → {it.format.name}</span>
                               </div>
-                              <div style={{ fontSize: 12, fontWeight: 300, color: "rgba(240,238,245,.3)", marginLeft: 18 }}>{it.qty} шт × {it.format.price} ₽</div>
+                              <div className="calc-result-sub" style={{ fontSize: 12, fontWeight: 300, color: "rgba(240,238,245,.3)", marginLeft: 18 }}>{it.qty} шт × {it.unitPrice} ₽</div>
+                              {showBulkHint && <div className="calc-result-sub" style={{ fontSize: 11, fontWeight: 300, color: "rgba(108,92,231,.7)", marginLeft: 18, marginTop: 2 }}>от 5 шт — {it.bulkUnitPrice} ₽/шт</div>}
                             </div>
-                            <span style={{ fontSize: 18, fontWeight: 600 }}>{it.formatCost.toLocaleString("ru")} ₽</span>
+                            <span className="calc-result-price" style={{ fontSize: 18, fontWeight: 600 }}>{it.formatCost.toLocaleString("ru")} ₽</span>
                           </div>
-                        ))}
+                          );
+                        })}
                         {isMixed && (
                           <>
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -891,12 +1086,12 @@ function CalcPage({ onBack }) {
                     )}
                   </div>
 
-                  <div style={{ marginTop: 20, padding: "18px 22px", borderRadius: 14, background: "linear-gradient(135deg,rgba(232,67,147,.1),rgba(108,92,231,.1))", border: "1px solid rgba(232,67,147,.2)" }}>
+                  <div className="calc-total-box" style={{ marginTop: 20, padding: "18px 22px", borderRadius: 14, background: "linear-gradient(135deg,rgba(232,67,147,.1),rgba(108,92,231,.1))", border: "1px solid rgba(232,67,147,.2)" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                       <span style={{ fontSize: 16, fontWeight: 500 }}>Итого</span>
-                      <span style={{ fontSize: 28, fontWeight: 700, background: "linear-gradient(135deg,#e84393,#6c5ce7)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{total.toLocaleString("ru")} ₽</span>
+                      <span className="calc-total-value" style={{ fontSize: 28, fontWeight: 700, background: "linear-gradient(135deg,#e84393,#6c5ce7)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{total.toLocaleString("ru")} ₽</span>
                     </div>
-                    {totalQty > 0 && <div style={{ fontSize: 13, fontWeight: 300, color: "rgba(240,238,245,.4)", marginTop: 4, textAlign: "right" }}>≈ {Math.round(total / totalQty)} ₽ / принт</div>}
+                    {totalQty > 0 && <div className="calc-total-note" style={{ fontSize: 13, fontWeight: 300, color: "rgba(240,238,245,.4)", marginTop: 4, textAlign: "right" }}>≈ {Math.round(total / totalQty)} ₽ / принт</div>}
                   </div>
 
                   {(!isSmallOrder && !withApply && meters > 0 && meters < 1) ? (
@@ -910,10 +1105,19 @@ function CalcPage({ onBack }) {
 
             {(isSmallOrder || isMixed) && (
               <div className="cs calc-panel" style={{ padding: 22 }}>
-                <div style={{ fontSize: 11, fontWeight: 500, letterSpacing: 2, color: "rgba(240,238,245,.35)", textTransform: "uppercase", marginBottom: 14 }}>Цены по формату (до 15 шт/размер, печать + нанесение)</div>
+                <div style={{ fontSize: 11, fontWeight: 500, letterSpacing: 2, color: "rgba(240,238,245,.35)", textTransform: "uppercase", marginBottom: 14 }}>Цены по формату (печать + нанесение)</div>
                 {FORMAT_PRICES.map((f, i) => {
                   const active = formatItems.some(it => it.format && it.format.name === f.name);
-                  return <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "7px 12px", borderRadius: 8, background: active ? "rgba(232,67,147,.08)" : "transparent" }}><span style={{ fontSize: 13, fontWeight: 300, color: active ? "#e84393" : "rgba(240,238,245,.35)" }}>{f.name} ({f.short}×{f.long})</span><span style={{ fontSize: 13, fontWeight: active ? 600 : 400, color: active ? "#e84393" : "rgba(240,238,245,.45)" }}>{f.price} ₽/шт</span></div>;
+                  const isLarge = f.name === "A3+" || f.name === "A3++";
+                  return <Fragment key={i}>
+                    {i === 4 && <div style={{ borderTop: "1px solid rgba(255,255,255,.06)", margin: "6px 12px" }} />}
+                    <div className="calc-fmt-row" style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", padding: "7px 12px", borderRadius: 8, background: active ? "rgba(232,67,147,.08)" : "transparent", gap: "2px 12px" }}>
+                    <span className="calc-fmt-name" style={{ fontSize: 13, fontWeight: 300, color: active ? "#e84393" : "rgba(240,238,245,.35)", whiteSpace: "nowrap" }}>{f.name} ({f.short}×{f.long})</span>
+                    <span className="calc-fmt-prices" style={{ fontSize: 13, fontWeight: active ? 600 : 400, color: active ? "#e84393" : "rgba(240,238,245,.45)", display: "flex", alignItems: "center", gap: 8, whiteSpace: "nowrap" }}>
+                      {isLarge ? `${f.price} ₽/шт` : <>{`от 5 шт — ${f.price} ₽`}<span className="calc-fmt-div" style={{ width: 1, height: 12, background: "rgba(255,255,255,.12)", flexShrink: 0 }} />{`2-4 шт — 500 ₽`}<span className="calc-fmt-div" style={{ width: 1, height: 12, background: "rgba(255,255,255,.12)", flexShrink: 0 }} />{`1 шт — 600 ₽`}</>}
+                    </span>
+                  </div>
+                  </Fragment>;
                 })}
               </div>
             )}
@@ -1149,11 +1353,11 @@ export default function App() {
       <ReviewsSection Reveal={A} reviews={RV} reviewData={reviewData} />
 
       {/* CONTACT */}
-      <ContactSection Reveal={A} formData={fm} setFormData={setFm} onSubmit={handleContactSubmit} />
+      <ContactSection Reveal={A} />
 
       <div className="mobile-only mobile-quick-actions">
         <a href="tel:+79500003464">Позвонить</a>
-        <a href="https://t.me/FUTURE_178" target="_blank" rel="noopener noreferrer" className="mobile-quick-accent">Telegram</a>
+        <MessengerPicker label="Написать" className="mobile-quick-accent" />
         <button type="button" onClick={oc} className="mobile-quick-primary">Расчёт</button>
       </div>
       <div className="mobile-bottom-spacer" />

@@ -1,7 +1,7 @@
 import CalcIcon from "./CalcIcon.jsx";
 import LogoFullAsset from "./LogoFull.jsx";
 import Stars from "./Stars.jsx";
-import TG from "./TG.jsx";
+import MessengerPicker from "./MessengerPicker.jsx";
 
 export default function HeroSection({ Reveal: _Reveal, onOpenConstructor, onOpenCalculator, reviewData }) {
   return (
@@ -20,7 +20,7 @@ export default function HeroSection({ Reveal: _Reveal, onOpenConstructor, onOpen
       <_Reveal delay={0.5} className="flex gap-4 mt-10 flex-wrap justify-center hero-actions">
         <button className="bp hero-primary" onClick={onOpenConstructor}>Собрать свою футболку</button>
         <button className="bcalc hero-tertiary" onClick={onOpenCalculator}><CalcIcon /> Оптовый калькулятор</button>
-        <a className="btg hero-support" href="https://t.me/FUTURE_178" target="_blank" rel="noopener noreferrer"><TG /> Задать вопрос</a>
+        <MessengerPicker label="Задать вопрос" icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="#fff"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>} className="btg hero-support" />
       </_Reveal>
       <_Reveal delay={0.65} className="flex gap-12 mt-20 flex-wrap justify-center hero-stats">
         {[ ["3 000+", "Заказов"], ["от 1 шт", "Печатаем"], ["от 30мин", "Срочно"] ].map(([value, label]) => (

@@ -829,7 +829,7 @@ export default function ConstructorPage({ onBack, products }) {
     }
 
     if (nextTab === activeTab) {
-      setActiveTab(null);
+      return;
     } else {
       setActiveTab(nextTab);
     }

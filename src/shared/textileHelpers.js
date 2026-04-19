@@ -1,6 +1,7 @@
 const SIZE_RANGES = {
   "XS – 3XL": ["XS", "S", "M", "L", "XL", "2XL", "3XL"],
   "S – 2XL": ["S", "M", "L", "XL", "2XL"],
+  "M – 3XL": ["M", "L", "XL", "2XL", "3XL"],
 };
 
 const COLOR_SWATCHES = {

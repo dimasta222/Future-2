@@ -564,7 +564,7 @@ export default function useConstructorState({
   const initialProduct = products[0] || FALLBACK_PRODUCT;
   const initialSize = getPreferredProductSize(initialProduct);
 
-  const [activeTab, setActiveTab] = useState(() => { const m = loadConstructorMeta(); return m?.activeTab || "textile"; });
+  const [activeTab, setActiveTab] = useState("textile");
   const [productKey, setProductKey] = useState(() => { const m = loadConstructorMeta(); return m?.productKey || initialProduct.key || ""; });
   const [side, setSide] = useState(() => { const m = loadConstructorMeta(); return m?.side || "front"; });
   const [color, setColor] = useState(() => { const m = loadConstructorMeta(); return m?.color || initialProduct.colors?.[0] || "Чёрный"; });

@@ -1,6 +1,6 @@
 import LogoMini from "./LogoMini.jsx";
 import TG from "./TG.jsx";
-import WA from "./WA.jsx";
+import MAX from "./MAX.jsx";
 
 export default function MainNavigation({
   scrollY,
@@ -89,8 +89,8 @@ export default function MainNavigation({
                 <a href="https://t.me/FUTURE_178" target="_blank" rel="noopener noreferrer" aria-label="Telegram" className="nav-social-btn" style={{ width: 44, height: 44, borderRadius: "50%", display: "inline-flex", alignItems: "center", justifyContent: "center", textDecoration: "none", background: "linear-gradient(135deg,#0088cc,#6c5ce7)", boxShadow: "0 8px 24px rgba(0,136,204,.2)" }}>
                   <TG />
                 </a>
-                <a href="https://wa.me/79500003464" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp" className="nav-social-btn" style={{ width: 44, height: 44, borderRadius: "50%", display: "inline-flex", alignItems: "center", justifyContent: "center", textDecoration: "none", background: "linear-gradient(135deg,#25D366,#128C7E)", boxShadow: "0 8px 24px rgba(37,211,102,.2)" }}>
-                  <WA />
+                <a href="https://max.ru/u/f9LHodD0cOL0pTqxSNqIn22flD78BhADnB7BLdrGb3yZbXHeBKclVTh-b2I" target="_blank" rel="noopener noreferrer" aria-label="MAX" className="nav-social-btn" style={{ width: 44, height: 44, borderRadius: "50%", display: "inline-flex", alignItems: "center", justifyContent: "center", textDecoration: "none", background: "transparent", boxShadow: "none", overflow: "hidden" }}>
+                  <MAX />
                 </a>
               </div>
             </div>
@@ -165,8 +165,8 @@ export default function MainNavigation({
                 <a href="https://t.me/FUTURE_178" target="_blank" rel="noopener noreferrer" aria-label="Telegram" style={{ background: "linear-gradient(135deg,#0088cc,#6c5ce7)" }}>
                   <TG />
                 </a>
-                <a href="https://wa.me/79500003464" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp" style={{ background: "linear-gradient(135deg,#25D366,#128C7E)" }}>
-                  <WA />
+                <a href="https://max.ru/u/f9LHodD0cOL0pTqxSNqIn22flD78BhADnB7BLdrGb3yZbXHeBKclVTh-b2I" target="_blank" rel="noopener noreferrer" aria-label="MAX" style={{ background: "transparent", overflow: "hidden" }}>
+                  <MAX />
                 </a>
               </div>
             </div>

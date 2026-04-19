@@ -36,6 +36,11 @@ a{color:inherit}
 .field-row-label{width:92px;min-width:92px}
 .field-row-content{flex:1;min-width:0}
 .field-value{text-align:right;margin-left:auto}
+.main-tshirt-grid{scrollbar-width:thin;scrollbar-color:rgba(108,92,231,.5) rgba(255,255,255,.04)}
+.main-tshirt-grid::-webkit-scrollbar{height:4px}
+.main-tshirt-grid::-webkit-scrollbar-track{background:rgba(255,255,255,.04);border-radius:4px}
+.main-tshirt-grid::-webkit-scrollbar-thumb{background:linear-gradient(90deg,#e84393,#6c5ce7);border-radius:4px}
+.main-tshirt-grid>*{flex:0 0 240px;scroll-snap-align:start;min-width:240px;max-width:240px;overflow:hidden}
 .mobile-quick-actions{display:none;position:fixed;left:16px;right:16px;bottom:16px;z-index:120;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 .mobile-quick-actions a,.mobile-quick-actions button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:52px;padding:12px 10px;border-radius:18px;border:1px solid rgba(255,255,255,.08);background:rgba(12,12,18,.92);backdrop-filter:blur(16px);color:#f0eef5;text-decoration:none;font-size:13px;font-weight:600;font-family:'Outfit',sans-serif;box-shadow:0 12px 30px rgba(0,0,0,.24)}
 .mobile-quick-actions button{cursor:pointer}
@@ -147,12 +152,13 @@ input[type=number]{-moz-appearance:textfield}
 	.hero-stat{display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:flex-start!important;min-width:0!important}
 	.hero-stat-value{white-space:nowrap!important;line-height:1.05!important}
 	.hero-stat-label{display:flex!important;align-items:flex-start!important;justify-content:center!important;min-height:32px!important;line-height:1.35!important;text-align:center!important}
-	.textile-card-grid,.reviews-grid,.contact-grid,.size-guide-grid,.constructor-shell{grid-template-columns:1fr!important}
-	.main-tshirt-grid{display:flex!important;flex-wrap:nowrap!important;overflow-x:auto!important;overflow-y:hidden!important;-webkit-overflow-scrolling:touch!important;scroll-snap-type:x mandatory!important;gap:14px!important;padding-bottom:8px!important;justify-content:flex-start!important;align-items:stretch!important;touch-action:pan-x pan-y!important}
-	.main-tshirt-grid::-webkit-scrollbar{height:4px}
-	.main-tshirt-grid::-webkit-scrollbar-track{background:rgba(255,255,255,.04);border-radius:4px}
-	.main-tshirt-grid::-webkit-scrollbar-thumb{background:linear-gradient(90deg,#e84393,#6c5ce7);border-radius:4px}
-	.main-tshirt-grid>*{flex:0 0 210px!important;scroll-snap-align:start!important;min-width:210px!important;max-width:210px!important;overflow:hidden!important;height:auto!important}
+	.textile-card-grid{grid-template-columns:repeat(auto-fill,minmax(180px,1fr))!important;gap:14px!important}
+	.textile-card-grid .product-card{border-radius:12px!important;padding:0!important}
+	.textile-card-grid .product-card>div:last-child{padding:10px 10px 12px!important}
+	.textile-card-grid .product-card h3{font-size:13px!important}
+	.textile-card-grid .product-card span{font-size:14px!important}
+	.reviews-grid,.contact-grid,.size-guide-grid,.constructor-shell{grid-template-columns:1fr!important}
+	.main-tshirt-grid>*{flex:0 0 210px!important;min-width:210px!important;max-width:210px!important}
 	.main-showcase-card{height:100%!important}
 	.main-showcase-card .main-card-header h3{font-size:13px!important}
 	.main-showcase-card .main-card-header span{font-size:13px!important}
@@ -178,12 +184,13 @@ input[type=number]{-moz-appearance:textfield}
 	.gallery-thumb-grid{flex-wrap:nowrap!important;overflow-x:auto!important;padding-bottom:4px!important}
 	.modal-shell{padding:16px!important}
 	.modal-card{padding:18px!important}
-	.scroll-tabs{overflow-x:auto!important;justify-content:flex-start!important;padding-bottom:4px!important;scrollbar-width:none}
+	.scroll-tabs{overflow-x:auto!important;justify-content:center!important;padding-bottom:4px!important;scrollbar-width:none}
 	.scroll-tabs::-webkit-scrollbar{display:none}
 	.pricing-table table{min-width:620px!important}
 	.mobile-only{display:block}
 	.mobile-quick-actions{display:grid}
 	.mobile-bottom-spacer{display:block;height:92px}
+	.hero-support{display:none!important}
 }
 @media(max-width:640px){
 	.bp,.bo,.btg,.bcalc{padding:12px 20px!important;font-size:14px!important}
@@ -208,7 +215,6 @@ input[type=number]{-moz-appearance:textfield}
 	.hero-title{font-size:clamp(32px,9vw,46px)!important;letter-spacing:1px!important;line-height:1.16!important;margin-top:18px!important}
 	.hero-subtitle{font-size:14px!important;margin-top:16px!important}
 	.hero-actions>*{flex:1 1 100%!important}
-	.hero-support{display:none!important}
 	.hero-stats{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:12px!important}
 	.calc-item-grid{grid-template-columns:1fr 1fr 1fr!important;gap:6px!important}
 	.calc-item-grid input{padding:8px 4px!important;font-size:14px!important}
@@ -216,6 +222,23 @@ input[type=number]{-moz-appearance:textfield}
 	.calc-layout-toggle-mobile{display:flex!important}
 	.calc-layout-block{display:none!important}
 	.calc-layout-block-visible{display:block!important}
+	.calc-add-row{flex-direction:column!important}
+	.calc-add-row>*{width:100%!important}
+	.calc-file-label{padding:3px 8px!important;font-size:10px!important;gap:4px!important}
+	.calc-file-label svg{width:10px!important;height:10px!important}
+	.calc-file-info{gap:6px!important;padding:6px 8px!important}
+	.calc-file-info img{width:28px!important;height:28px!important;border-radius:5px!important}
+	.calc-file-info-name{font-size:11px!important}
+	.calc-file-info-dpi{font-size:9px!important}
+	.calc-fmt-row{padding:6px 8px!important;gap:2px 6px!important}
+	.calc-fmt-name{font-size:12px!important}
+	.calc-fmt-prices{font-size:11px!important;flex-wrap:wrap!important;white-space:normal!important;gap:2px 6px!important}
+	.calc-total-box{padding:14px 16px!important}
+	.calc-total-value{font-size:22px!important}
+	.calc-total-note{font-size:11px!important}
+	.calc-result-dims{font-size:13px!important}
+	.calc-result-sub{font-size:11px!important;margin-left:14px!important}
+	.calc-result-price{font-size:15px!important}
 	.qty-inline{width:100%!important;justify-content:space-between!important}
 	.mobile-quick-actions{left:12px;right:12px;bottom:12px;gap:8px}
 	.size-guide-grid{grid-template-columns:1fr!important}
@@ -234,8 +257,17 @@ input[type=number]{-moz-appearance:textfield}
 	.hero-rating{width:100%!important}
 	.pricing-table table{min-width:540px!important}
 	.main-card,.product-card,.review-card,.contact-card,.constructor-panel,.calc-panel{padding:18px!important}
-	.textile-card-grid,.main-tshirt-grid,.reviews-grid,.contact-grid{gap:16px!important}
+	.textile-card-grid{gap:10px!important}
+	.textile-card-grid .product-card h3{font-size:12px!important}
+	.textile-card-grid .product-card span{font-size:13px!important}
+	.main-tshirt-grid,.reviews-grid,.contact-grid{gap:16px!important}
 	.gallery-thumb-grid>*{min-width:180px!important}
+	.calc-fmt-name{font-size:11px!important}
+	.calc-fmt-prices{font-size:10px!important}
+	.calc-total-box{padding:12px 14px!important}
+	.calc-total-value{font-size:20px!important}
+	.calc-result-dims{font-size:12px!important}
+	.calc-result-price{font-size:14px!important}
 }
 `;
 

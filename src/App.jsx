@@ -37,6 +37,90 @@ const CALC_PRINT_DPI = 300;
 const CALC_DPI_WARN = 150;
 const THUMB_MAX = 256;
 const TIFF_THUMB_LIMIT = 20 * 1024 * 1024; // 20 MB — выше не декодируем пиксели
+const DEFAULT_DPI = 72;
+
+function extractDpiFromBytes(buffer, ext) {
+  try {
+    const view = new DataView(buffer);
+    const u8 = new Uint8Array(buffer);
+
+    if (ext === "jpg" || ext === "jpeg" || ext === "jfif") {
+      if (u8[0] !== 0xFF || u8[1] !== 0xD8) return null;
+      let offset = 2;
+      while (offset < u8.length - 10) {
+        if (u8[offset] !== 0xFF) break;
+        const marker = u8[offset + 1];
+        if (marker === 0xD9 || marker === 0xDA) break;
+        const segLen = view.getUint16(offset + 2);
+        if (marker === 0xE0 && segLen >= 14 && u8[offset + 4] === 0x4A && u8[offset + 5] === 0x46 && u8[offset + 6] === 0x49 && u8[offset + 7] === 0x46) {
+          const units = u8[offset + 11];
+          const xDen = view.getUint16(offset + 12);
+          const yDen = view.getUint16(offset + 14);
+          const dpi = Math.max(xDen, yDen);
+          if (units === 1 && dpi > 0) return dpi;
+          if (units === 2 && dpi > 0) return Math.round(dpi * 2.54);
+        }
+        if (marker === 0xE1 && segLen >= 14 && u8[offset + 4] === 0x45 && u8[offset + 5] === 0x78 && u8[offset + 6] === 0x69 && u8[offset + 7] === 0x66) {
+          const tiffStart = offset + 10;
+          if (tiffStart + 8 > u8.length) { offset += 2 + segLen; continue; }
+          const le = u8[tiffStart] === 0x49;
+          const r16 = (o) => view.getUint16(tiffStart + o, le);
+          const r32 = (o) => view.getUint32(tiffStart + o, le);
+          const ifdOffset = r32(4);
+          if (tiffStart + ifdOffset + 2 > u8.length) { offset += 2 + segLen; continue; }
+          const ifdCount = r16(ifdOffset);
+          let xRes = 0, yRes = 0, resUnit = 2;
+          for (let i = 0; i < ifdCount; i++) {
+            const eo = ifdOffset + 2 + i * 12;
+            if (tiffStart + eo + 12 > u8.length) break;
+            const tag = r16(eo);
+            if (tag === 0x011A || tag === 0x011B) {
+              const valOff = r32(eo + 8);
+              if (tiffStart + valOff + 8 <= u8.length) {
+                const n = r32(valOff), d = r32(valOff + 4) || 1;
+                if (tag === 0x011A) xRes = n / d; else yRes = n / d;
+              }
+            }
+            if (tag === 0x0128) resUnit = r16(eo + 8);
+          }
+          const maxRes = Math.max(xRes, yRes);
+          if (maxRes > 0) {
+            if (resUnit === 3) return Math.round(maxRes * 2.54);
+            return Math.round(maxRes);
+          }
+        }
+        offset += 2 + segLen;
+      }
+      return null;
+    }
+
+    if (ext === "png") {
+      if (u8[0] !== 0x89 || u8[1] !== 0x50) return null;
+      let offset = 8;
+      while (offset + 12 < u8.length) {
+        const chunkLen = view.getUint32(offset);
+        const type = String.fromCharCode(u8[offset + 4], u8[offset + 5], u8[offset + 6], u8[offset + 7]);
+        if (type === "pHYs" && chunkLen === 9 && offset + 17 <= u8.length) {
+          const ppuX = view.getUint32(offset + 8);
+          const ppuY = view.getUint32(offset + 12);
+          const unit = u8[offset + 16];
+          if (unit === 1) {
+            const dpi = Math.round(Math.max(ppuX, ppuY) / 39.3701);
+            return dpi > 0 ? dpi : null;
+          }
+          return null;
+        }
+        if (type === "IDAT" || type === "IEND") break;
+        offset += 12 + chunkLen;
+      }
+      return null;
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 async function processCalcFile(file) {
   const ext = file.name.split(".").pop().toLowerCase();
@@ -52,10 +136,18 @@ async function processCalcFile(file) {
       if (!ifds.length) return null;
       const ifd = ifds[0];
       const w = ifd.width, h = ifd.height;
-      const wCm = +(w / CALC_PRINT_DPI * 2.54).toFixed(1);
-      const hCm = +(h / CALC_PRINT_DPI * 2.54).toFixed(1);
-      const maxDim = Math.max(w, h);
-      const dpiWarning = maxDim < 1000;
+      let fileDpi = DEFAULT_DPI;
+      try {
+        const xr = ifd.t282, yr = ifd.t283, ru = ifd.t296;
+        const xd = Array.isArray(xr) ? xr[0] / (xr[1] || 1) : (xr || 0);
+        const yd = Array.isArray(yr) ? yr[0] / (yr[1] || 1) : (yr || 0);
+        const maxR = Math.max(xd, yd);
+        const unit = Array.isArray(ru) ? ru[0] : (ru || 2);
+        if (maxR > 0) fileDpi = unit === 3 ? Math.round(maxR * 2.54) : Math.round(maxR);
+      } catch { /* fallback to DEFAULT_DPI */ }
+      const wCm = +(w / fileDpi * 2.54).toFixed(1);
+      const hCm = +(h / fileDpi * 2.54).toFixed(1);
+      const dpiWarning = fileDpi < CALC_PRINT_DPI;
       let thumb = null;
       if (file.size <= TIFF_THUMB_LIMIT) {
         UTIF.decodeImage(buf, ifd);
@@ -115,15 +207,18 @@ async function processCalcFile(file) {
     return { w: wCm, h: hCm, thumb, fileName: file.name, dpiWarning: false };
   }
 
+  const rasterBuf = await file.arrayBuffer();
+  const fileDpi = extractDpiFromBytes(rasterBuf, ext) || DEFAULT_DPI;
+  const dpiWarning = fileDpi < CALC_PRINT_DPI;
+
   return new Promise((resolve) => {
-    const url = URL.createObjectURL(file);
+    const url = URL.createObjectURL(new Blob([rasterBuf], { type: file.type }));
     const img = new Image();
     img.onload = () => {
       const origW = img.naturalWidth, origH = img.naturalHeight;
-      const wCm = +(origW / CALC_PRINT_DPI * 2.54).toFixed(1);
-      const hCm = +(origH / CALC_PRINT_DPI * 2.54).toFixed(1);
+      const wCm = +(origW / fileDpi * 2.54).toFixed(1);
+      const hCm = +(origH / fileDpi * 2.54).toFixed(1);
       const maxDim = Math.max(origW, origH);
-      const dpiWarning = maxDim < 1000;
       const ratio = Math.min(THUMB_MAX / maxDim, 1);
       const tc = document.createElement("canvas");
       tc.width = Math.round(origW * ratio); tc.height = Math.round(origH * ratio);
@@ -886,7 +981,7 @@ function CalcPage({ onBack }) {
                     {it.thumb && <img src={it.thumb} alt="" style={{ width: 32, height: 32, borderRadius: 6, objectFit: "cover", flexShrink: 0 }} />}
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <div className="calc-file-info-name" style={{ fontSize: 12, fontWeight: 500, color: "rgba(240,238,245,.7)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{it.fileName}</div>
-                      {it.dpiWarning && <div className="calc-file-info-dpi" style={{ fontSize: 10, color: "#fdcb6e", marginTop: 2 }}>⚠ Низкое разрешение (&lt; 150 DPI)</div>}
+                      {it.dpiWarning && <div className="calc-file-info-dpi" style={{ fontSize: 10, color: "#fdcb6e", marginTop: 2 }}>⚠ Низкое разрешение (&lt; 300 DPI)</div>}
                     </div>
                     <button onClick={() => clearFileFromItem(it.id)} style={{ background: "none", border: "none", color: "rgba(240,238,245,.3)", cursor: "pointer", fontSize: 14, fontFamily: "inherit", flexShrink: 0, padding: "2px 4px" }} onMouseEnter={e => e.target.style.color = "#e84393"} onMouseLeave={e => e.target.style.color = "rgba(240,238,245,.3)"}>✕</button>
                   </div>
@@ -1170,7 +1265,7 @@ const PRICING_NOTES = [
   { text: "Тестовый образец — 600 ₽ (A6–A3)", highlight: true },
   { text: "Цены за принт + прижим" },
   { text: "Отдельный перенос — 100 ₽/шт" },
-  { text: "Мин. стоимость — 500 ₽" },
+  { text: "Мин. стоимость печати — 500 ₽" },
 ];
 const RV = [
   { name: "Наталья Гвоздева", date: "8 фев 2025", text: "Быстро, качественно, бюджетно. Напечатали форму на коллектив. Стирают — всё супер!" },

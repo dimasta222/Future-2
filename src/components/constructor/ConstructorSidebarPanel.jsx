@@ -1405,29 +1405,20 @@ export default function ConstructorSidebarPanel({
                         </div>
                       ) : null}
 
-                      {groupedTextFontEntries.map(([groupKey, fonts]) => (
-                        <div key={groupKey} style={{ display: "grid", gap: 6 }}>
-                          <div style={{ fontSize: 11, lineHeight: 1.2, letterSpacing: ".08em", textTransform: "uppercase", color: "rgba(240,238,245,.38)" }}>
-                            {FONT_GROUP_LABELS[groupKey] || groupKey}
-                          </div>
-                          <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 8 }}>
-                            {fonts.map((font) => (
-                              <FontOptionButton
-                                key={font.key}
-                                font={font}
-                                active={textFontKey === font.key}
-                                keyboardActive={currentKeyboardFontKey === font.key}
-                                highlightQuery={font.labelMatchQuery || ""}
-                                optionRef={(node) => {
-                                  fontOptionRefs.current[font.key] = node;
-                                }}
-                                onFocus={() => setKeyboardFontKey(font.key)}
-                                onMouseEnter={() => setKeyboardFontKey(font.key)}
-                                onClick={() => handleFontSelect(font.key)}
-                              />
-                            ))}
-                          </div>
-                        </div>
+                      {groupedTextFontEntries.flatMap(([, fonts]) => fonts).map((font) => (
+                        <FontOptionButton
+                          key={font.key}
+                          font={font}
+                          active={textFontKey === font.key}
+                          keyboardActive={currentKeyboardFontKey === font.key}
+                          highlightQuery={font.labelMatchQuery || ""}
+                          optionRef={(node) => {
+                            fontOptionRefs.current[font.key] = node;
+                          }}
+                          onFocus={() => setKeyboardFontKey(font.key)}
+                          onMouseEnter={() => setKeyboardFontKey(font.key)}
+                          onClick={() => handleFontSelect(font.key)}
+                        />
                       ))}
                     </div>
                   ) : (

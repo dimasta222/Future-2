@@ -482,6 +482,8 @@ export default function ConstructorSidebarPanel({
   activeUploadLayer,
   activeTextLayer,
   activeTextMetricsCm,
+  showTextInkGuide = false,
+  onShowTextInkGuideChange,
   activeTextToolPanel,
   textSidebarOverlayOpen = false,
   onCloseTextSidebarOverlay,
@@ -1180,8 +1182,8 @@ export default function ConstructorSidebarPanel({
                     step="0.1"
                     value={uploadWidthFocused ? uploadWidthInput : uploadWidthCm.toFixed(1)}
                     onFocus={(e) => { setUploadWidthFocused(true); setUploadWidthInput(uploadWidthCm.toFixed(1)); e.target.select(); }}
-                    onBlur={() => { setUploadWidthFocused(false); if (setUploadDimensionCm) setUploadDimensionCm("width", uploadWidthInput, uploadAspectLock); }}
-                    onChange={(e) => setUploadWidthInput(e.target.value)}
+                    onBlur={() => { setUploadWidthFocused(false); }}
+                    onChange={(e) => { setUploadWidthInput(e.target.value); if (setUploadDimensionCm) setUploadDimensionCm("width", e.target.value, uploadAspectLock); }}
                     onKeyDown={(e) => { if (e.key === "Enter") { e.target.blur(); } }}
                     style={{ width: "100%", padding: "6px 8px", borderRadius: 8, border: "1px solid rgba(255,255,255,.1)", background: "rgba(255,255,255,.04)", color: "#f0eef5", fontSize: 13, fontFamily: "'Outfit',sans-serif", outline: "none", boxSizing: "border-box" }}
                   />
@@ -1209,13 +1211,32 @@ export default function ConstructorSidebarPanel({
                     step="0.1"
                     value={uploadHeightFocused ? uploadHeightInput : uploadHeightCm.toFixed(1)}
                     onFocus={(e) => { setUploadHeightFocused(true); setUploadHeightInput(uploadHeightCm.toFixed(1)); e.target.select(); }}
-                    onBlur={() => { setUploadHeightFocused(false); if (setUploadDimensionCm) setUploadDimensionCm("height", uploadHeightInput, uploadAspectLock); }}
-                    onChange={(e) => setUploadHeightInput(e.target.value)}
+                    onBlur={() => { setUploadHeightFocused(false); }}
+                    onChange={(e) => { setUploadHeightInput(e.target.value); if (setUploadDimensionCm) setUploadDimensionCm("height", e.target.value, uploadAspectLock); }}
                     onKeyDown={(e) => { if (e.key === "Enter") { e.target.blur(); } }}
                     style={{ width: "100%", padding: "6px 8px", borderRadius: 8, border: "1px solid rgba(255,255,255,.1)", background: "rgba(255,255,255,.04)", color: "#f0eef5", fontSize: 13, fontFamily: "'Outfit',sans-serif", outline: "none", boxSizing: "border-box" }}
                   />
                 </div>
               </div>
+              {(() => {
+                const pixelW = Number(activeUploadLayer.width) || 0;
+                const pixelH = Number(activeUploadLayer.height) || 0;
+                const cmW = uploadWidthCm || 1;
+                const cmH = uploadHeightCm || 1;
+                if (pixelW <= 0 || pixelH <= 0 || activeUploadLayer.sourceType === "svg") return null;
+                const dpiW = pixelW / (cmW / 2.54);
+                const dpiH = pixelH / (cmH / 2.54);
+                const effectiveDpi = Math.round(Math.min(dpiW, dpiH));
+                if (effectiveDpi >= 150) return null;
+                return (
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 7, padding: "8px 10px", borderRadius: 10, background: effectiveDpi < 72 ? "rgba(235,87,87,.12)" : "rgba(255,193,7,.1)", border: effectiveDpi < 72 ? "1px solid rgba(235,87,87,.28)" : "1px solid rgba(255,193,7,.22)" }}>
+                    <span style={{ flexShrink: 0, fontSize: 15, lineHeight: 1 }}>{effectiveDpi < 72 ? "⚠️" : "⚠️"}</span>
+                    <div style={{ fontSize: 12, lineHeight: 1.45, color: effectiveDpi < 72 ? "rgba(255,130,130,.92)" : "rgba(255,220,130,.88)" }}>
+                      Низкое разрешение: ~{effectiveDpi} DPI. {effectiveDpi < 72 ? "Печать будет размытой. Используйте файл с большим разрешением или уменьшите размер печати." : "Для качественной печати рекомендуется от 150 DPI. Попробуйте уменьшить размер печати или загрузить файл с большим разрешением."}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           </SidebarFieldRow>
         ) : uploadedFiles.length ? (
@@ -1344,6 +1365,15 @@ export default function ConstructorSidebarPanel({
                     {activeTextMetricsCm ? `${activeTextMetricsCm.contentWidthCm} × ${activeTextMetricsCm.contentHeightCm} см` : "..."}
                   </div>
                 </div>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", borderRadius: 10, background: "rgba(255,255,255,.02)", border: "1px solid rgba(255,255,255,.06)", cursor: "pointer", userSelect: "none" }}>
+                  <input
+                    type="checkbox"
+                    checked={!!showTextInkGuide}
+                    onChange={(e) => onShowTextInkGuideChange?.(e.target.checked)}
+                    style={{ accentColor: "#7c5cff" }}
+                  />
+                  <span style={{ fontSize: 12, color: "rgba(240,238,245,.78)" }}>Показывать реальные границы текста</span>
+                </label>
               </div>
             </SidebarFieldRow>
         ) : null}
@@ -1634,8 +1664,8 @@ export default function ConstructorSidebarPanel({
                       step="0.1"
                       value={shapeWidthFocused ? shapeWidthInput : safeShapeWidthCm.toFixed(1)}
                       onFocus={(e) => { setShapeWidthFocused(true); setShapeWidthInput(safeShapeWidthCm.toFixed(1)); e.target.select(); }}
-                      onBlur={() => { setShapeWidthFocused(false); if (setShapeDimensionCm) setShapeDimensionCm("width", shapeWidthInput, shapeAspectLock); }}
-                      onChange={(e) => setShapeWidthInput(e.target.value)}
+                      onBlur={() => { setShapeWidthFocused(false); }}
+                      onChange={(e) => { setShapeWidthInput(e.target.value); if (setShapeDimensionCm) setShapeDimensionCm("width", e.target.value, shapeAspectLock); }}
                       onKeyDown={(e) => { if (e.key === "Enter") { e.target.blur(); } }}
                       style={{ width: "100%", padding: "6px 8px", borderRadius: 8, border: "1px solid rgba(255,255,255,.1)", background: "rgba(255,255,255,.04)", color: "#f0eef5", fontSize: 13, fontFamily: "'Outfit',sans-serif", outline: "none", boxSizing: "border-box" }}
                     />
@@ -1663,8 +1693,8 @@ export default function ConstructorSidebarPanel({
                       step="0.1"
                       value={shapeHeightFocused ? shapeHeightInput : safeShapeHeightCm.toFixed(1)}
                       onFocus={(e) => { setShapeHeightFocused(true); setShapeHeightInput(safeShapeHeightCm.toFixed(1)); e.target.select(); }}
-                      onBlur={() => { setShapeHeightFocused(false); if (setShapeDimensionCm) setShapeDimensionCm("height", shapeHeightInput, shapeAspectLock); }}
-                      onChange={(e) => setShapeHeightInput(e.target.value)}
+                      onBlur={() => { setShapeHeightFocused(false); }}
+                      onChange={(e) => { setShapeHeightInput(e.target.value); if (setShapeDimensionCm) setShapeDimensionCm("height", e.target.value, shapeAspectLock); }}
                       onKeyDown={(e) => { if (e.key === "Enter") { e.target.blur(); } }}
                       style={{ width: "100%", padding: "6px 8px", borderRadius: 8, border: "1px solid rgba(255,255,255,.1)", background: "rgba(255,255,255,.04)", color: "#f0eef5", fontSize: 13, fontFamily: "'Outfit',sans-serif", outline: "none", boxSizing: "border-box" }}
                     />
@@ -1690,8 +1720,8 @@ export default function ConstructorSidebarPanel({
                       step="0.1"
                       value={shapeWidthFocused ? shapeWidthInput : safeShapeWidthCm.toFixed(1)}
                       onFocus={(e) => { setShapeWidthFocused(true); setShapeWidthInput(safeShapeWidthCm.toFixed(1)); e.target.select(); }}
-                      onBlur={() => { setShapeWidthFocused(false); if (setShapeDimensionCm) setShapeDimensionCm("width", shapeWidthInput, shapeAspectLock); }}
-                      onChange={(e) => setShapeWidthInput(e.target.value)}
+                      onBlur={() => { setShapeWidthFocused(false); }}
+                      onChange={(e) => { setShapeWidthInput(e.target.value); if (setShapeDimensionCm) setShapeDimensionCm("width", e.target.value, shapeAspectLock); }}
                       onKeyDown={(e) => { if (e.key === "Enter") { e.target.blur(); } }}
                       style={{ width: "100%", padding: "6px 8px", borderRadius: 8, border: "1px solid rgba(255,255,255,.1)", background: "rgba(255,255,255,.04)", color: "#f0eef5", fontSize: 13, fontFamily: "'Outfit',sans-serif", outline: "none", boxSizing: "border-box" }}
                     />
@@ -1719,8 +1749,8 @@ export default function ConstructorSidebarPanel({
                       step="0.1"
                       value={shapeHeightFocused ? shapeHeightInput : safeShapeHeightCm.toFixed(1)}
                       onFocus={(e) => { setShapeHeightFocused(true); setShapeHeightInput(safeShapeHeightCm.toFixed(1)); e.target.select(); }}
-                      onBlur={() => { setShapeHeightFocused(false); if (setShapeDimensionCm) setShapeDimensionCm("height", shapeHeightInput, shapeAspectLock); }}
-                      onChange={(e) => setShapeHeightInput(e.target.value)}
+                      onBlur={() => { setShapeHeightFocused(false); }}
+                      onChange={(e) => { setShapeHeightInput(e.target.value); if (setShapeDimensionCm) setShapeDimensionCm("height", e.target.value, shapeAspectLock); }}
                       onKeyDown={(e) => { if (e.key === "Enter") { e.target.blur(); } }}
                       style={{ width: "100%", padding: "6px 8px", borderRadius: 8, border: "1px solid rgba(255,255,255,.1)", background: "rgba(255,255,255,.04)", color: "#f0eef5", fontSize: 13, fontFamily: "'Outfit',sans-serif", outline: "none", boxSizing: "border-box" }}
                     />

@@ -155,22 +155,29 @@ Constructor-related элементы:
 - constructor config
 - constructor-specific data builders
 - constructor-specific utility functions
+- PDF font registry with pathss to TTF files
+
+Основное содержимое:
+
+- CONSTRUCTOR_PRINT_AREAS — размеры печатных зон (физические см и mockup-пиксели) с mockupAspectRatio для каждого типа для корректного преобразования в PDF
+- GOOGLE_FONT_TTF_MAP — реестр шрифтов Google Fonts с путями к TTF-файлам в public/fonts/Google/ для использования в PDF-экспорте
+- getTtfPath(...) — вспомогательная функция для поиска TTF-пути шрифта и веса
 
 Экспорты:
 
-- CONSTRUCTOR_PRINT_AREAS
-- resolveConstructorPrintArea(...)
-- resolveConstructorMockupSrc(...)
+- CONSTRUCTOR_PRINT_AREAS — физические размеры зон печати подвывод в PDF и физические граница на превью
+- resolveConstructorPrintArea(...) — выбор зоны печати по размеру товара
+- resolveConstructorMockupSrc(...) — выбор нужного мокапа (PNG/SVG) по цвету и размеру
 - CONSTRUCTOR_TABS
 	- current sidebar tab order: «Текстиль» → «Текст» → «Фигуры» → «Загрузить» → «Слои»
 - CONSTRUCTOR_SHAPE_CATEGORIES
 - CONSTRUCTOR_SHAPES
 - CONSTRUCTOR_SHAPE_BASIC_COLORS
-- buildConstructorProducts(...)
-- buildConstructorShapeSvg(...)
-- buildConstructorTelegramLink(...)
-- readFileAsDataUrl(...)
-- readImageSize(...)
+- buildConstructorProducts(...) — список товаров
+- buildConstructorShapeSvg(...) — генерация SVG фигур
+- buildConstructorTelegramLink(...) — сборка ссылки заказа
+- readFileAsDataUrl(...) — загрузко файлов
+- readImageSize(...) — определение размеров загруженных изображений
 
 ### src/components/constructor/ConstructorTabsNav.jsx
 
@@ -345,5 +352,23 @@ Props:
 ## Текущее направление для дальнейшего выноса
 
 Потенциальные следующие шаги:
+
+## Шрифты и PDF экспорт
+
+### Архитектура шрифтов
+
+- **Источник:** `public/fonts/Google/` — все TTF-файлы с полной поддержкой Unicode (кириллица + латиница)
+- **Загрузка:** `src/generated/localFonts.css` — автогенерируемый файл с @font-face декларациями для всех локальных TTF
+- **Причина:** Консолидация из трёх источников (Google Fonts API + @fontsource npm-пакеты) в один локальный TTF-репозиторий; Google Fonts v2 API возвращает TTF с полным Unicode, поэтому отдельные cyrillic/latin варианты не требуются
+
+### PDF экспорт (src/utils/exportPrintPdf.js)
+
+- **Шрифты в PDF:** Canvas-based text rendering с использованием Font Loading API (`document.fonts.load()`) для асинхронной загрузки шрифтов перед рендерингом
+- **Текст:** Все текстовые слои рендерятся через canvas с 120 px/cm (305 DPI) для качественного вывода
+- **Пропорции:** Зона печати в `OVERSIZE_PRINT_AREA_GEOMETRY` приведена к физическому AR (XS = 41/52 ≈ 0.788) через `width: 54.9, height: 76.3`. PDF-страница строится напрямую по `physW × physH` без Y-растяжки (`effectivePhysH = physH`).
+- **Ink-bbox центрирование текста:** Текстовые слои в PDF и preview-PNG позиционируются по реальным пикселям глифов (alpha-scan canvas → ink-center совпадает с `position.x/y`). Утилита: `src/utils/textInkBbox.js` — `measureTextInkBboxPx()`. Это даёт точное соответствие размера в Photoshop (после Trim) и UI summary, особенно для скриптовых шрифтов с росчерками.
+- **Превью конструктора:** DOM-узел текстового слоя сдвигается дополнительным `translate(-dxEm, -dyEm)` в CSS-transform, чтобы его ink-центр визуально совпал с `position.x/y`. Это синхронизирует превью, PDF и Photoshop.
+- **Изображения:** Передаются напрямую в jsPDF без переконвертации для сохранения оригинальных ICC-профилей (забота о цветовой точности)
+- **Поддержка кириллицы:** Работает через @font-face + Font Loading API без необходимости дополнительных конфигураций
 
 - при росте сложности разделить useConstructorState.js на smaller hooks

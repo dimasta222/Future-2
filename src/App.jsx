@@ -881,7 +881,24 @@ function CalcPage({ onBack }) {
   const [mobileLayoutVisible, setMobileLayoutVisible] = useState(false);
   const [printsExpanded, setPrintsExpanded] = useState(false);
   const [orderModalOpen, setOrderModalOpen] = useState(false);
+  const [highlightedItemId, setHighlightedItemId] = useState(null);
   const layoutViewportRef = useRef(null);
+
+  const goToPrintFile = (targetId) => {
+    setOrderModalOpen(false);
+    setPrintsExpanded(true);
+    setHighlightedItemId(targetId);
+    setTimeout(() => {
+      const node = document.getElementById(`calc-print-${targetId}`);
+      if (node) {
+        node.scrollIntoView({ behavior: "smooth", block: "center" });
+        const fileInput = node.querySelector('input[type="file"]');
+        // Open file picker after the smooth-scroll has a moment to start.
+        setTimeout(() => { fileInput?.click(); }, 350);
+      }
+    }, 60);
+    setTimeout(() => setHighlightedItemId(null), 3000);
+  };
 
   useEffect(() => {
     const stripped = items.map(({ originalFile: _of, ...rest }) => rest);
@@ -1124,8 +1141,21 @@ function CalcPage({ onBack }) {
             <div style={{ display: "flex", flexDirection: "column", gap: 16, position: "relative", ...(items.length > 5 && !printsExpanded ? { maxHeight: 160, overflow: "hidden" } : {}) }}>
               {(items.length > 5 && !printsExpanded ? items.slice(0, 2) : items).map((it, idx) => {
                 const globalIdx = items.indexOf(it);
+                const isHighlighted = it.id === highlightedItemId;
                 return (
-                <div key={it.id} className="cs calc-panel" style={{ padding: "20px 22px" }}>
+                <div
+                  key={it.id}
+                  id={`calc-print-${it.id}`}
+                  className="cs calc-panel"
+                  style={{
+                    padding: "20px 22px",
+                    transition: "box-shadow .3s, border-color .3s",
+                    ...(isHighlighted ? {
+                      boxShadow: "0 0 0 2px rgba(232,67,147,.55), 0 12px 32px rgba(232,67,147,.18)",
+                      borderColor: "rgba(232,67,147,.55)",
+                    } : {}),
+                  }}
+                >
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
                   <div style={{ width: 14, height: 14, borderRadius: 4, background: COLORS[globalIdx % COLORS.length], flexShrink: 0 }} />
                   <span style={{ fontSize: 14, fontWeight: 500 }}>Принт #{globalIdx + 1}</span>
@@ -1429,7 +1459,7 @@ function CalcPage({ onBack }) {
         metersRound={metersDisplay}
         costLines={orderCostLines}
         total={total}
-        onAddFiles={handleMultiFileUpload}
+        onGoToPrintFile={goToPrintFile}
         onResetCalc={resetCalc}
       />
     </div>

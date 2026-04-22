@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { generateCalcOrderPdf, buildCalcOrderData, buildOrderMessage } from "../utils/calcOrderPdf.js";
 
 const TELEGRAM_URL = "https://t.me/FUTURE_178";
@@ -22,11 +22,10 @@ function getExtension(name) {
   return dot >= 0 ? name.slice(dot) : "";
 }
 
-export default function CalcOrderModal({ open, onClose, items, mode, totalQty, lengthCm, metersRound, costLines, total, onAddFiles, onResetCalc }) {
+export default function CalcOrderModal({ open, onClose, items, mode, totalQty, lengthCm, metersRound, costLines, total, onGoToPrintFile, onResetCalc }) {
   const [pdfBlob, setPdfBlob] = useState(null);
   const [building, setBuilding] = useState(false);
   const [error, setError] = useState(null);
-  const inputRef = useRef(null);
 
   const orderData = useMemo(() => {
     if (!open) return null;
@@ -34,8 +33,12 @@ export default function CalcOrderModal({ open, onClose, items, mode, totalQty, l
   }, [open, items, mode, totalQty, lengthCm, metersRound, costLines, total]);
 
   const message = useMemo(() => (orderData ? buildOrderMessage(orderData) : ""), [orderData]);
+  const itemsWithoutFiles = items
+    .map((it, i) => ({ id: it.id, num: i + 1, has: !!it.originalFile }))
+    .filter((x) => !x.has);
   const hasFiles = items.some((it) => it.originalFile);
   const allHaveFiles = items.length > 0 && items.every((it) => it.originalFile);
+  const firstEmptyId = itemsWithoutFiles[0]?.id ?? null;
 
   useEffect(() => {
     if (!open || !orderData) return undefined;
@@ -125,76 +128,89 @@ export default function CalcOrderModal({ open, onClose, items, mode, totalQty, l
             </div>
           </section>
 
-          {hasFiles ? (
-            <>
-              <section>
-                <div style={{ fontSize: 11, letterSpacing: 2, textTransform: "uppercase", color: "rgba(240,238,245,.4)", marginBottom: 8 }}>Файлы</div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {items.map((it, i) => (
-                    <div key={it.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: "rgba(255,255,255,.03)", borderRadius: 10, fontSize: 13 }}>
-                      {it.thumb && <img src={it.thumb} alt="" style={{ width: 32, height: 32, borderRadius: 6, objectFit: "cover", flexShrink: 0 }} />}
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 500 }}>Принт {i + 1} ({it.qty} шт)</div>
-                        <div style={{ fontSize: 11, color: "rgba(240,238,245,.45)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {it.w}×{it.h} см {it.originalFile ? `· ${it.originalFile.name}` : "· файл не приложен"}
-                        </div>
+          {hasFiles && (
+            <section>
+              <div style={{ fontSize: 11, letterSpacing: 2, textTransform: "uppercase", color: "rgba(240,238,245,.4)", marginBottom: 8 }}>Файлы</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {items.map((it, i) => (
+                  <div key={it.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: "rgba(255,255,255,.03)", borderRadius: 10, fontSize: 13 }}>
+                    {it.thumb && <img src={it.thumb} alt="" style={{ width: 32, height: 32, borderRadius: 6, objectFit: "cover", flexShrink: 0 }} />}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 500 }}>Принт {i + 1} ({it.qty} шт)</div>
+                      <div style={{ fontSize: 11, color: "rgba(240,238,245,.45)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {it.w}×{it.h} см {it.originalFile ? `· ${it.originalFile.name}` : "· файл не приложен"}
                       </div>
                     </div>
-                  ))}
-                </div>
-                {!allHaveFiles && (
-                  <div style={{ marginTop: 8, fontSize: 12, color: "#ffb86b" }}>
-                    Не для всех принтов приложены файлы. Можно дозагрузить ниже.
                   </div>
-                )}
-              </section>
-
-              <button onClick={downloadAllAssets} disabled={building || !pdfBlob} style={{
-                ...btnStyle("linear-gradient(135deg,#e84393,#6c5ce7)"),
-                width: "100%", border: "none", cursor: building || !pdfBlob ? "wait" : "pointer", opacity: building || !pdfBlob ? 0.6 : 1
-              }}>{building ? "Готовим PDF…" : "Скачать PDF и все файлы"}</button>
-
-              <div>
-                <div style={{ fontSize: 12, color: "rgba(240,238,245,.55)", marginBottom: 10, lineHeight: 1.5 }}>
-                  Затем отправьте всё одним сообщением — текст уже подставится автоматически:
-                </div>
-                {channelButtons}
+                ))}
               </div>
-            </>
-          ) : (
-            <>
-              <div style={{ padding: 14, borderRadius: 12, background: "rgba(108,92,231,.08)", border: "1px solid rgba(108,92,231,.25)", fontSize: 13, color: "rgba(240,238,245,.8)", lineHeight: 1.5 }}>
-                Файлы для печати ещё не загружены. Добавьте их здесь, либо отправьте напрямую через мессенджер/почту.
-              </div>
-
-              <input
-                ref={inputRef}
-                type="file"
-                multiple
-                accept=".png,.jpg,.jpeg,.webp,.svg,.pdf,.tiff,.tif"
-                style={{ display: "none" }}
-                onChange={(e) => { if (e.target.files?.length && onAddFiles) { onAddFiles(e.target.files); } e.target.value = ""; }}
-              />
-              <button onClick={() => inputRef.current?.click()} style={{
-                ...btnStyle("linear-gradient(135deg,#e84393,#6c5ce7)"),
-                width: "100%", border: "none", cursor: "pointer"
-              }}>Загрузить файлы здесь</button>
-
-              <div style={{ display: "flex", alignItems: "center", gap: 10, color: "rgba(240,238,245,.35)", fontSize: 12 }}>
-                <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,.08)" }} />
-                или отправьте напрямую
-                <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,.08)" }} />
-              </div>
-
-              <button onClick={downloadPdf} disabled={building || !pdfBlob} style={{
-                width: "100%", padding: "12px 20px", borderRadius: 12, background: "rgba(255,255,255,.06)",
-                color: "#f0eef5", border: "1px solid rgba(255,255,255,.12)", fontSize: 14, fontWeight: 500,
-                cursor: building || !pdfBlob ? "wait" : "pointer", opacity: building || !pdfBlob ? 0.6 : 1, fontFamily: "inherit"
-              }}>{building ? "Готовим PDF…" : "Скачать PDF со сводкой"}</button>
-
-              {channelButtons}
-            </>
+            </section>
           )}
+
+          {/* Status: all files attached */}
+          {allHaveFiles && (
+            <div style={{ padding: 12, borderRadius: 12, background: "rgba(38,194,129,.08)", border: "1px solid rgba(38,194,129,.25)", fontSize: 13, color: "rgba(240,238,245,.85)", display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 16 }}>✓</span>
+              <span>Все файлы прикреплены — можно отправлять заказ.</span>
+            </div>
+          )}
+
+          {/* Status: partially attached */}
+          {hasFiles && !allHaveFiles && onGoToPrintFile && firstEmptyId !== null && (
+            <div style={{ padding: 14, borderRadius: 12, background: "rgba(255,184,107,.08)", border: "1px solid rgba(255,184,107,.3)", fontSize: 13, color: "rgba(240,238,245,.85)", lineHeight: 1.5, display: "flex", flexDirection: "column", gap: 10 }}>
+              <div>
+                Без файла: {itemsWithoutFiles.map((x) => `Принт #${x.num}`).join(", ")}.
+                Прикрепите файлы к нужным принтам — или отправьте только сводку без файлов.
+              </div>
+              <button
+                type="button"
+                onClick={() => onGoToPrintFile(firstEmptyId)}
+                style={{ ...btnStyle("rgba(255,184,107,.18)"), color: "#ffb86b", border: "1px solid rgba(255,184,107,.45)", cursor: "pointer", padding: "10px 14px", fontSize: 13 }}
+              >
+                Перейти к принтам
+              </button>
+            </div>
+          )}
+
+          {/* Status: no files at all */}
+          {!hasFiles && (
+            <div style={{ padding: 14, borderRadius: 12, background: "rgba(108,92,231,.08)", border: "1px solid rgba(108,92,231,.25)", fontSize: 13, color: "rgba(240,238,245,.85)", lineHeight: 1.5, display: "flex", flexDirection: "column", gap: 10 }}>
+              <div>
+                Файлы для печати ещё не прикреплены. Прикрепите их к нужным принтам на странице калькулятора — или отправьте только сводку через Telegram, почту или MAX и пришлите файлы отдельным сообщением.
+              </div>
+              {onGoToPrintFile && items.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => onGoToPrintFile(items[0].id)}
+                  style={{ ...btnStyle("linear-gradient(135deg,#e84393,#6c5ce7)"), border: "none", cursor: "pointer", padding: "11px 16px", fontSize: 13 }}
+                >
+                  Прикрепить файлы к принтам
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Primary action when there's at least one file: bundle download */}
+          {hasFiles && (
+            <button onClick={downloadAllAssets} disabled={building || !pdfBlob} style={{
+              ...btnStyle("linear-gradient(135deg,#e84393,#6c5ce7)"),
+              width: "100%", border: "none", cursor: building || !pdfBlob ? "wait" : "pointer", opacity: building || !pdfBlob ? 0.6 : 1
+            }}>{building ? "Готовим PDF…" : "Скачать PDF и все файлы"}</button>
+          )}
+
+          {/* Always-available: download summary PDF only */}
+          <button onClick={downloadPdf} disabled={building || !pdfBlob} style={{
+            width: "100%", padding: "12px 20px", borderRadius: 12, background: "rgba(255,255,255,.06)",
+            color: "#f0eef5", border: "1px solid rgba(255,255,255,.12)", fontSize: 14, fontWeight: 500,
+            cursor: building || !pdfBlob ? "wait" : "pointer", opacity: building || !pdfBlob ? 0.6 : 1, fontFamily: "inherit"
+          }}>{building ? "Готовим PDF…" : "Скачать PDF со сводкой"}</button>
+
+          <div>
+            <div style={{ fontSize: 12, color: "rgba(240,238,245,.55)", marginBottom: 10, lineHeight: 1.5 }}>
+              Отправьте сводку напрямую — текст уже подставится автоматически:
+            </div>
+            {channelButtons}
+          </div>
 
           {onResetCalc && (
             <button onClick={() => { onResetCalc(); onClose(); }} style={{

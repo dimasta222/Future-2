@@ -23,7 +23,9 @@ function buildHtml(data) {
 
   const itemsHtml = data.items.map((it, i) => `
     <div class="fs-item">
-      <div class="fs-item-num">${i + 1}</div>
+      ${it.thumb
+        ? `<div class="fs-item-thumb"><img src="${it.thumb}" alt="" /></div>`
+        : `<div class="fs-item-num">${i + 1}</div>`}
       <div class="fs-item-info">
         <div class="fs-item-title">Принт ${i + 1}</div>
         <div class="fs-item-sub">${it.w}×${it.h} см · ${it.qty} шт${it.fileName ? ` · ${escapeHtml(it.fileName)}` : ""}</div>
@@ -80,7 +82,9 @@ function buildHtml(data) {
 
         .fs-items { display: flex; flex-direction: column; gap: 8px; }
         .fs-item { display: flex; align-items: center; gap: 14px; padding: 12px 16px; background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.05); border-radius: 12px; }
-        .fs-item-num { width: 28px; height: 28px; border-radius: 8px; background: linear-gradient(135deg,#e84393,#6c5ce7); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; color: #fff; flex-shrink: 0; }
+        .fs-item-num { width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg,#e84393,#6c5ce7); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; color: #fff; flex-shrink: 0; }
+        .fs-item-thumb { width: 36px; height: 36px; border-radius: 10px; overflow: hidden; flex-shrink: 0; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08); display: flex; align-items: center; justify-content: center; }
+        .fs-item-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
         .fs-item-info { flex: 1; min-width: 0; }
         .fs-item-title { font-size: 14px; font-weight: 500; }
         .fs-item-sub { font-size: 11px; color: rgba(240,238,245,.45); margin-top: 3px; }
@@ -160,6 +164,15 @@ export async function generateCalcOrderPdf(data) {
     try { await document.fonts.ready; } catch { /* ignore */ }
   }
 
+  // Wait for embedded images (logo + thumbs) to load before rasterizing.
+  const imgs = Array.from(host.querySelectorAll("img"));
+  await Promise.all(imgs.map((img) => img.complete
+    ? Promise.resolve()
+    : new Promise((res) => {
+      img.addEventListener("load", res, { once: true });
+      img.addEventListener("error", res, { once: true });
+    })));
+
   try {
     const target = host.firstElementChild;
     const canvas = await html2canvas(target, {
@@ -214,7 +227,7 @@ export function buildCalcOrderData({ items, mode, totalQty, lengthCm, metersRoun
     totalQty,
     lengthCm,
     metersRound,
-    items: items.map((it) => ({ w: it.w, h: it.h, qty: it.qty, fileName: it.fileName || null })),
+    items: items.map((it) => ({ w: it.w, h: it.h, qty: it.qty, fileName: it.fileName || null, thumb: it.thumb || null })),
     costLines,
     total,
   };

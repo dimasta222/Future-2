@@ -19,7 +19,7 @@ export default function MainNavigation({
 }) {
   return (
     <>
-      <nav className="nb" style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 100, background: scrollY > 50 ? "rgba(8,8,12,.85)" : "rgba(8,8,12,0)", boxShadow: scrollY > 50 ? "inset 0 -1px 0 rgba(255,255,255,.05)" : "inset 0 -1px 0 rgba(255,255,255,0)", transition: "background-color .35s ease, box-shadow .35s ease", padding: "0 5%", willChange: "background-color, box-shadow" }}>
+      <nav className="nb" style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 100, background: scrollY ? "rgba(8,8,12,.85)" : "rgba(8,8,12,0)", boxShadow: scrollY ? "inset 0 -1px 0 rgba(255,255,255,.05)" : "inset 0 -1px 0 rgba(255,255,255,0)", transition: "background-color .35s ease, box-shadow .35s ease", padding: "0 5%", willChange: "background-color, box-shadow" }}>
         <div style={{ maxWidth: 1320, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", height: 72 }}>
           <div className="nav-left">
             <button type="button" onClick={() => onNavigate("Главная")} style={{ background: "none", border: "none", color: "inherit", padding: 0, font: "inherit", cursor: "pointer" }} aria-label="На главную">

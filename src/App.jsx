@@ -1549,14 +1549,19 @@ export default function App() {
   const [pg, setPg] = useState(() => getPageFromHash());
   const [ac, setAc] = useState("Главная");
   const [mn, setMn] = useState(false);
-  const [sy, setSy] = useState(0);
+  const [sy, setSy] = useState(false);
   const [pt, setPt] = useState("format");
   const [txMenuOpen, setTxMenuOpen] = useState(false);
   const [initialTextileProduct, setInitialTextileProduct] = useState(null);
   const [initialConstructorSelection, setInitialConstructorSelection] = useState(null);
   const reviewData = useYandexReviews();
 
-  useEffect(() => { const h = () => setSy(window.scrollY); window.addEventListener("scroll", h, { passive: true }); return () => window.removeEventListener("scroll", h); }, []);
+  useEffect(() => {
+    const h = () => setSy(window.scrollY > 50);
+    h();
+    window.addEventListener("scroll", h, { passive: true });
+    return () => window.removeEventListener("scroll", h);
+  }, []);
   useEffect(() => {
     const onHashChange = () => {
       setPg(getPageFromHash());

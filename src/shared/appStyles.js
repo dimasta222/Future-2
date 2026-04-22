@@ -1,7 +1,7 @@
 const STYLES = `
 *{margin:0;padding:0;box-sizing:border-box}
-html{scroll-behavior:smooth;overflow-x:hidden}
-body{font-family:'Outfit',sans-serif;line-height:1.5;text-align:left;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility;overflow-x:hidden;max-width:100vw}
+html{scroll-behavior:smooth}
+body{font-family:'Outfit',sans-serif;line-height:1.5;text-align:left;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility;overflow-x:clip}
 a{color:inherit}
 ::selection{background:#e84393;color:#fff}
 ::-webkit-scrollbar{width:6px}

@@ -1,7 +1,7 @@
 const STYLES = `
 *{margin:0;padding:0;box-sizing:border-box}
-html{scroll-behavior:smooth}
-body{font-family:'Outfit',sans-serif;line-height:1.5;text-align:left;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility}
+html{scroll-behavior:smooth;overflow-x:hidden}
+body{font-family:'Outfit',sans-serif;line-height:1.5;text-align:left;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility;overflow-x:hidden;max-width:100vw}
 a{color:inherit}
 ::selection{background:#e84393;color:#fff}
 ::-webkit-scrollbar{width:6px}
@@ -119,7 +119,7 @@ a{color:inherit}
 .ti:hover{background:rgba(255,255,255,.08);color:rgba(240,238,245,.7)}
 input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
 input[type=number]{-moz-appearance:textfield}
-@media(max-width:860px){.cg2{grid-template-columns:1fr!important}}
+@media(max-width:860px){.cg2{grid-template-columns:1fr!important}.cg2>*{min-width:0!important}}
 @media(max-width:1180px){
 	.constructor-shell{grid-template-columns:1fr!important}
 	.constructor-preview{position:relative!important;top:auto!important}
@@ -220,7 +220,7 @@ input[type=number]{-moz-appearance:textfield}
 	.calc-item-grid input{padding:8px 4px!important;font-size:14px!important}
 	.calc-item-grid label{font-size:9px!important;letter-spacing:.5px!important}
 	.calc-layout-toggle-mobile{display:flex!important}
-	.calc-layout-block{display:none!important}
+	.calc-layout-block{display:none!important;min-width:0!important}
 	.calc-layout-block-visible{display:block!important}
 	.calc-add-row{flex-direction:column!important}
 	.calc-add-row>*{width:100%!important}

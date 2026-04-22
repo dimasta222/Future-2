@@ -1285,8 +1285,12 @@ function CalcPage({ onBack }) {
                       alignItems: layoutOpen ? "flex-start" : "flex-end",
                     }}
                   >
-                    <div style={{ display: "flex", justifyContent: "center", minWidth: "fit-content", flexShrink: 0 }}>
-                      <svg width={svgW} height={svgH} style={{ background: "rgba(255,255,255,.015)", borderRadius: 10, border: "1px solid rgba(255,255,255,.04)" }}>
+                    <div style={{ display: "flex", justifyContent: "center", width: "100%", minWidth: 0, flexShrink: 1 }}>
+                      <svg
+                        viewBox={`0 0 ${svgW} ${svgH}`}
+                        preserveAspectRatio="xMidYMin meet"
+                        style={{ background: "rgba(255,255,255,.015)", borderRadius: 10, border: "1px solid rgba(255,255,255,.04)", width: "100%", maxWidth: svgW, height: "auto", display: "block" }}
+                      >
                         <line x1={pad} y1={pad + 4} x2={pad + BED_W * scale} y2={pad + 4} stroke="rgba(240,238,245,.2)" strokeWidth=".5" />
                         <line x1={pad} y1={pad} x2={pad} y2={pad + 8} stroke="rgba(240,238,245,.2)" strokeWidth=".5" />
                         <line x1={pad + BED_W * scale} y1={pad} x2={pad + BED_W * scale} y2={pad + 8} stroke="rgba(240,238,245,.2)" strokeWidth=".5" />

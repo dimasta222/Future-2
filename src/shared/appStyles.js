@@ -257,7 +257,7 @@ input[type=number]{-moz-appearance:textfield}
 	.hero-rating{width:100%!important}
 	.pricing-table table{min-width:540px!important}
 	.main-card,.product-card,.review-card,.contact-card,.constructor-panel,.calc-panel{padding:18px!important}
-	.textile-card-grid{gap:10px!important}
+	.textile-card-grid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))!important;gap:10px!important}
 	.textile-card-grid .product-card h3{font-size:12px!important}
 	.textile-card-grid .product-card span{font-size:13px!important}
 	.main-tshirt-grid,.reviews-grid,.contact-grid{gap:16px!important}
@@ -268,6 +268,27 @@ input[type=number]{-moz-appearance:textfield}
 	.calc-total-value{font-size:20px!important}
 	.calc-result-dims{font-size:12px!important}
 	.calc-result-price{font-size:14px!important}
+}
+@media(max-width:380px){
+	.page-shell,.page-shell-narrow{padding-left:12px!important;padding-right:12px!important}
+	.section-shell{padding:60px 12px!important}
+	.hero-shell{padding:88px 12px 56px!important}
+	.main-card,.product-card,.review-card,.contact-card,.constructor-panel,.calc-panel{padding:14px!important}
+	.textile-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important}
+	.textile-card-grid .product-card h3{font-size:11px!important}
+	.textile-card-grid .product-card span{font-size:12px!important}
+	.hero-title{font-size:clamp(28px,8vw,38px)!important}
+	.hero-subtitle{font-size:13px!important}
+	.hero-stats{gap:8px!important}
+	.hero-stat-value{font-size:clamp(18px,5.5vw,22px)!important}
+	.hero-stat-label{font-size:10px!important;min-height:28px!important}
+	.gallery-thumb-grid>*{min-width:160px!important}
+	.modal-shell{padding:8px!important}
+	.modal-card{padding:14px!important}
+	.tb{padding:9px 14px!important;font-size:12px!important}
+	.bp,.bo,.btg,.bcalc{padding:11px 16px!important;font-size:13px!important}
+	.field-row-label{font-size:11px!important}
+	.constructor-tabs-button{max-width:54px!important;padding:6px 4px!important}
 }
 `;
 

@@ -69,7 +69,10 @@ export default function TextileProductDetail({ item, type, onBack, onAddToCart, 
         Назад к каталогу
       </button>
 
-      <div style={{ display: "grid", gridTemplateColumns: (!hasGallery && item.hidePlaceholder) ? "1fr" : "1fr 1fr", gap: "clamp(24px, 4vw, 48px)", alignItems: "start" }} className="product-detail-grid">
+      <div
+        className={`product-detail-grid${(!hasGallery && item.hidePlaceholder) ? " product-detail-grid--single" : ""}`}
+        style={{ gap: "clamp(24px, 4vw, 48px)", alignItems: "start" }}
+      >
 
         {/* Left: Photo */}
         {(hasGallery || !item.hidePlaceholder) && (

@@ -771,7 +771,7 @@ function TextilePage({ type, onBack, onNavigate, initialProduct, onClearInitialP
 
   return (
     <div style={{ fontFamily: "'Outfit',sans-serif", background: "#08080c", color: "#f0eef5", minHeight: "100vh" }}>
-      <style>{STYLES}{`@keyframes fadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}.product-detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:clamp(24px,4vw,48px);align-items:start}@media(max-width:768px){.product-detail-grid{grid-template-columns:1fr}}`}</style>
+      <style>{STYLES}{`@keyframes fadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}.product-detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:clamp(24px,4vw,48px);align-items:start;min-width:0}.product-detail-grid--single{grid-template-columns:1fr}.product-detail-grid>*{min-width:0}@media(max-width:768px){.product-detail-grid{grid-template-columns:1fr}}`}</style>
 
       {type === "tshirts" && sizeGuideOpen && (
         <Suspense fallback={null}>

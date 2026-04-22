@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import JSZip from "jszip";
 import { generateCalcOrderPdf, buildCalcOrderData, buildOrderMessage } from "../utils/calcOrderPdf.js";
+import { reachGoal } from "../utils/metrika.js";
 
 const TELEGRAM_URL = "https://t.me/FUTURE_178";
 const EMAIL = "future178@yandex.ru";
@@ -74,11 +75,13 @@ export default function CalcOrderModal({ open, onClose, items, mode, totalQty, l
 
   const downloadPdf = () => {
     if (!pdfBlob) return;
+    reachGoal("calc_download_pdf");
     downloadBlob(pdfBlob, `future-studio-order-${Date.now()}.pdf`);
   };
 
   const downloadAllAssets = async () => {
     if (!pdfBlob || zipping) return;
+    reachGoal("calc_download_zip");
     setZipping(true);
     try {
       const zip = new JSZip();
@@ -111,9 +114,9 @@ export default function CalcOrderModal({ open, onClose, items, mode, totalQty, l
 
   const channelButtons = (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))", gap: 10 }}>
-      <a href={telegramHref} target="_blank" rel="noopener noreferrer" style={btnStyle("#0088cc")}>Telegram</a>
-      <a href={emailHref} style={btnStyle("#e84393")}>Email</a>
-      <a href={MAX_URL} target="_blank" rel="noopener noreferrer" style={btnStyle("#ff8a00")}>MAX</a>
+      <a href={telegramHref} target="_blank" rel="noopener noreferrer" onClick={() => reachGoal("calc_send_telegram")} style={btnStyle("#0088cc")}>Telegram</a>
+      <a href={emailHref} onClick={() => reachGoal("calc_send_email")} style={btnStyle("#e84393")}>Email</a>
+      <a href={MAX_URL} target="_blank" rel="noopener noreferrer" onClick={() => reachGoal("calc_send_max")} style={btnStyle("#ff8a00")}>MAX</a>
     </div>
   );
 

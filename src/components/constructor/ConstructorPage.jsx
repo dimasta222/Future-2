@@ -13,6 +13,7 @@ import STYLES from "../../shared/appStyles.js";
 import { resolveColorSwatch } from "../../shared/textileHelpers.js";
 import { buildTshirtMockupSvg, svgToDataUri } from "../../shared/textilePreviewHelpers.js";
 import { buildOrderPayload, submitOrder, downloadOrderLocally } from "../../utils/submitOrder.js";
+import { reachGoal } from "../../utils/metrika.js";
 
 const TEXT_FONT_SIZE_STEP = 1;
 const MAX_SHAPE_STROKE_WIDTH = 100;
@@ -1027,9 +1028,11 @@ export default function ConstructorPage({ onBack, products, onOpenProductDetails
       });
       const result = await submitOrder(payload);
       if (result.success) {
+        reachGoal("constructor_order_send", { qty, sum: currentTotal });
         setOrderModalOpen(false);
         alert("Заказ успешно отправлен! Мы свяжемся с вами в ближайшее время.");
       } else {
+        reachGoal("constructor_order_local", { qty, sum: currentTotal });
         await downloadOrderLocally(payload);
         setOrderModalOpen(false);
         alert("Файлы заказа сохранены. Бэкенд пока не настроен — свяжитесь с нами в Telegram для оформления.");

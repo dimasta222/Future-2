@@ -17,6 +17,7 @@ import TshirtSizeGuideTrigger from "./components/TshirtSizeGuideTrigger.jsx";
 import CalcOrderModal from "./components/CalcOrderModal.jsx";
 import STYLES from "./shared/appStyles.js";
 import { parsePriceValue } from "./shared/textileHelpers.js";
+import { reachGoal, hit as ymHit } from "./utils/metrika.js";
 import { saveCalcState, loadCalcState, clearCalcState, saveCalcFile, loadCalcFile, deleteCalcFile, clearCalcFiles } from "./utils/persistStorage.js";
 import { PRINT_FORMATS } from "./data/printFormats.js";
 import pdfWorkerUrl from "pdfjs-dist/legacy/build/pdf.worker.min.mjs?url";
@@ -1576,6 +1577,19 @@ export default function App() {
 
   useEffect(() => {
     setPageHash(pg);
+    ymHit(window.location.href);
+    const PAGE_GOALS = {
+      main: "view_main",
+      calc: "view_calc",
+      constructor: "view_constructor",
+      portfolio: "view_portfolio",
+      textile_tshirts: "view_tshirts",
+      textile_hoodies: "view_hoodies",
+      textile_sweatshirts: "view_sweatshirts",
+      textile_shoppers: "view_shoppers",
+    };
+    const goal = PAGE_GOALS[pg];
+    if (goal) reachGoal(goal);
   }, [pg]);
 
   useEffect(() => {

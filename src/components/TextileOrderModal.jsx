@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { parsePriceValue } from "../shared/textileHelpers.js";
 import { buildTelegramBasketLink } from "../shared/textileOrderLinks.js";
+import { reachGoal } from "../utils/metrika.js";
 
 export default function TextileOrderModal({ order, onUpdateQty, onRemove, onClose }) {
   const [name, setName] = useState("");
@@ -13,6 +14,7 @@ export default function TextileOrderModal({ order, onUpdateQty, onRemove, onClos
 
   const handleSubmit = () => {
     if (!canSubmit) return;
+    reachGoal("textile_order_send", { qty: totalQty, sum: totalPrice });
     const url = buildTelegramBasketLink(order, { customerName: name.trim(), customerPhone: phone.trim() });
     const popup = window.open(url, "_blank", "noopener,noreferrer");
     if (!popup) window.location.assign(url);

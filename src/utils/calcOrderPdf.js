@@ -396,7 +396,6 @@ export async function generateCalcOrderPdf(data) {
 
   for (let p = 0; p < pageGroups.length; p++) {
     const html = buildPageHtml(chunks, pageGroups[p], p, pageCount, dateStr, modeLabel);
-    // eslint-disable-next-line no-await-in-loop
     const canvas = await renderPageToCanvas(html);
     const dataUrl = canvas.toDataURL("image/jpeg", 0.95);
     if (p > 0) doc.addPage();

@@ -706,6 +706,8 @@ function TextilePage({ type, onBack, onNavigate, initialProduct, onClearInitialP
 
   useEffect(() => {
     if (initialProduct) onClearInitialProduct?.();
+    // Run once on mount: clear the one-shot initial product hint passed from parent.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -1160,7 +1162,7 @@ function CalcPage({ onBack }) {
         <div className="cg2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 28, marginBottom: 48, alignItems: "start" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div style={{ display: "flex", flexDirection: "column", gap: 16, position: "relative", ...(items.length > 5 && !printsExpanded ? { maxHeight: 160, overflow: "hidden" } : {}) }}>
-              {(items.length > 5 && !printsExpanded ? items.slice(0, 2) : items).map((it, idx) => {
+              {(items.length > 5 && !printsExpanded ? items.slice(0, 2) : items).map((it) => {
                 const globalIdx = items.indexOf(it);
                 const isOversized = it.w > 0 && it.h > 0 && Math.min(it.w, it.h) > BED_W;
                 const isHighlighted = it.id === highlightedItemId;
@@ -1543,7 +1545,6 @@ export default function App() {
   const [pg, setPg] = useState(() => getPageFromHash());
   const [ac, setAc] = useState("Главная");
   const [mn, setMn] = useState(false);
-  const [fm, setFm] = useState({ n: "", p: "", m: "" });
   const [sy, setSy] = useState(0);
   const [pt, setPt] = useState("format");
   const [txMenuOpen, setTxMenuOpen] = useState(false);
@@ -1610,25 +1611,6 @@ export default function App() {
   const goTextile = (type) => { navigateToPage("textile_" + type); };
   const oc = () => { navigateToPage("calc"); };
   const goConstructor = () => { navigateToPage("constructor"); };
-
-  const handleContactSubmit = (event) => {
-    event.preventDefault();
-    if (!fm.n.trim() || !fm.p.trim()) return;
-
-    const message = [
-      "Здравствуйте! Хочу оформить заказ.",
-      `Имя: ${fm.n.trim()}`,
-      `Телефон: ${fm.p.trim()}`,
-      fm.m.trim() ? `Комментарий: ${fm.m.trim()}` : null,
-    ].filter(Boolean).join("\n");
-
-    const telegramUrl = `https://t.me/FUTURE_178?text=${encodeURIComponent(message)}`;
-    const popup = window.open(telegramUrl, "_blank", "noopener,noreferrer");
-
-    if (!popup) {
-      window.location.assign(telegramUrl);
-    }
-  };
 
   if (pg === "constructor") return (
     <Suspense fallback={<div style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "#08080c", color: "#f0eef5", fontFamily: "'Outfit',sans-serif" }}>Загрузка конструктора…</div>}>

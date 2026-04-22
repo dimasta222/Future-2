@@ -191,7 +191,6 @@ function scanFonts() {
 
   const count = families.size;
   const variantCount = parsed.length;
-  // eslint-disable-next-line no-console
   console.log(`[scan-fonts] ${count} font famil${count === 1 ? "y" : "ies"} (${variantCount} file${variantCount === 1 ? "" : "s"}) → src/generated/localFonts.{css,js}`);
 
   return { families: count, files: variantCount };

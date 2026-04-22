@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { getDefaultTshirtColor, parseColorOptions, normalizeVariantLabel } from "../shared/textileHelpers.js";
 import { resolveTextileCatalogPreview, preloadHomepageTshirtPreview, buildHomepageTshirtPlaceholderSvg, svgToDataUri } from "../shared/textilePreviewHelpers.js";
 
-export default function ProductCard({ item, index, type, onOpenDetail }) {
+export default function ProductCard({ item, index, onOpenDetail }) {
   const hasVariants = item.variants && item.variants.length > 0;
   const firstVariant = hasVariants ? item.variants[0] : null;
   const price = firstVariant?.price || item.price || "";

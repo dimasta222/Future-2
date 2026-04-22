@@ -45,7 +45,7 @@ export default function CalcOrderModal({ open, onClose, items, mode, totalQty, l
   useEffect(() => {
     if (!open || !orderData) return undefined;
     let cancelled = false;
-    setBuilding(true); // eslint-disable-line react-hooks/set-state-in-effect
+    setBuilding(true);
     setError(null);
     setPdfBlob(null);
     generateCalcOrderPdf(orderData)

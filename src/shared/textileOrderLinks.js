@@ -1,15 +1,3 @@
-export function buildTelegramOrderLink({ itemName, material, price, size, color }) {
-  const details = [
-    `Здравствуйте! Хочу заказать ${itemName}.`,
-    material ? `Материал: ${material}` : null,
-    size ? `Размер: ${size}` : null,
-    color ? `Цвет: ${color}` : null,
-    price ? `Цена: ${price}` : null,
-  ].filter(Boolean).join("\n");
-
-  return `https://t.me/FUTURE_178?text=${encodeURIComponent(details)}`;
-}
-
 export function buildTelegramBasketLink(lines, { customerName, customerPhone } = {}) {
   const message = [
     customerName ? `Имя: ${customerName}` : null,

@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useRef } from "react";
 
 export default function TshirtGalleryModal({ galleryModal, onClose, onSelectIndex }) {
   const { slides, activeIndex } = galleryModal;
@@ -18,10 +18,10 @@ export default function TshirtGalleryModal({ galleryModal, onClose, onSelectInde
   }, [goPrev, goNext, onClose]);
 
   /* Touch swipe */
-  let touchStartX = 0;
-  const onTouchStart = (e) => { touchStartX = e.touches[0].clientX; };
+  const touchStartXRef = useRef(0);
+  const onTouchStart = (e) => { touchStartXRef.current = e.touches[0].clientX; };
   const onTouchEnd = (e) => {
-    const dx = e.changedTouches[0].clientX - touchStartX;
+    const dx = e.changedTouches[0].clientX - touchStartXRef.current;
     if (Math.abs(dx) > 50) dx > 0 ? goPrev() : goNext();
   };
 

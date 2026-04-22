@@ -24,7 +24,6 @@ export default function TextileProductDetail({ item, type, onBack, onAddToCart, 
 
   const galleryColor = selectedColor || colorOptions[0] || "Чёрный";
   const variantLabel = activeVariant?.label || "";
-  const isTshirt = type === "tshirts";
   const hasGallery = Boolean(item.galleryModel);
   const canAdd = hasSizes ? Boolean(selectedSize && selectedQty >= 1) : selectedQty >= 1;
   const constructorModel = item.galleryModel || item.sizeGuideKey || "";

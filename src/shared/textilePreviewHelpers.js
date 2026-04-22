@@ -77,6 +77,15 @@ const TSHIRT_REAL_GALLERY_PATHS = {
       },
     },
   },
+  "shopper-canvas": {
+    shared: {},
+    variants: {
+      "210": {
+        "черный": "/tshirts/shopper-canvas/210/black",
+        "натуральный": "/tshirts/shopper-canvas/210/natural",
+      },
+    },
+  },
 };
 
 const TEXTILE_THUMBNAIL_PATHS = {
@@ -125,6 +134,12 @@ const TEXTILE_THUMBNAIL_PATHS = {
       "серый": "/tshirts/thumbnails/hoodie-washed/350/gray/01.jpg",
       "черный": "/tshirts/thumbnails/hoodie-washed/350/black/01.jpg",
       "хаки": "/tshirts/thumbnails/hoodie-washed/350/khaki/01.jpg",
+    },
+  },
+  "shopper-canvas": {
+    "210": {
+      "черный": "/tshirts/thumbnails/shopper-canvas/210/black/01.png",
+      "натуральный": "/tshirts/thumbnails/shopper-canvas/210/natural/01.png",
     },
   },
 };

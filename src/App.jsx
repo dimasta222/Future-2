@@ -611,7 +611,7 @@ const TEXTILE_DATA = {
     subtitle: "Для печати DTF",
     desc: "Экологичные шопперы с DTF-печатью — для мерча, промо и подарков.",
     items: [
-      { name: "Шоппер из саржи", sizes: "38×42 см", variants: [
+      { name: "Шоппер из саржи", sizes: "38×42 см", galleryModel: "shopper-canvas", variants: [
         { label: "210 г/м²", material: "100% хлопок", fabric: "саржа, пенье", colors: "Чёрный, Натуральный", defaultColor: "Чёрный", price: "350 ₽", desc: "Плотная саржа, длина ручки 70 см." },
       ] },
     ]

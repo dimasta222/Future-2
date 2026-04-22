@@ -950,9 +950,9 @@ function CalcPage({ onBack }) {
     setItems((prev) => prev.map(i => i.id === id ? { ...i, w: result.w, h: result.h, thumb: result.thumb, fileName: result.fileName, dpiWarning: result.dpiWarning, originalFile: file } : i));
     if (Math.min(result.w, result.h) > BED_W) {
       setHighlightedItemId(id);
-      setTimeout(() => {
+      requestAnimationFrame(() => requestAnimationFrame(() => {
         document.getElementById(`calc-print-${id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
-      }, 80);
+      }));
       setTimeout(() => setHighlightedItemId(null), 4000);
     }
   };
@@ -964,27 +964,29 @@ function CalcPage({ onBack }) {
     for (const f of files) { const r = await processCalcFile(f); if (r) results.push({ ...r, originalFile: f }); }
     if (results.length === 0) return;
     setPrintsExpanded(true);
+
+    // Pre-assign ids and detect first oversized file BEFORE setState (updaters
+    // run during render, so firstOversizedId would otherwise be null below).
+    const startId = nid;
     let firstOversizedId = null;
-    setItems((prev) => {
-      let nextId = nid;
-      const newItems = results.map((r) => {
-        const item = { id: nextId, w: r.w, h: r.h, qty: 1, thumb: r.thumb, fileName: r.fileName, dpiWarning: r.dpiWarning, originalFile: r.originalFile };
-        saveCalcFile(`calc-file-${nextId}`, r.originalFile);
-        if (firstOversizedId === null && Math.min(r.w, r.h) > BED_W) firstOversizedId = nextId;
-        nextId++;
-        return item;
-      });
-      setNid(nextId);
-      return [...prev, ...newItems];
+    const newItems = results.map((r, i) => {
+      const id = startId + i;
+      saveCalcFile(`calc-file-${id}`, r.originalFile);
+      if (firstOversizedId === null && Math.min(r.w, r.h) > BED_W) firstOversizedId = id;
+      return { id, w: r.w, h: r.h, qty: 1, thumb: r.thumb, fileName: r.fileName, dpiWarning: r.dpiWarning, originalFile: r.originalFile };
     });
+    setItems((prev) => [...prev, ...newItems]);
+    setNid(startId + results.length);
 
     // Auto-focus on the first file that exceeds the bed size: scroll + highlight.
     if (firstOversizedId !== null) {
       const targetId = firstOversizedId;
       setHighlightedItemId(targetId);
-      setTimeout(() => {
-        document.getElementById(`calc-print-${targetId}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
-      }, 80);
+      // Wait two frames so the new card is mounted in the DOM, then scroll.
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        const node = document.getElementById(`calc-print-${targetId}`);
+        if (node) node.scrollIntoView({ behavior: "smooth", block: "center" });
+      }));
       setTimeout(() => setHighlightedItemId(null), 4000);
     }
   };

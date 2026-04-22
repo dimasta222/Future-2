@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import JSZip from "jszip";
 import { generateCalcOrderPdf, buildCalcOrderData, buildOrderMessage } from "../utils/calcOrderPdf.js";
 
 const TELEGRAM_URL = "https://t.me/FUTURE_178";
@@ -25,6 +26,7 @@ function getExtension(name) {
 export default function CalcOrderModal({ open, onClose, items, mode, totalQty, lengthCm, metersRound, costLines, total, onGoToPrintFile, onResetCalc }) {
   const [pdfBlob, setPdfBlob] = useState(null);
   const [building, setBuilding] = useState(false);
+  const [zipping, setZipping] = useState(false);
   const [error, setError] = useState(null);
 
   const orderData = useMemo(() => {
@@ -75,15 +77,33 @@ export default function CalcOrderModal({ open, onClose, items, mode, totalQty, l
     downloadBlob(pdfBlob, `future-studio-order-${Date.now()}.pdf`);
   };
 
-  const downloadAllAssets = () => {
-    if (!pdfBlob) return;
-    downloadPdf();
-    items.forEach((it, i) => {
-      if (!it.originalFile) return;
-      const ext = getExtension(it.originalFile.name);
-      const name = `Принт ${i + 1} (${it.qty} шт)${ext}`;
-      setTimeout(() => downloadBlob(it.originalFile, name), 250 * (i + 1));
-    });
+  const downloadAllAssets = async () => {
+    if (!pdfBlob || zipping) return;
+    setZipping(true);
+    try {
+      const zip = new JSZip();
+      zip.file("Заказ FUTURE.pdf", pdfBlob);
+      const used = new Set(["Заказ FUTURE.pdf"]);
+      items.forEach((it, i) => {
+        if (!it.originalFile) return;
+        const ext = getExtension(it.originalFile.name);
+        let name = `Принт ${i + 1} (${it.qty} шт)${ext}`;
+        let n = 2;
+        while (used.has(name)) {
+          name = `Принт ${i + 1} (${it.qty} шт) #${n}${ext}`;
+          n += 1;
+        }
+        used.add(name);
+        zip.file(name, it.originalFile);
+      });
+      const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } });
+      downloadBlob(blob, `future-studio-order-${Date.now()}.zip`);
+    } catch (err) {
+      console.error("[CalcOrderModal] ZIP build failed:", err);
+      setError("Не удалось собрать ZIP-архив");
+    } finally {
+      setZipping(false);
+    }
   };
 
   const telegramHref = `${TELEGRAM_URL}?text=${encodeURIComponent(message)}`;
@@ -192,10 +212,10 @@ export default function CalcOrderModal({ open, onClose, items, mode, totalQty, l
 
           {/* Primary action when there's at least one file: bundle download */}
           {hasFiles && (
-            <button onClick={downloadAllAssets} disabled={building || !pdfBlob} style={{
+            <button onClick={downloadAllAssets} disabled={building || zipping || !pdfBlob} style={{
               ...btnStyle("linear-gradient(135deg,#e84393,#6c5ce7)"),
-              width: "100%", border: "none", cursor: building || !pdfBlob ? "wait" : "pointer", opacity: building || !pdfBlob ? 0.6 : 1
-            }}>{building ? "Готовим PDF…" : "Скачать PDF и все файлы"}</button>
+              width: "100%", border: "none", cursor: building || zipping || !pdfBlob ? "wait" : "pointer", opacity: building || zipping || !pdfBlob ? 0.6 : 1
+            }}>{building ? "Готовим PDF…" : zipping ? "Упаковываем ZIP…" : "Скачать ZIP (PDF + файлы)"}</button>
           )}
 
           {/* Always-available: download summary PDF only */}

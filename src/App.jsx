@@ -948,6 +948,13 @@ function CalcPage({ onBack }) {
     if (!result) return;
     saveCalcFile(`calc-file-${id}`, file);
     setItems((prev) => prev.map(i => i.id === id ? { ...i, w: result.w, h: result.h, thumb: result.thumb, fileName: result.fileName, dpiWarning: result.dpiWarning, originalFile: file } : i));
+    if (Math.min(result.w, result.h) > BED_W) {
+      setHighlightedItemId(id);
+      setTimeout(() => {
+        document.getElementById(`calc-print-${id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 80);
+      setTimeout(() => setHighlightedItemId(null), 4000);
+    }
   };
 
   const handleMultiFileUpload = async (fileList) => {
@@ -957,17 +964,29 @@ function CalcPage({ onBack }) {
     for (const f of files) { const r = await processCalcFile(f); if (r) results.push({ ...r, originalFile: f }); }
     if (results.length === 0) return;
     setPrintsExpanded(true);
+    let firstOversizedId = null;
     setItems((prev) => {
       let nextId = nid;
       const newItems = results.map((r) => {
         const item = { id: nextId, w: r.w, h: r.h, qty: 1, thumb: r.thumb, fileName: r.fileName, dpiWarning: r.dpiWarning, originalFile: r.originalFile };
         saveCalcFile(`calc-file-${nextId}`, r.originalFile);
+        if (firstOversizedId === null && Math.min(r.w, r.h) > BED_W) firstOversizedId = nextId;
         nextId++;
         return item;
       });
       setNid(nextId);
       return [...prev, ...newItems];
     });
+
+    // Auto-focus on the first file that exceeds the bed size: scroll + highlight.
+    if (firstOversizedId !== null) {
+      const targetId = firstOversizedId;
+      setHighlightedItemId(targetId);
+      setTimeout(() => {
+        document.getElementById(`calc-print-${targetId}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 80);
+      setTimeout(() => setHighlightedItemId(null), 4000);
+    }
   };
 
   const clearFileFromItem = (id) => {
@@ -1141,7 +1160,12 @@ function CalcPage({ onBack }) {
             <div style={{ display: "flex", flexDirection: "column", gap: 16, position: "relative", ...(items.length > 5 && !printsExpanded ? { maxHeight: 160, overflow: "hidden" } : {}) }}>
               {(items.length > 5 && !printsExpanded ? items.slice(0, 2) : items).map((it, idx) => {
                 const globalIdx = items.indexOf(it);
+                const isOversized = it.w > 0 && it.h > 0 && Math.min(it.w, it.h) > BED_W;
                 const isHighlighted = it.id === highlightedItemId;
+                const highlightShadow = isOversized
+                  ? "0 0 0 2px rgba(255,80,80,.65), 0 12px 32px rgba(255,80,80,.22)"
+                  : "0 0 0 2px rgba(232,67,147,.55), 0 12px 32px rgba(232,67,147,.18)";
+                const highlightBorder = isOversized ? "rgba(255,80,80,.65)" : "rgba(232,67,147,.55)";
                 return (
                 <div
                   key={it.id}
@@ -1151,8 +1175,8 @@ function CalcPage({ onBack }) {
                     padding: "20px 22px",
                     transition: "box-shadow .3s, border-color .3s",
                     ...(isHighlighted ? {
-                      boxShadow: "0 0 0 2px rgba(232,67,147,.55), 0 12px 32px rgba(232,67,147,.18)",
-                      borderColor: "rgba(232,67,147,.55)",
+                      boxShadow: highlightShadow,
+                      borderColor: highlightBorder,
                     } : {}),
                   }}
                 >
@@ -1188,8 +1212,8 @@ function CalcPage({ onBack }) {
                   </div>
                 )}
                 {(Math.min(it.w, it.h) > BED_W && it.w > 0 && it.h > 0) && (
-                  <div style={{ marginTop: 10, padding: "8px 12px", borderRadius: 10, background: "rgba(255,80,80,.08)", border: "1px solid rgba(255,80,80,.2)", fontSize: 12, color: "#ff6b6b" }}>
-                    Обе стороны &gt; {BED_W} см — не помещается
+                  <div style={{ marginTop: 10, padding: "10px 14px", borderRadius: 10, background: "rgba(255,80,80,.08)", border: "1px solid rgba(255,80,80,.25)", fontSize: 12, color: "#ff8a8a", lineHeight: 1.45 }}>
+                    ⚠ Файл слишком большой: {it.w}×{it.h} см при максимуме {BED_W} см. Удалите принт или замените файл на меньший (кнопки «Файл» и «✕» выше).
                   </div>
                 )}
                 </div>

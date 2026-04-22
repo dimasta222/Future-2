@@ -3,7 +3,7 @@ import TshirtPhotoGallery from "./TshirtPhotoGallery.jsx";
 import { getDefaultTshirtColor, getTshirtSizes, parseColorOptions, resolveColorSwatch, normalizeVariantLabel } from "../shared/textileHelpers.js";
 import { resolveTextileCatalogPreview, buildHomepageTshirtPlaceholderSvg, svgToDataUri } from "../shared/textilePreviewHelpers.js";
 
-export default function TextileProductDetail({ item, type, onBack, onAddToCart, onOpenGallery }) {
+export default function TextileProductDetail({ item, type, onBack, onAddToCart, onOpenGallery, onOpenConstructor }) {
   const hasVariants = item.variants && item.variants.length > 0;
   const [variantIndex, setVariantIndex] = useState(0);
   const activeVariant = hasVariants ? item.variants[variantIndex] : null;
@@ -19,7 +19,7 @@ export default function TextileProductDetail({ item, type, onBack, onAddToCart, 
   const hasSizes = sizeOptions.length > 0;
 
   const [selectedColor, setSelectedColor] = useState(defaultColor);
-  const [selectedSize, setSelectedSize] = useState("");
+  const [selectedSize, setSelectedSize] = useState(item._initialSize && sizeOptions.includes(item._initialSize) ? item._initialSize : "");
   const [selectedQty, setSelectedQty] = useState(1);
 
   const galleryColor = selectedColor || colorOptions[0] || "Чёрный";
@@ -27,6 +27,18 @@ export default function TextileProductDetail({ item, type, onBack, onAddToCart, 
   const isTshirt = type === "tshirts";
   const hasGallery = Boolean(item.galleryModel);
   const canAdd = hasSizes ? Boolean(selectedSize && selectedQty >= 1) : selectedQty >= 1;
+  const constructorModel = item.galleryModel || item.sizeGuideKey || "";
+  const isInConstructor = type === "tshirts" && (constructorModel === "oversize" || constructorModel === "classic");
+
+  const handleOpenConstructor = () => {
+    if (!onOpenConstructor) return;
+    onOpenConstructor({
+      galleryModel: constructorModel,
+      densityLabel: variantLabel,
+      color: selectedColor,
+      size: selectedSize,
+    });
+  };
 
   const handleVariantChange = (index) => {
     const nextVariant = item.variants[index];
@@ -57,27 +69,29 @@ export default function TextileProductDetail({ item, type, onBack, onAddToCart, 
         Назад к каталогу
       </button>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "clamp(24px, 4vw, 48px)", alignItems: "start" }} className="product-detail-grid">
+      <div style={{ display: "grid", gridTemplateColumns: (!hasGallery && item.hidePlaceholder) ? "1fr" : "1fr 1fr", gap: "clamp(24px, 4vw, 48px)", alignItems: "start" }} className="product-detail-grid">
 
         {/* Left: Photo */}
-        <div style={{ minWidth: 0 }}>
-          {hasGallery ? (
-            <TshirtPhotoGallery
-              itemName={item.name}
-              galleryModel={item.galleryModel}
-              activeColor={galleryColor}
-              activeVariantLabel={variantLabel}
-              onOpen={onOpenGallery}
-            />
-          ) : (
-            <div className="cs" style={{ aspectRatio: "1 / 1.1", display: "grid", placeItems: "center", background: "rgba(255,255,255,.02)", border: "1px solid rgba(255,255,255,.06)", borderRadius: 20 }}>
-              <div style={{ textAlign: "center", color: "rgba(240,238,245,.25)" }}>
-                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" style={{ opacity: 0.4 }}><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="m21 15-5-5L5 21" /></svg>
-                <div style={{ marginTop: 12, fontSize: 13 }}>Фото скоро появится</div>
+        {(hasGallery || !item.hidePlaceholder) && (
+          <div style={{ minWidth: 0 }}>
+            {hasGallery ? (
+              <TshirtPhotoGallery
+                itemName={item.name}
+                galleryModel={item.galleryModel}
+                activeColor={galleryColor}
+                activeVariantLabel={variantLabel}
+                onOpen={onOpenGallery}
+              />
+            ) : (
+              <div className="cs" style={{ aspectRatio: "1 / 1.1", display: "grid", placeItems: "center", background: "rgba(255,255,255,.02)", border: "1px solid rgba(255,255,255,.06)", borderRadius: 20 }}>
+                <div style={{ textAlign: "center", color: "rgba(240,238,245,.25)" }}>
+                  <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" style={{ opacity: 0.4 }}><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="m21 15-5-5L5 21" /></svg>
+                  <div style={{ marginTop: 12, fontSize: 13 }}>Фото скоро появится</div>
+                </div>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
 
         {/* Right: Details */}
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -186,6 +200,51 @@ export default function TextileProductDetail({ item, type, onBack, onAddToCart, 
 
           {!canAdd && hasSizes && <div style={{ fontSize: 12, color: "rgba(240,238,245,.35)", marginTop: -8 }}>Выберите размер для добавления в заказ</div>}
 
+          {isInConstructor && onOpenConstructor && (() => {
+            const constructorEnabled = !hasSizes || Boolean(selectedSize);
+            return (
+              <button
+                type="button"
+                onClick={handleOpenConstructor}
+                disabled={!constructorEnabled}
+                style={{
+                  width: "100%",
+                  padding: "14px 24px",
+                  borderRadius: 14,
+                  border: constructorEnabled ? "1px solid rgba(232,67,147,.35)" : "1px solid rgba(255,255,255,.08)",
+                  background: constructorEnabled ? "linear-gradient(135deg,rgba(232,67,147,.16),rgba(108,92,231,.16))" : "rgba(255,255,255,.04)",
+                  color: constructorEnabled ? "#f0eef5" : "rgba(240,238,245,.35)",
+                  fontSize: 15,
+                  fontWeight: 600,
+                  fontFamily: "'Outfit',sans-serif",
+                  cursor: constructorEnabled ? "pointer" : "not-allowed",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 10,
+                  transition: "all .25s",
+                  opacity: constructorEnabled ? 1 : 0.55,
+                }}
+                onPointerEnter={(e) => {
+                  if (!constructorEnabled) return;
+                  e.currentTarget.style.background = "linear-gradient(135deg,rgba(232,67,147,.28),rgba(108,92,231,.28))";
+                  e.currentTarget.style.borderColor = "rgba(232,67,147,.55)";
+                }}
+                onPointerLeave={(e) => {
+                  if (!constructorEnabled) return;
+                  e.currentTarget.style.background = "linear-gradient(135deg,rgba(232,67,147,.16),rgba(108,92,231,.16))";
+                  e.currentTarget.style.borderColor = "rgba(232,67,147,.35)";
+                }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 20h9" />
+                  <path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4Z" />
+                </svg>
+                Создать дизайн в конструкторе
+              </button>
+            );
+          })()}
+
           {/* Specs */}
           <div style={{ marginTop: 8, paddingTop: 20, borderTop: "1px solid rgba(255,255,255,.06)" }}>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -230,8 +289,17 @@ export default function TextileProductDetail({ item, type, onBack, onAddToCart, 
                     { size: "XL", chest: 68, length: 76, sleeve: 56 },
                     { size: "2XL", chest: 70, length: 78, sleeve: 57 },
                   ],
+                  "classic": [
+                    { size: "XS", chest: 44, length: 66 },
+                    { size: "S", chest: 46, length: 68 },
+                    { size: "M", chest: 48, length: 70 },
+                    { size: "L", chest: 50, length: 72 },
+                    { size: "XL", chest: 52, length: 74 },
+                    { size: "2XL", chest: 54, length: 76 },
+                    { size: "3XL", chest: 56, length: 78 },
+                  ],
                 };
-                const fixedRows = item.galleryModel ? WASHED_SIZES[item.galleryModel] : null;
+                const fixedRows = item.galleryModel ? WASHED_SIZES[item.galleryModel] : (item.sizeGuideKey ? WASHED_SIZES[item.sizeGuideKey] : null);
                 const hasSleeve = fixedRows ? fixedRows.some(r => r.sleeve != null) : false;
                 const headers = hasSleeve ? ["Размер", "Грудь (см)", "Длина (см)", "Рукав (см)"] : ["Размер", "Грудь (см)", "Длина (см)"];
                 const rows = fixedRows || sizeOptions.map((size, i) => {

@@ -170,11 +170,17 @@ function ConstructorRuntimeGuard({ children }) {
   return children;
 }
 
-export default function ConstructorRoute({ onBack }) {
+export default function ConstructorRoute({ onBack, onOpenProductDetails, initialSelection, onClearInitialSelection }) {
+  useEffect(() => {
+    if (initialSelection && onClearInitialSelection) {
+      onClearInitialSelection();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   return (
     <ConstructorRuntimeGuard>
       <ConstructorErrorBoundary>
-        <ConstructorPage onBack={onBack} products={CONSTRUCTOR_PRODUCTS} />
+        <ConstructorPage onBack={onBack} products={CONSTRUCTOR_PRODUCTS} onOpenProductDetails={onOpenProductDetails} initialSelection={initialSelection} />
       </ConstructorErrorBoundary>
     </ConstructorRuntimeGuard>
   );

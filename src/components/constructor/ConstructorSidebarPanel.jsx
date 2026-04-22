@@ -465,6 +465,7 @@ export default function ConstructorSidebarPanel({
   product,
   productKey,
   onProductChange,
+  onOpenProductDetails,
   size,
   onSizeChange,
   onSizeGuideOpen,
@@ -808,7 +809,82 @@ export default function ConstructorSidebarPanel({
           <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr)", gap: 8 }}>
             {products.map((item) => {
               const active = item.key === productKey;
-              return <button key={item.key} type="button" onClick={() => onProductChange(item.key)} style={{ width: "100%", textAlign: "left", padding: 12, borderRadius: 14, border: active ? "1px solid rgba(232,67,147,.3)" : "1px solid rgba(255,255,255,.06)", background: active ? "linear-gradient(135deg,rgba(232,67,147,.14),rgba(108,92,231,.14))" : "rgba(255,255,255,.03)", cursor: "pointer", fontFamily: "inherit" }}><div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start" }}><div style={{ minWidth: 0 }}><div style={{ fontSize: 16, fontWeight: 600, color: "#f0eef5", overflowWrap: "break-word", wordBreak: "normal" }}>{item.displayName}</div><div style={{ fontSize: 13, color: "rgba(240,238,245,.5)", marginTop: 4 }}>{item.material}</div></div><div style={{ fontSize: 14, fontWeight: 600, color: "#e84393", whiteSpace: "nowrap" }}>{item.priceLabel}</div></div></button>;
+              const handleSelect = () => onProductChange(item.key);
+              const handleOpenDetails = (event) => {
+                event.stopPropagation();
+                onOpenProductDetails?.({
+                  model: item.model,
+                  densityLabel: item.densityLabel,
+                  color,
+                  size,
+                });
+              };
+              return (
+                <div
+                  key={item.key}
+                  role="button"
+                  tabIndex={0}
+                  onClick={handleSelect}
+                  onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); handleSelect(); } }}
+                  style={{
+                    width: "100%",
+                    textAlign: "left",
+                    padding: 12,
+                    borderRadius: 14,
+                    border: active ? "1px solid rgba(232,67,147,.3)" : "1px solid rgba(255,255,255,.06)",
+                    background: active ? "linear-gradient(135deg,rgba(232,67,147,.14),rgba(108,92,231,.14))" : "rgba(255,255,255,.03)",
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                    position: "relative",
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start" }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 16, fontWeight: 600, color: "#f0eef5", overflowWrap: "break-word", wordBreak: "normal" }}>{item.displayName}</div>
+                      <div style={{ fontSize: 13, color: "rgba(240,238,245,.5)", marginTop: 4 }}>{item.material}</div>
+                    </div>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: "#e84393", whiteSpace: "nowrap" }}>{item.priceLabel}</div>
+                  </div>
+                  {active && onOpenProductDetails ? (
+                    <button
+                      type="button"
+                      onClick={handleOpenDetails}
+                      title="Подробнее о товаре"
+                      style={{
+                        position: "absolute",
+                        right: 12,
+                        bottom: 12,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        padding: "3px 9px",
+                        borderRadius: 8,
+                        border: "1px solid rgba(255,255,255,.1)",
+                        background: "rgba(8,8,12,.55)",
+                        color: "rgba(240,238,245,.85)",
+                        fontSize: 12,
+                        fontWeight: 500,
+                        lineHeight: 1.2,
+                        whiteSpace: "nowrap",
+                        cursor: "pointer",
+                        fontFamily: "'Outfit',sans-serif",
+                        transition: "all .2s ease",
+                      }}
+                      onPointerEnter={(e) => {
+                        e.currentTarget.style.borderColor = "rgba(232,67,147,.45)";
+                        e.currentTarget.style.background = "linear-gradient(135deg,rgba(232,67,147,.22),rgba(108,92,231,.22))";
+                        e.currentTarget.style.color = "#f0eef5";
+                      }}
+                      onPointerLeave={(e) => {
+                        e.currentTarget.style.borderColor = "rgba(255,255,255,.1)";
+                        e.currentTarget.style.background = "rgba(8,8,12,.55)";
+                        e.currentTarget.style.color = "rgba(240,238,245,.85)";
+                      }}
+                    >
+                      Подробнее
+                    </button>
+                  ) : null}
+                </div>
+              );
             })}
           </div>
         </SidebarFieldRow>

@@ -1,6 +1,7 @@
 const DB_NAME = "future-studio";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const IMG_STORE = "images";
+const FILE_STORE = "files";
 
 function openDB() {
   return new Promise((resolve, reject) => {
@@ -9,6 +10,9 @@ function openDB() {
       const db = req.result;
       if (!db.objectStoreNames.contains(IMG_STORE)) {
         db.createObjectStore(IMG_STORE);
+      }
+      if (!db.objectStoreNames.contains(FILE_STORE)) {
+        db.createObjectStore(FILE_STORE);
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -46,6 +50,62 @@ export async function clearImages() {
     return new Promise((resolve, reject) => {
       const tx = db.transaction(IMG_STORE, "readwrite");
       tx.objectStore(IMG_STORE).clear();
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch { /* ignore */ }
+}
+
+export async function saveCalcFile(key, file) {
+  try {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(FILE_STORE, "readwrite");
+      // Persist as Blob plus metadata to reconstruct File on load.
+      tx.objectStore(FILE_STORE).put({ blob: file, name: file.name, type: file.type, lastModified: file.lastModified }, key);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch { /* quota or access error — silently skip */ }
+}
+
+export async function loadCalcFile(key) {
+  try {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(FILE_STORE, "readonly");
+      const req = tx.objectStore(FILE_STORE).get(key);
+      req.onsuccess = () => {
+        const rec = req.result;
+        if (!rec || !rec.blob) { resolve(null); return; }
+        try {
+          const file = new File([rec.blob], rec.name, { type: rec.type, lastModified: rec.lastModified });
+          resolve(file);
+        } catch { resolve(null); }
+      };
+      req.onerror = () => reject(req.error);
+    });
+  } catch { return null; }
+}
+
+export async function deleteCalcFile(key) {
+  try {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(FILE_STORE, "readwrite");
+      tx.objectStore(FILE_STORE).delete(key);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch { /* ignore */ }
+}
+
+export async function clearCalcFiles() {
+  try {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(FILE_STORE, "readwrite");
+      tx.objectStore(FILE_STORE).clear();
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });

@@ -614,15 +614,28 @@ export default function useConstructorState({
   buildTelegramLink,
   readFileAsDataUrl,
   readImageSize,
+  initialSelection,
 }) {
   const initialProduct = products[0] || FALLBACK_PRODUCT;
   const initialSize = getPreferredProductSize(initialProduct);
 
+  const matchedInitialProduct = initialSelection?.galleryModel
+    ? products.find((p) => p.model === initialSelection.galleryModel && (!initialSelection.densityLabel || p.densityLabel === initialSelection.densityLabel))
+      || products.find((p) => p.model === initialSelection.galleryModel)
+      || null
+    : null;
+  const matchedInitialColor = matchedInitialProduct && initialSelection?.color && matchedInitialProduct.colors?.includes(initialSelection.color)
+    ? initialSelection.color
+    : null;
+  const matchedInitialSize = matchedInitialProduct && initialSelection?.size && matchedInitialProduct.sizes?.includes(initialSelection.size)
+    ? initialSelection.size
+    : null;
+
   const [activeTab, setActiveTab] = useState("textile");
-  const [productKey, setProductKey] = useState(() => { const m = loadConstructorMeta(); return m?.productKey || initialProduct.key || ""; });
+  const [productKey, setProductKey] = useState(() => { if (matchedInitialProduct) return matchedInitialProduct.key; const m = loadConstructorMeta(); return m?.productKey || initialProduct.key || ""; });
   const [side, setSide] = useState(() => { const m = loadConstructorMeta(); return m?.side || "front"; });
-  const [color, setColor] = useState(() => { const m = loadConstructorMeta(); return m?.color || initialProduct.colors?.[0] || "Чёрный"; });
-  const [size, setSizeState] = useState(() => { const m = loadConstructorMeta(); return m?.size || initialSize; });
+  const [color, setColor] = useState(() => { if (matchedInitialColor) return matchedInitialColor; const m = loadConstructorMeta(); return m?.color || initialProduct.colors?.[0] || "Чёрный"; });
+  const [size, setSizeState] = useState(() => { if (matchedInitialSize) return matchedInitialSize; const m = loadConstructorMeta(); return m?.size || initialSize; });
   const [qty, setQty] = useState(() => { const m = loadConstructorMeta(); return m?.qty ?? 1; });
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const [layers, setLayers] = useState([]);
@@ -1431,9 +1444,7 @@ export default function useConstructorState({
     if (layer?.type !== "text") return null;
     return runtimeTextLayerBoundsBySide?.[getLayerSide(layer)]?.[layer.id] || null;
   };
-  // eslint-disable-next-line react-hooks/refs -- getPrintAreaPixelSize needs ref for pricing calculations
   const frontPrintAreaPixelSize = getPrintAreaPixelSize("front", size);
-  // eslint-disable-next-line react-hooks/refs -- getPrintAreaPixelSize needs ref for pricing calculations
   const backPrintAreaPixelSize = getPrintAreaPixelSize("back", size);
   const frontResolvedPrintArea = getResolvedPrintArea("front", size);
   const backResolvedPrintArea = getResolvedPrintArea("back", size);

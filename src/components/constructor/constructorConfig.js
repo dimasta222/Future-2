@@ -295,13 +295,13 @@ export const CONSTRUCTOR_SIZE_GUIDES = {
     { size: "3XL", chest: 67, length: 77 },
   ],
   classic: [
-    { size: "XS", chest: 49, length: 65 },
-    { size: "S", chest: 52, length: 67 },
-    { size: "M", chest: 55, length: 69 },
-    { size: "L", chest: 58, length: 71 },
-    { size: "XL", chest: 61, length: 73 },
-    { size: "2XL", chest: 64, length: 75 },
-    { size: "3XL", chest: 67, length: 77 },
+    { size: "XS", chest: 44, length: 66 },
+    { size: "S", chest: 46, length: 68 },
+    { size: "M", chest: 48, length: 70 },
+    { size: "L", chest: 50, length: 72 },
+    { size: "XL", chest: 52, length: 74 },
+    { size: "2XL", chest: 54, length: 76 },
+    { size: "3XL", chest: 56, length: 78 },
   ],
 };
 

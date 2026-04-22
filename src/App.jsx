@@ -14,10 +14,12 @@ import TG from "./components/TG.jsx";
 import TextileOrderModal from "./components/TextileOrderModal.jsx";
 import TextileProductDetail from "./components/TextileProductDetail.jsx";
 import TshirtSizeGuideTrigger from "./components/TshirtSizeGuideTrigger.jsx";
+import CalcOrderModal from "./components/CalcOrderModal.jsx";
 import STYLES from "./shared/appStyles.js";
 import { parsePriceValue } from "./shared/textileHelpers.js";
-import { saveCalcState, loadCalcState, clearCalcState } from "./utils/persistStorage.js";
+import { saveCalcState, loadCalcState, clearCalcState, saveCalcFile, loadCalcFile, deleteCalcFile, clearCalcFiles } from "./utils/persistStorage.js";
 import { PRINT_FORMATS } from "./data/printFormats.js";
+import pdfWorkerUrl from "pdfjs-dist/legacy/build/pdf.worker.min.mjs?url";
 
 const PortfolioPage = lazy(() => import("./portfolio/PortfolioCatalogPage.jsx"));
 const ConstructorRoute = lazy(() => import("./components/constructor/ConstructorRoute.jsx"));
@@ -172,21 +174,83 @@ async function processCalcFile(file) {
   if (isPdf) {
     try {
       const buf = await file.arrayBuffer();
-      const pdfjsLib = await import("pdfjs-dist");
-      pdfjsLib.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.mjs", import.meta.url).href;
-      const doc = await pdfjsLib.getDocument({ data: buf }).promise;
+      const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
+      pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+      const doc = await pdfjsLib.getDocument({ data: new Uint8Array(buf) }).promise;
       const page = await doc.getPage(1);
       const rawVp = page.getViewport({ scale: 1 });
-      const wCm = +(rawVp.width / 72 * 2.54).toFixed(1);
-      const hCm = +(rawVp.height / 72 * 2.54).toFixed(1);
-      const thumbScale = Math.min(THUMB_MAX / rawVp.width, THUMB_MAX / rawVp.height, 2);
-      const vp = page.getViewport({ scale: thumbScale });
-      const canvas = document.createElement("canvas");
-      canvas.width = vp.width; canvas.height = vp.height;
-      await page.render({ canvasContext: canvas.getContext("2d"), viewport: vp }).promise;
-      const thumb = canvas.toDataURL("image/jpeg", 0.8);
+
+      // Render at moderate scale to detect actual content bbox (PDF page may be
+      // larger than artwork — MediaBox/CropBox include whitespace around content).
+      const detectScale = Math.min(900 / Math.max(rawVp.width, rawVp.height), 4);
+      const dVp = page.getViewport({ scale: detectScale });
+      const dCanvas = document.createElement("canvas");
+      dCanvas.width = Math.ceil(dVp.width);
+      dCanvas.height = Math.ceil(dVp.height);
+      const dCtx = dCanvas.getContext("2d", { willReadFrequently: true });
+      // Transparent background so non-content pixels stay alpha=0.
+      await page.render({ canvas: dCanvas, canvasContext: dCtx, viewport: dVp, background: "rgba(0,0,0,0)" }).promise;
+
+      let contentWcm, contentHcm;
+      let bboxPx = null;
+      try {
+        const { data, width: cw, height: ch } = dCtx.getImageData(0, 0, dCanvas.width, dCanvas.height);
+        let minX = cw, minY = ch, maxX = -1, maxY = -1;
+        const alphaThreshold = 8;
+        for (let y = 0; y < ch; y++) {
+          for (let x = 0; x < cw; x++) {
+            if (data[(y * cw + x) * 4 + 3] > alphaThreshold) {
+              if (x < minX) minX = x;
+              if (x > maxX) maxX = x;
+              if (y < minY) minY = y;
+              if (y > maxY) maxY = y;
+            }
+          }
+        }
+        if (maxX >= minX && maxY >= minY) {
+          const bboxW = maxX - minX + 1;
+          const bboxH = maxY - minY + 1;
+          bboxPx = { minX, minY, bboxW, bboxH };
+          // Convert pixels at detectScale → points → cm.
+          const wPt = bboxW / detectScale;
+          const hPt = bboxH / detectScale;
+          contentWcm = +(wPt / 72 * 2.54).toFixed(1);
+          contentHcm = +(hPt / 72 * 2.54).toFixed(1);
+        }
+      } catch (bboxErr) {
+        console.warn("[CalcPage] PDF bbox detection failed, using page size:", bboxErr);
+      }
+
+      const wCm = contentWcm ?? +(rawVp.width / 72 * 2.54).toFixed(1);
+      const hCm = contentHcm ?? +(rawVp.height / 72 * 2.54).toFixed(1);
+
+      let thumb;
+      if (bboxPx) {
+        // Crop the detect canvas to content bbox, downscale to thumbnail size.
+        const ratio = Math.min(THUMB_MAX / bboxPx.bboxW, THUMB_MAX / bboxPx.bboxH, 1);
+        const tw = Math.max(1, Math.round(bboxPx.bboxW * ratio));
+        const th = Math.max(1, Math.round(bboxPx.bboxH * ratio));
+        const tc = document.createElement("canvas");
+        tc.width = tw; tc.height = th;
+        const tCtx = tc.getContext("2d");
+        // White background under transparent PDF render so JPEG looks clean.
+        tCtx.fillStyle = "#ffffff";
+        tCtx.fillRect(0, 0, tw, th);
+        tCtx.drawImage(dCanvas, bboxPx.minX, bboxPx.minY, bboxPx.bboxW, bboxPx.bboxH, 0, 0, tw, th);
+        thumb = tc.toDataURL("image/jpeg", 0.85);
+      } else {
+        const thumbScale = Math.min(THUMB_MAX / rawVp.width, THUMB_MAX / rawVp.height, 2);
+        const vp = page.getViewport({ scale: thumbScale });
+        const canvas = document.createElement("canvas");
+        canvas.width = vp.width; canvas.height = vp.height;
+        await page.render({ canvas, canvasContext: canvas.getContext("2d"), viewport: vp }).promise;
+        thumb = canvas.toDataURL("image/jpeg", 0.8);
+      }
       return { w: wCm, h: hCm, thumb, fileName: file.name, dpiWarning: false };
-    } catch { return null; }
+    } catch (err) {
+      console.error("[CalcPage] PDF processing failed:", err);
+      return null;
+    }
   }
 
   if (isSvg) {
@@ -202,8 +266,7 @@ async function processCalcFile(file) {
     if (!hPx) hPx = parseFloat(svg.getAttribute("height")) || 300;
     const wCm = +(wPx / CALC_PRINT_DPI * 2.54).toFixed(1);
     const hCm = +(hPx / CALC_PRINT_DPI * 2.54).toFixed(1);
-    const blob = new Blob([text], { type: "image/svg+xml" });
-    const thumb = URL.createObjectURL(blob);
+    const thumb = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(text)))}`;
     return { w: wCm, h: hCm, thumb, fileName: file.name, dpiWarning: false };
   }
 
@@ -515,7 +578,7 @@ const TEXTILE_DATA = {
       { name: "Футболка варёнка", galleryModel: "oversize-washed", sizes: "S – 2XL", variants: [
         { label: "230 г/м²", material: "100% хлопок", fabric: "кулирка, пенье", colors: "Молочный, Чёрный, Серый, Розовый, Хаки, Коричневый, Синий", defaultColor: "Синий", price: "1 200 ₽", desc: "Варёный хлопок с винтажной фактурой. Каждая уникальна по оттенку." },
       ] },
-      { name: "Футболка классика", sizes: "XS – 3XL", variants: [
+      { name: "Футболка классика", sizeGuideKey: "classic", sizes: "XS – 3XL", variants: [
         { label: "180 г/м²", material: "100% хлопок", fabric: "—", colors: "Чёрный, Белый", defaultColor: "Чёрный", price: "650 ₽", desc: "Классический крой, мягкий хлопок. Для тиражей и мерча." },
       ] },
     ]
@@ -564,9 +627,18 @@ const TSHIRT_SIZE_GUIDE = [
   { size: "2XL", chest: 64, length: 75 },
   { size: "3XL", chest: 67, length: 77 },
 ];
+const TSHIRT_SIZE_GUIDE_BASIC = [
+  { size: "XS", chest: 44, length: 66 },
+  { size: "S", chest: 46, length: 68 },
+  { size: "M", chest: 48, length: 70 },
+  { size: "L", chest: 50, length: 72 },
+  { size: "XL", chest: 52, length: 74 },
+  { size: "2XL", chest: 54, length: 76 },
+  { size: "3XL", chest: 56, length: 78 },
+];
 const TSHIRT_SIZE_GUIDE_SECTIONS = [
   { title: "Оверсайз футболки", rows: TSHIRT_SIZE_GUIDE },
-  { title: "Базовые футболки", rows: TSHIRT_SIZE_GUIDE },
+  { title: "Базовые футболки", rows: TSHIRT_SIZE_GUIDE_BASIC },
 ];
 const TSHIRT_GALLERY_COLORS = {
   "черный": { base: "#151517", shade: "#050507", highlight: "#3d3f45", accent: "rgba(255,255,255,.2)", text: "#f0eef5" },
@@ -606,7 +678,7 @@ function flattenCatalogItems(items) {
   });
 }
 
-function TextilePage({ type, onBack, onNavigate, initialProduct, onClearInitialProduct }) {
+function TextilePage({ type, onBack, onNavigate, initialProduct, onClearInitialProduct, onOpenConstructor }) {
   const data = TEXTILE_DATA[type];
   const [cart, setCart] = useState([]);
   const [selectedProduct, setSelectedProduct] = useState(() => {
@@ -616,8 +688,9 @@ function TextilePage({ type, onBack, onNavigate, initialProduct, onClearInitialP
       ci.galleryModel === initialProduct.galleryModel
       && ci.variants?.[0]?.label === initialProduct.variants?.[0]?.label
     ) || catalogItems.find((ci) => ci.galleryModel === initialProduct.galleryModel) || null;
-    if (match && initialProduct._initialColor) {
-      match._initialColor = initialProduct._initialColor;
+    if (match) {
+      if (initialProduct._initialColor) match._initialColor = initialProduct._initialColor;
+      if (initialProduct._initialSize) match._initialSize = initialProduct._initialSize;
     }
     return match;
   });
@@ -749,6 +822,7 @@ function TextilePage({ type, onBack, onNavigate, initialProduct, onClearInitialP
             onBack={() => setSelectedProduct(null)}
             onAddToCart={addToCart}
             onOpenGallery={setGalleryModal}
+            onOpenConstructor={onOpenConstructor}
           />
         ) : (
           <>
@@ -791,22 +865,50 @@ function TextilePage({ type, onBack, onNavigate, initialProduct, onClearInitialP
    ══════════════════════════════════════════ */
 function CalcPage({ onBack }) {
   const [withApply, setWithApply] = useState(() => { const s = loadCalcState(); return s?.withApply ?? false; });
-  const [items, setItems] = useState(() => { const s = loadCalcState(); return s?.items ?? [{ id: 1, w: 0, h: 0, qty: 1 }]; });
+  const [items, setItems] = useState(() => {
+    const s = loadCalcState();
+    const stored = s?.items;
+    if (!Array.isArray(stored)) return [];
+    // Если в localStorage сохранён единственный пустой "Принт #1" по умолчанию — не показываем его.
+    if (stored.length === 1) {
+      const it = stored[0];
+      if (!it.w && !it.h && !it.fileName) return [];
+    }
+    return stored;
+  });
   const [nid, setNid] = useState(() => { const s = loadCalcState(); return s?.nid ?? 2; });
   const [layoutOpen, setLayoutOpen] = useState(false);
   const [mobileLayoutVisible, setMobileLayoutVisible] = useState(false);
   const [printsExpanded, setPrintsExpanded] = useState(false);
+  const [orderModalOpen, setOrderModalOpen] = useState(false);
   const layoutViewportRef = useRef(null);
 
   useEffect(() => {
-    const stripped = items.map(({ thumb, ...rest }) => rest);
+    const stripped = items.map(({ originalFile: _of, ...rest }) => rest);
     saveCalcState({ items: stripped, withApply, nid });
   }, [items, withApply, nid]);
 
+  // Restore originalFile blobs from IndexedDB on mount.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const ids = items.filter((i) => i.fileName && !i.originalFile).map((i) => i.id);
+      if (ids.length === 0) return;
+      const restored = await Promise.all(ids.map(async (id) => [id, await loadCalcFile(`calc-file-${id}`)]));
+      if (cancelled) return;
+      const map = new Map(restored.filter(([, f]) => f).map(([id, f]) => [id, f]));
+      if (map.size === 0) return;
+      setItems((prev) => prev.map((i) => map.has(i.id) ? { ...i, originalFile: map.get(i.id) } : i));
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const resetCalc = () => {
     clearCalcState();
-    setItems([{ id: 1, w: 0, h: 0, qty: 1 }]);
-    setNid(2);
+    clearCalcFiles();
+    setItems([]);
+    setNid(1);
     setWithApply(false);
     setLayoutOpen(false);
   };
@@ -817,7 +919,7 @@ function CalcPage({ onBack }) {
     setNid((prev) => prev + 1);
     setPrintsExpanded(true);
   };
-  const rm = (id) => { if (items.length > 1) setItems(items.filter(i => i.id !== id)); };
+  const rm = (id) => { deleteCalcFile(`calc-file-${id}`); setItems(items.filter(i => i.id !== id)); };
   const upd = (id, f, v) => {
     let n = parseFloat(v); if (isNaN(n) || n < 0) n = 0;
     if (f === "qty") n = Math.max(0, Math.round(n)); else n = Math.max(0, n);
@@ -827,20 +929,22 @@ function CalcPage({ onBack }) {
   const handleFileUpload = async (id, file) => {
     const result = await processCalcFile(file);
     if (!result) return;
-    setItems((prev) => prev.map(i => i.id === id ? { ...i, w: result.w, h: result.h, thumb: result.thumb, fileName: result.fileName, dpiWarning: result.dpiWarning } : i));
+    saveCalcFile(`calc-file-${id}`, file);
+    setItems((prev) => prev.map(i => i.id === id ? { ...i, w: result.w, h: result.h, thumb: result.thumb, fileName: result.fileName, dpiWarning: result.dpiWarning, originalFile: file } : i));
   };
 
   const handleMultiFileUpload = async (fileList) => {
     const files = Array.from(fileList).slice(0, MAX_CALC_ITEMS - items.length);
     if (files.length === 0) return;
     const results = [];
-    for (const f of files) { const r = await processCalcFile(f); if (r) results.push(r); }
+    for (const f of files) { const r = await processCalcFile(f); if (r) results.push({ ...r, originalFile: f }); }
     if (results.length === 0) return;
     setPrintsExpanded(true);
     setItems((prev) => {
       let nextId = nid;
       const newItems = results.map((r) => {
-        const item = { id: nextId, w: r.w, h: r.h, qty: 1, thumb: r.thumb, fileName: r.fileName, dpiWarning: r.dpiWarning };
+        const item = { id: nextId, w: r.w, h: r.h, qty: 1, thumb: r.thumb, fileName: r.fileName, dpiWarning: r.dpiWarning, originalFile: r.originalFile };
+        saveCalcFile(`calc-file-${nextId}`, r.originalFile);
         nextId++;
         return item;
       });
@@ -850,7 +954,8 @@ function CalcPage({ onBack }) {
   };
 
   const clearFileFromItem = (id) => {
-    setItems((prev) => prev.map(i => i.id === id ? { ...i, thumb: undefined, fileName: undefined, dpiWarning: undefined } : i));
+    deleteCalcFile(`calc-file-${id}`);
+    setItems((prev) => prev.map(i => i.id === id ? { ...i, thumb: undefined, fileName: undefined, dpiWarning: undefined, originalFile: undefined } : i));
   };
 
   const activeItems = items.filter(i => i.w > 0 && i.h > 0 && i.qty > 0);
@@ -864,6 +969,7 @@ function CalcPage({ onBack }) {
   const lengthCm = pack.length;
   const meters = lengthCm / 100;
   const metersRaw = meters > 0 ? Math.ceil(meters * 10) / 10 : 0;
+  const metersDisplay = meters > 0 ? Math.round(meters * 100) / 100 : 0;
   const metersRound = metersRaw > 0 && !withApply ? Math.max(1, metersRaw) : metersRaw;
 
   const overThreeMeters = metersRaw > 3;
@@ -901,7 +1007,46 @@ function CalcPage({ onBack }) {
   const print = getPrintCost(metersRound);
   const apply = withApply ? getApplyCost(totalQty) : { rate: 0, cost: 0 };
   const standardTotal = print.cost + apply.cost;
-  const printTotal = isSmallOrder ? formatPartCost : isMixed ? formatPartCost + meterPartPrint.cost + meterPartApply.cost : standardTotal;
+
+  // «Только печать»: поштучная цена пока сумма < стоимости 1 п/м и метраж ≤ 1 м.
+  // Малые форматы (≤ A3) — фиксированно 500 ₽/шт. Большие (A3+, A3++) — по цене формата.
+  const PRINT_ONLY_SMALL_FLAT_PRICE = 500;
+  const PRINT_ONLY_SMALL_FORMATS = new Set(["A6", "A5", "A4", "A3"]);
+  const getPrintOnlyUnitPrice = (fmt) => {
+    if (!fmt) return 0;
+    if (PRINT_ONLY_SMALL_FORMATS.has(fmt.name)) return PRINT_ONLY_SMALL_FLAT_PRICE;
+    return fmt.price;
+  };
+  const oneMeterCost = getPrintCost(1).cost;
+  const itemsForPrintOnly = !withApply && valid && !oversized
+    ? activeItems.map((it) => {
+        const format = getFormat(it.w, it.h);
+        return {
+          ...it,
+          format,
+          idx: items.indexOf(it),
+          unitPrice: getPrintOnlyUnitPrice(format),
+        };
+      })
+    : [];
+  const allItemsHaveFormat = !withApply && itemsForPrintOnly.length > 0
+    && itemsForPrintOnly.every((it) => it.format);
+  const printOnlyPerPieceCost = allItemsHaveFormat
+    ? itemsForPrintOnly.reduce((sum, it) => sum + it.qty * it.unitPrice, 0)
+    : 0;
+  const printOnlySmall = allItemsHaveFormat
+    && metersRaw <= 1
+    && printOnlyPerPieceCost < oneMeterCost;
+  // Сохраняем имя для совместимости с существующими условиями ниже.
+  const allItemsSmallFormat = allItemsHaveFormat;
+
+  const printTotal = printOnlySmall
+    ? printOnlyPerPieceCost
+    : isSmallOrder
+      ? formatPartCost
+      : isMixed
+        ? formatPartCost + meterPartPrint.cost + meterPartApply.cost
+        : standardTotal;
   const total = printTotal;
 
   const svgW = 370;
@@ -924,12 +1069,38 @@ function CalcPage({ onBack }) {
     return () => window.cancelAnimationFrame(frameId);
   }, [layoutOpen, lengthCm]);
 
-  const calcOrderLink = `https://t.me/FUTURE_178?text=${encodeURIComponent([
-    "Здравствуйте! Хочу рассчитать заказ DTF-печати.",
-    totalQty > 0 ? `Количество принтов: ${totalQty} шт` : null,
-    `Печать: ${printTotal.toLocaleString("ru-RU")} ₽`,
-    `Итого: ${total.toLocaleString("ru-RU")} ₽`,
-  ].filter(Boolean).join("\n"))}`;
+  // Cost breakdown for order PDF/messages.
+  const orderCostLines = (() => {
+    if (printOnlySmall) {
+      return itemsForPrintOnly.map((it, i) => ({
+        label: `Принт ${i + 1} (${it.format ? it.format.name : `${it.w}×${it.h}`})`,
+        amount: it.qty * it.unitPrice,
+        sub: `${it.qty} шт × ${it.unitPrice} ₽`,
+      }));
+    }
+    if (isSmallOrder) {
+      return formatItems.map((it, i) => ({
+        label: `Принт ${i + 1} (${it.format.name})`,
+        amount: it.formatCost,
+        sub: `${it.qty} шт × ${it.unitPrice} ₽`,
+      }));
+    }
+    if (isMixed) {
+      const lines = formatItems.map((it, i) => ({
+        label: `Принт ${i + 1} (${it.format.name})`,
+        amount: it.formatCost,
+        sub: `${it.qty} шт × ${it.unitPrice} ₽`,
+      }));
+      lines.push({ label: "Печать (по метражу)", amount: meterPartPrint.cost, sub: `${meterPartMeters.toFixed(1)} м × ${meterPartPrint.rate} ₽/м` });
+      lines.push({ label: "Нанесение", amount: meterPartApply.cost, sub: `${meterQty} шт × ${meterPartApply.rate} ₽/шт` });
+      return lines;
+    }
+    const lines = [{ label: "Печать", amount: print.cost, sub: metersRaw > 0 && metersRaw < 1 ? `Минимальный заказ 1 м × ${print.rate} ₽/м` : `${metersRound.toFixed(2)} м × ${print.rate} ₽/м` }];
+    if (withApply && totalQty > 0) {
+      lines.push({ label: "Нанесение", amount: apply.cost, sub: `${totalQty} шт × ${apply.rate} ₽/шт` });
+    }
+    return lines;
+  })();
 
   return (
     <div style={{ fontFamily: "'Outfit',sans-serif", background: "#08080c", color: "#f0eef5", minHeight: "100vh" }}>
@@ -963,7 +1134,7 @@ function CalcPage({ onBack }) {
                     Файл
                     <input type="file" accept=".png,.jpg,.jpeg,.webp,.svg,.pdf,.tiff,.tif" style={{ display: "none" }} onChange={e => { if (e.target.files[0]) handleFileUpload(it.id, e.target.files[0]); e.target.value = ""; }} />
                   </label>
-                  {items.length > 1 && <button onClick={() => rm(it.id)} style={{ background: "none", border: "none", color: "rgba(240,238,245,.3)", cursor: "pointer", fontSize: 16, fontFamily: "inherit" }} onMouseEnter={e => e.target.style.color = "#e84393"} onMouseLeave={e => e.target.style.color = "rgba(240,238,245,.3)"}>✕</button>}
+                  {items.length > 0 && <button onClick={() => rm(it.id)} style={{ background: "none", border: "none", color: "rgba(240,238,245,.3)", cursor: "pointer", fontSize: 16, fontFamily: "inherit" }} onMouseEnter={e => e.target.style.color = "#e84393"} onMouseLeave={e => e.target.style.color = "rgba(240,238,245,.3)"}>✕</button>}
                 </div>
                 <div className="calc-item-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
                   {[["Ширина, см", "w"], ["Высота, см", "h"], ["Кол-во", "qty"]].map(([label, f]) => {
@@ -1005,7 +1176,7 @@ function CalcPage({ onBack }) {
               </button>
             )}
             {items.length < MAX_CALC_ITEMS && (
-              <div className="calc-add-row" style={{ display: "flex", gap: 10 }}>
+              <div className="calc-add-row" style={{ display: "flex", gap: 10, marginTop: items.length === 0 ? 37 : 0 }}>
                 <button onClick={add} style={{ flex: 1, background: "rgba(255,255,255,.02)", border: "1.5px dashed rgba(255,255,255,.1)", borderRadius: 20, padding: 18, cursor: "pointer", color: "rgba(240,238,245,.35)", fontSize: 14, fontFamily: "'Outfit',sans-serif", transition: "all .3s" }} onMouseEnter={e => { e.target.style.borderColor = "rgba(232,67,147,.4)"; e.target.style.color = "#e84393"; }} onMouseLeave={e => { e.target.style.borderColor = "rgba(255,255,255,.1)"; e.target.style.color = "rgba(240,238,245,.35)"; }}>
                   + Добавить размер
                 </button>
@@ -1115,21 +1286,12 @@ function CalcPage({ onBack }) {
               ) : (
                 <>
                   <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 24 }}>
-                    {[["Всего принтов", `${totalQty} шт`], ["Длина печати", `${lengthCm.toFixed(1)} см`], ["Погонных метров", `${metersRound.toFixed(1)} м`]].map(([l, v]) => (
+                    {[["Всего принтов", `${totalQty} шт`], ["Длина печати", `${lengthCm.toFixed(1)} см`], ["Погонных метров", `${metersDisplay.toFixed(2)} м`]].map(([l, v]) => (
                       <div key={l} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", background: "rgba(255,255,255,.02)", borderRadius: 10 }}>
                         <span style={{ fontSize: 13, fontWeight: 300, color: "rgba(240,238,245,.5)" }}>{l}</span>
                         <span style={{ fontSize: 17, fontWeight: 600 }}>{v}</span>
                       </div>
                     ))}
-                    {!isSmallOrder && !withApply && meters > 0 && meters < 1 && (
-                      <div style={{ padding: "14px 18px", borderRadius: 12, background: "rgba(255,80,80,.08)", border: "1.5px solid rgba(255,80,80,.25)", display: "flex", alignItems: "center", gap: 12 }}>
-                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ff6b6b" strokeWidth="2" style={{ flexShrink: 0 }}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                        <div>
-                          <div style={{ fontSize: 14, fontWeight: 600, color: "#ff6b6b" }}>Минимальный заказ — 1 п/м</div>
-                          <div style={{ fontSize: 12, fontWeight: 300, color: "rgba(255,107,107,.6)", marginTop: 2 }}>Добавьте больше принтов для оформления заказа</div>
-                        </div>
-                      </div>
-                    )}
                   </div>
 
                   <div style={{ borderTop: "1px solid rgba(255,255,255,.05)", paddingTop: 18, display: "flex", flexDirection: "column", gap: 14 }}>
@@ -1165,10 +1327,25 @@ function CalcPage({ onBack }) {
                           </>
                         )}
                       </>
+                    ) : printOnlySmall ? (
+                      <>
+                        {itemsForPrintOnly.map((it, i) => (
+                          <div key={`po${i}`} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <div>
+                              <div style={{ fontSize: 14, fontWeight: 400, display: "flex", alignItems: "center", gap: 8 }}>
+                                <div style={{ width: 10, height: 10, borderRadius: 3, background: COLORS[it.idx % COLORS.length], flexShrink: 0 }} />
+                                <span className="calc-result-dims">{it.w}×{it.h} см → {it.format.name}</span>
+                              </div>
+                              <div className="calc-result-sub" style={{ fontSize: 12, fontWeight: 300, color: "rgba(240,238,245,.3)", marginLeft: 18 }}>{it.qty} шт × {it.unitPrice} ₽</div>
+                            </div>
+                            <span className="calc-result-price" style={{ fontSize: 18, fontWeight: 600 }}>{(it.qty * it.unitPrice).toLocaleString("ru")} ₽</span>
+                          </div>
+                        ))}
+                      </>
                     ) : (
                       <>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                          <div><div style={{ fontSize: 14, fontWeight: 400 }}>Печать</div><div style={{ fontSize: 12, fontWeight: 300, color: "rgba(240,238,245,.3)" }}>{metersRound.toFixed(1)} м × {print.rate} ₽/м</div></div>
+                          <div><div style={{ fontSize: 14, fontWeight: 400 }}>Печать</div><div style={{ fontSize: 12, fontWeight: 300, color: "rgba(240,238,245,.3)" }}>{metersRaw > 0 && metersRaw < 1 ? `Минимальный заказ 1 м × ${print.rate} ₽/м` : `${metersRound.toFixed(2)} м × ${print.rate} ₽/м`}</div></div>
                           <span style={{ fontSize: 18, fontWeight: 600 }}>{print.cost.toLocaleString("ru")} ₽</span>
                         </div>
                         {withApply && totalQty > 0 && (
@@ -1189,10 +1366,10 @@ function CalcPage({ onBack }) {
                     {totalQty > 0 && <div className="calc-total-note" style={{ fontSize: 13, fontWeight: 300, color: "rgba(240,238,245,.4)", marginTop: 4, textAlign: "right" }}>≈ {Math.round(total / totalQty)} ₽ / принт</div>}
                   </div>
 
-                  {(!isSmallOrder && !withApply && meters > 0 && meters < 1) ? (
-                    <div style={{ width: "100%", textAlign: "center", marginTop: 18, padding: "14px 36px", borderRadius: 50, background: "rgba(255,255,255,.04)", color: "rgba(240,238,245,.25)", fontSize: 16, fontWeight: 500, fontFamily: "'Outfit',sans-serif", cursor: "not-allowed" }}>Минимум 1 п/м для заказа</div>
+                  {(!isSmallOrder && !withApply && !printOnlySmall && !allItemsSmallFormat && meters > 0 && meters < 1) ? (
+                    <button type="button" onClick={() => setOrderModalOpen(true)} className="btg" style={{ width: "100%", justifyContent: "center", marginTop: 18, display: "flex", border: "none", cursor: "pointer", fontFamily: "'Outfit',sans-serif" }}><TG /> Оформить штучный заказ</button>
                   ) : (
-                    <a href={calcOrderLink} target="_blank" rel="noopener noreferrer" className="btg" style={{ width: "100%", justifyContent: "center", marginTop: 18, display: "flex" }}><TG /> Оформить заказ</a>
+                    <button type="button" onClick={() => setOrderModalOpen(true)} className="btg" style={{ width: "100%", justifyContent: "center", marginTop: 18, display: "flex", border: "none", cursor: "pointer", fontFamily: "'Outfit',sans-serif" }}><TG /> Оформить заказ</button>
                   )}
                 </>
               )}
@@ -1242,6 +1419,19 @@ function CalcPage({ onBack }) {
         </div>
       </div>
       <footer style={{ borderTop: "1px solid rgba(255,255,255,.05)", padding: "24px 5%", textAlign: "center" }}><p style={{ fontSize: 12, fontWeight: 300, color: "rgba(240,238,245,.2)" }}>© 2026 Future Studio • СПб • DTF-печать</p></footer>
+      <CalcOrderModal
+        open={orderModalOpen}
+        onClose={() => setOrderModalOpen(false)}
+        items={activeItems}
+        mode={withApply ? "withApply" : "printOnly"}
+        totalQty={totalQty}
+        lengthCm={lengthCm}
+        metersRound={metersDisplay}
+        costLines={orderCostLines}
+        total={total}
+        onAddFiles={handleMultiFileUpload}
+        onResetCalc={resetCalc}
+      />
     </div>
   );
 }
@@ -1302,6 +1492,7 @@ export default function App() {
   const [pt, setPt] = useState("format");
   const [txMenuOpen, setTxMenuOpen] = useState(false);
   const [initialTextileProduct, setInitialTextileProduct] = useState(null);
+  const [initialConstructorSelection, setInitialConstructorSelection] = useState(null);
   const reviewData = useYandexReviews();
 
   useEffect(() => { const h = () => setSy(window.scrollY); window.addEventListener("scroll", h, { passive: true }); return () => window.removeEventListener("scroll", h); }, []);
@@ -1385,7 +1576,20 @@ export default function App() {
 
   if (pg === "constructor") return (
     <Suspense fallback={<div style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "#08080c", color: "#f0eef5", fontFamily: "'Outfit',sans-serif" }}>Загрузка конструктора…</div>}>
-      <ConstructorRoute onBack={() => navigateToPage("main")} />
+      <ConstructorRoute
+        onBack={() => navigateToPage("main")}
+        initialSelection={initialConstructorSelection}
+        onClearInitialSelection={() => setInitialConstructorSelection(null)}
+        onOpenProductDetails={({ model, densityLabel, color, size }) => {
+          setInitialTextileProduct({
+            galleryModel: model,
+            variants: densityLabel ? [{ label: densityLabel }] : [],
+            _initialColor: color || null,
+            _initialSize: size || null,
+          });
+          navigateToPage("textile_tshirts");
+        }}
+      />
     </Suspense>
   );
   if (pg === "calc") return <CalcPage onBack={() => navigateToPage("main")} />;
@@ -1394,7 +1598,7 @@ export default function App() {
       <PortfolioPage onBack={() => navigateToPage("main")} />
     </Suspense>
   );
-  if (pg.startsWith("textile_")) return <TextilePage type={pg.replace("textile_", "")} initialProduct={initialTextileProduct} onClearInitialProduct={() => setInitialTextileProduct(null)} onBack={() => navigateToPage("main")} onNavigate={(t) => navigateToPage("textile_" + t)} />;
+  if (pg.startsWith("textile_")) return <TextilePage type={pg.replace("textile_", "")} initialProduct={initialTextileProduct} onClearInitialProduct={() => setInitialTextileProduct(null)} onBack={() => navigateToPage("main")} onNavigate={(t) => navigateToPage("textile_" + t)} onOpenConstructor={(selection) => { setInitialConstructorSelection(selection || null); navigateToPage("constructor"); }} />;
 
   return (
     <div style={{ fontFamily: "'Outfit',sans-serif", background: "#08080c", color: "#f0eef5", minHeight: "100vh", overflowX: "hidden" }}>

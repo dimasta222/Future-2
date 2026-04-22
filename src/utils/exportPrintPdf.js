@@ -64,129 +64,12 @@ function isTextBold(layer) {
   return (layer.weight ?? font.regularWeight ?? 500) >= 700;
 }
 
-/**
- * TTF font map: fontFamily (cleaned) + weight → TTF path under /fonts/.
- * Built to match files downloaded by scripts/download-constructor-fonts.mjs.
- */
-const GOOGLE_FONT_TTF_MAP = {
-  "Outfit-500": "/fonts/Google/Outfit-500.ttf",
-  "Outfit-800": "/fonts/Google/Outfit-800.ttf",
-  "Inter-500": "/fonts/Google/Inter-500.ttf",
-  "Inter-800": "/fonts/Google/Inter-800.ttf",
-  "Bebas Neue-400": "/fonts/Google/BebasNeue-400.ttf",
-  "Unbounded-500": "/fonts/Google/Unbounded-500.ttf",
-  "Unbounded-700": "/fonts/Google/Unbounded-700.ttf",
-  "Marck Script-400": "/fonts/Google/MarckScript-400.ttf",
-  "IBM Plex Mono-500": "/fonts/Google/IBMPlexMono-500.ttf",
-  "IBM Plex Mono-700": "/fonts/Google/IBMPlexMono-700.ttf",
-  "Great Vibes-400": "/fonts/Google/GreatVibes-400.ttf",
-  "Alumni Sans-400": "/fonts/Google/AlumniSans-400.ttf",
-  "Fira Sans Condensed-400": "/fonts/Google/FiraSansCondensed-400.ttf",
-  "Caveat-400": "/fonts/Google/Caveat-400.ttf",
-  "Comfortaa-400": "/fonts/Google/Comfortaa-400.ttf",
-  "Lobster-400": "/fonts/Google/Lobster-400.ttf",
-  "Pacifico-400": "/fonts/Google/Pacifico-400.ttf",
-  "Roboto Slab-400": "/fonts/Google/RobotoSlab-400.ttf",
-  "Oswald-400": "/fonts/Google/Oswald-400.ttf",
-  "Rubik Mono One-400": "/fonts/Google/RubikMonoOne-400.ttf",
-  "Press Start 2P-400": "/fonts/Google/PressStart2P-400.ttf",
-  "Advent Pro-400": "/fonts/Google/AdventPro-400.ttf",
-  "Yanone Kaffeesatz-400": "/fonts/Google/YanoneKaffeesatz-400.ttf",
-  "Amatic SC-400": "/fonts/Google/AmaticSC-400.ttf",
-  "Old Standard TT-400": "/fonts/Google/OldStandardTT-400.ttf",
-  "Dela Gothic One-400": "/fonts/Google/DelaGothicOne-400.ttf",
-  "Bad Script-400": "/fonts/Google/BadScript-400.ttf",
-  "Pangolin-400": "/fonts/Google/Pangolin-400.ttf",
-  "Neucha-400": "/fonts/Google/Neucha-400.ttf",
-  "Pattaya-400": "/fonts/Google/Pattaya-400.ttf",
-  "Rampart One-400": "/fonts/Google/RampartOne-400.ttf",
-  "Rubik Wet Paint-400": "/fonts/Google/RubikWetPaint-400.ttf",
-  "Reggae One-400": "/fonts/Google/ReggaeOne-400.ttf",
-  "Kelly Slab-400": "/fonts/Google/KellySlab-400.ttf",
-  "Ruslan Display-400": "/fonts/Google/RuslanDisplay-400.ttf",
-  "Rubik Dirt-400": "/fonts/Google/RubikDirt-400.ttf",
-  "Rubik Glitch-400": "/fonts/Google/RubikGlitch-400.ttf",
-  "Train One-400": "/fonts/Google/TrainOne-400.ttf",
-  "Rubik Doodle Shadow-400": "/fonts/Google/RubikDoodleShadow-400.ttf",
-  "Kablammo-400": "/fonts/Google/Kablammo-400.ttf",
-  "Stick-400": "/fonts/Google/Stick-400.ttf",
-  "Rubik Bubbles-400": "/fonts/Google/RubikBubbles-400.ttf",
-  "Comforter-400": "/fonts/Google/Comforter-400.ttf",
-  "Climate Crisis-400": "/fonts/Google/ClimateCrisis-400.ttf",
-  "Tiny5-400": "/fonts/Google/Tiny5-400.ttf",
-  "Comforter Brush-400": "/fonts/Google/ComforterBrush-400.ttf",
-  "Stalinist One-400": "/fonts/Google/StalinistOne-400.ttf",
-  "Oi-400": "/fonts/Google/Oi-400.ttf",
-  "Rubik Marker Hatch-400": "/fonts/Google/RubikMarkerHatch-400.ttf",
-  // Local TTF fonts
-  "Arial Black-400": "/fonts/Общие/Arial Black.ttf",
-  "Arial Bold-400": "/fonts/Общие/Arial Bold.ttf",
-  "Arial Regular-400": "/fonts/Общие/Arial Regular.ttf",
-  "Moniqa Black-400": "/fonts/Русские /Moniqa Black.ttf",
-};
-
-function getTtfPath(fontLabel, weight) {
-  return GOOGLE_FONT_TTF_MAP[`${fontLabel}-${weight}`] || null;
-}
-
-function arrayBufferToBase64(buffer) {
-  const bytes = new Uint8Array(buffer);
-  let binary = "";
-  for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary);
-}
-
-async function loadAndRegisterFont(doc, fontCache, fontLabel, weight) {
-  const cacheKey = `${fontLabel}-${weight}`;
-  if (fontCache.has(cacheKey)) return fontCache.get(cacheKey);
-
-  const ttfPath = getTtfPath(fontLabel, weight);
-  if (!ttfPath) {
-    fontCache.set(cacheKey, null);
-    return null;
-  }
-
-  try {
-    const resp = await fetch(ttfPath);
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const buf = await resp.arrayBuffer();
-    const fontId = cacheKey.replace(/\s+/g, "_");
-    doc.addFileToVFS(`${fontId}.ttf`, arrayBufferToBase64(buf));
-    doc.addFont(`${fontId}.ttf`, fontId, "normal");
-    fontCache.set(cacheKey, fontId);
-    return fontId;
-  } catch (err) {
-    console.warn(`[exportPrintPdf] TTF load failed for ${cacheKey}:`, err.message);
-    fontCache.set(cacheKey, null);
-    return null;
-  }
-}
-
 function detectImageFormat(src) {
   if (typeof src === "string") {
     if (src.startsWith("data:image/jpeg") || src.startsWith("data:image/jpg")) return "JPEG";
     if (src.startsWith("data:image/webp")) return "WEBP";
   }
   return "PNG";
-}
-
-async function renderRasterLayerToDataUrl(layer, targetWidthPx, targetHeightPx) {
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => {
-      const canvas = document.createElement("canvas");
-      canvas.width = targetWidthPx;
-      canvas.height = targetHeightPx;
-      const ctx = canvas.getContext("2d");
-      ctx.drawImage(img, 0, 0, targetWidthPx, targetHeightPx);
-      resolve(canvas.toDataURL("image/png"));
-    };
-    img.onerror = () => resolve(layer.src);
-    img.src = layer.src;
-  });
 }
 
 export async function exportPrintPdf({ layers, printArea }) {
@@ -215,7 +98,6 @@ export async function exportPrintPdf({ layers, printArea }) {
 
   console.log("[exportPrintPdf] jsPDF created");
 
-  const fontCache = new Map();
 
   const sortedLayers = [...layers].sort((a, b) => {
     const ai = layers.indexOf(a);
@@ -272,9 +154,9 @@ export async function exportPrintPdf({ layers, printArea }) {
 
     try {
       if (layer.type === "upload") {
-        await renderUploadLayer(doc, layer, pa, fontCache);
+        await renderUploadLayer(doc, layer, pa);
       } else if (layer.type === "text") {
-        await renderTextLayer(doc, layer, pa, fontCache);
+        await renderTextLayer(doc, layer, pa);
       } else if (layer.type === "shape") {
         await renderShapeLayer(doc, layer, pa);
       }
@@ -289,7 +171,7 @@ export async function exportPrintPdf({ layers, printArea }) {
   return doc.output("arraybuffer");
 }
 
-async function renderUploadLayer(doc, layer, printArea, _fontCache) {
+async function renderUploadLayer(doc, layer, printArea) {
   const pos = layerPositionToCm(layer, printArea);
   const xPt = cmToPt(pos.x);
   const yPt = cmToPt(pos.y);
@@ -354,7 +236,7 @@ async function renderUploadLayer(doc, layer, printArea, _fontCache) {
   restoreRotation();
 }
 
-async function renderTextLayer(doc, layer, printArea, fontCache) {
+async function renderTextLayer(doc, layer, printArea) {
   const physW = printArea.physicalWidthCm;
   const effH = printArea.effectivePhysH ?? printArea.physicalHeightCm;
   // sizeScale масштабирует все «px-единицы» (fontSize, letterSpacing, stroke, shadow,
@@ -364,10 +246,7 @@ async function renderTextLayer(doc, layer, printArea, fontCache) {
   const sizeScale = physW / Math.max(0.001, baselinePhysW);
   const cx = (layer.position.x / 100) * physW;
   const cy = (layer.position.y / 100) * effH;
-  const boxWidthCm = ((layer.textBoxWidth ?? 60) / 100) * physW;
-  const fontSizeCm = ((layer.size ?? 36) / LOGICAL_PRINT_PX_PER_CM) * sizeScale;
   const lineHeight = layer.lineHeight ?? 1.05;
-  const letterSpacingCm = ((layer.letterSpacing ?? 1) / LOGICAL_PRINT_PX_PER_CM) * sizeScale;
   const rotationDeg = layer.rotationDeg ?? 0;
 
   const font = getConstructorTextFont(layer.fontKey || "outfit");
@@ -375,11 +254,6 @@ async function renderTextLayer(doc, layer, printArea, fontCache) {
   const fontStyle = (font.supportsItalic && layer.italic) ? "italic" : "normal";
   const textValue = layer.uppercase ? (layer.value || "").toUpperCase() : (layer.value || "");
   if (!textValue.trim()) return;
-
-  const hasStroke = (layer.strokeWidth ?? 0) > 0;
-  const hasShadow = layer.shadowEnabled === true;
-  const hasGradient = layer.textFillMode === "gradient";
-  const hasDecoration = layer.underline || layer.strikethrough;
 
   // Always use canvas rendering — jsPDF TTF vector text silently fails for
   // Cyrillic and many other non-Latin glyphs (renders invisible/empty without

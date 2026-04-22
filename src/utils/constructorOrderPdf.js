@@ -187,7 +187,7 @@ function buildHtml(data, previewFrontUrl, previewBackUrl) {
       ${contactHtml}
 
       <div class="fs-footer">
-        <div><b>future-studio.ru</b> · СПб · DTF-печать на футболках</div>
+        <div><b>futurespb.ru</b> · СПб · DTF-печать на футболках</div>
         <div>future178@yandex.ru · t.me/FUTURE_178</div>
       </div>
     </div>

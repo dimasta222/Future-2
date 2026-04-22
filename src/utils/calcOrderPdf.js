@@ -142,7 +142,7 @@ function headerHtml(dateStr, modeLabel, pageIdx, pageCount) {
 function footerHtml() {
   return `
     <div class="fs-footer">
-      <div><b>future-studio.ru</b> · СПб · DTF-печать</div>
+      <div><b>futurespb.ru</b> · СПб · DTF-печать</div>
       <div>${PHONE_DISPLAY} · ${EMAIL}</div>
     </div>
   `;

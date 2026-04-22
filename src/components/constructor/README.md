@@ -419,3 +419,7 @@
   - центральное превью
 - src/components/constructor/ConstructorOrderPanel.jsx
   - правая панель заказа
+- src/utils/constructorOrderPdf.js
+  - брендированная PDF-сводка заказа (логотип, параметры, превью front/back,
+    состав, итог, контакты); подключается из `src/utils/submitOrder.js`
+    как `Заказ FUTURE.pdf` рядом с print-PDF и оригиналами

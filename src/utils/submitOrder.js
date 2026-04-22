@@ -1,5 +1,6 @@
 import { exportPrintPdf, collectFontNames, collectOriginalFiles } from "./exportPrintPdf.js";
 import { exportPreviewImage } from "./exportPreview.js";
+import { generateConstructorOrderPdf, buildConstructorOrderData } from "./constructorOrderPdf.js";
 
 const ORDER_API_URL = import.meta.env.VITE_ORDER_API_URL || null;
 
@@ -93,7 +94,26 @@ export async function buildOrderPayload({
     createdAt: new Date().toISOString(),
   };
 
-  files["order.json"] = new Blob([JSON.stringify(orderJson, null, 2)], { type: "application/json" });
+  // Branded PDF order summary (matches the calculator's design).
+  try {
+    const summaryData = buildConstructorOrderData({
+      product,
+      color,
+      size,
+      qty,
+      orderMeta,
+      currentTotal,
+      contact,
+    });
+    const summaryPdf = await generateConstructorOrderPdf({
+      data: summaryData,
+      frontPreviewBlob: files["preview-front.png"] || null,
+      backPreviewBlob: files["preview-back.png"] || null,
+    });
+    files["Заказ FUTURE.pdf"] = summaryPdf;
+  } catch (err) {
+    console.warn("[buildOrderPayload] summary PDF failed:", err);
+  }
 
   console.log("[buildOrderPayload] files ready:", Object.keys(files).map(k => `${k} (${(files[k].size / 1024).toFixed(1)} KB)`));
 

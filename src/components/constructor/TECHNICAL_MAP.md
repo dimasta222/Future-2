@@ -371,4 +371,11 @@ Props:
 - **Изображения:** Передаются напрямую в jsPDF без переконвертации для сохранения оригинальных ICC-профилей (забота о цветовой точности)
 - **Поддержка кириллицы:** Работает через @font-face + Font Loading API без необходимости дополнительных конфигураций
 
+### Брендированная сводка заказа (src/utils/constructorOrderPdf.js)
+
+- **Назначение:** Единая визуальная сводка заказа (логотип, дата, параметры товара, превью front/back, состав `orderMeta`, итог, контакты), аналогичная PDF калькулятора (`src/utils/calcOrderPdf.js`).
+- **Подключение:** `buildOrderPayload` в `src/utils/submitOrder.js` после генерации `preview-front.png` / `preview-back.png` вызывает `generateConstructorOrderPdf()` и кладёт результат в `files["Заказ FUTURE.pdf"]`. Файл попадает в FormData при POST на `ORDER_API_URL` и в локальный fallback `downloadOrderLocally`.
+- **Технология:** HTML-разметка → `html2canvas` (scale 3, dark theme `#08080c`) → `jsPDF` A4 portrait. При высоком контенте автоматически разбивается на несколько страниц.
+- **Шрифты:** Outfit (тот же, что в UI и в калькуляторе).
+
 - при росте сложности разделить useConstructorState.js на smaller hooks

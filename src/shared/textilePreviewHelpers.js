@@ -138,8 +138,8 @@ const TEXTILE_THUMBNAIL_PATHS = {
   },
   "shopper-canvas": {
     "210": {
-      "черный": "/tshirts/thumbnails/shopper-canvas/210/black/01.png",
-      "натуральный": "/tshirts/thumbnails/shopper-canvas/210/natural/01.png",
+      "черный": "/tshirts/thumbnails/shopper-canvas/210/black/01.webp",
+      "натуральный": "/tshirts/thumbnails/shopper-canvas/210/natural/01.webp",
     },
   },
 };

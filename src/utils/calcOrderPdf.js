@@ -98,23 +98,22 @@ function styleBlock() {
     .fs-total-label { font-size: 14px; font-weight: 500; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(240,238,245,.7); }
     .fs-total-value { font-size: 36px; font-weight: 700; color: #e84393; }
 
-    .fs-contacts { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-    .fs-contact-card { display: flex; align-items: center; gap: 16px; padding: 14px 16px; border-radius: 16px; background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.06); }
-    .fs-qr { width: 110px; height: 110px; background: #fff; border-radius: 12px; padding: 6px; box-sizing: border-box; flex-shrink: 0; }
+    .fs-contacts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .fs-contact-card { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 12px; background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.06); }
+    .fs-qr { width: 78px; height: 78px; flex-shrink: 0; }
     .fs-qr img { width: 100%; height: 100%; display: block; object-fit: contain; }
-    .fs-contact-info { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-    .fs-contact-label { font-size: 10px; letter-spacing: 2px; color: rgba(240,238,245,.4); text-transform: uppercase; }
-    .fs-contact-name { font-size: 16px; font-weight: 600; color: #f0eef5; }
-    .fs-contact-handle { font-size: 12px; color: rgba(240,238,245,.65); word-break: break-all; }
-    .fs-contact-hint { font-size: 10.5px; color: rgba(240,238,245,.4); margin-top: 2px; }
+    .fs-contact-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .fs-contact-label { font-size: 9px; letter-spacing: 1.8px; color: rgba(240,238,245,.4); text-transform: uppercase; }
+    .fs-contact-name { font-size: 13px; font-weight: 600; color: #f0eef5; }
+    .fs-contact-handle { font-size: 10.5px; color: rgba(240,238,245,.6); word-break: break-all; }
 
-    .fs-direct { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    .fs-direct-row { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-radius: 14px; background: linear-gradient(135deg, rgba(232,67,147,.08), rgba(108,92,231,.08)); border: 1px solid rgba(232,67,147,.18); }
-    .fs-direct-icon { width: 40px; height: 40px; flex-shrink: 0; border-radius: 12px; background: linear-gradient(135deg,#e84393,#6c5ce7); display: flex; align-items: center; justify-content: center; color: #fff; }
-    .fs-direct-icon svg { width: 20px; height: 20px; display: block; }
-    .fs-direct-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-    .fs-direct-label { font-size: 10px; letter-spacing: 2px; color: rgba(240,238,245,.4); text-transform: uppercase; }
-    .fs-direct-value { font-size: 15px; font-weight: 600; color: #f0eef5; word-break: break-all; }
+    .fs-direct { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .fs-direct-row { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 12px; background: linear-gradient(135deg, rgba(232,67,147,.08), rgba(108,92,231,.08)); border: 1px solid rgba(232,67,147,.18); }
+    .fs-direct-icon { width: 30px; height: 30px; flex-shrink: 0; border-radius: 9px; background: linear-gradient(135deg,#e84393,#6c5ce7); display: flex; align-items: center; justify-content: center; color: #fff; }
+    .fs-direct-icon svg { width: 15px; height: 15px; display: block; }
+    .fs-direct-info { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+    .fs-direct-label { font-size: 9px; letter-spacing: 1.8px; color: rgba(240,238,245,.4); text-transform: uppercase; }
+    .fs-direct-value { font-size: 12.5px; font-weight: 600; color: #f0eef5; word-break: break-all; }
 
     .fs-footer { padding-top: 18px; border-top: 1px solid rgba(255,255,255,.08); display: flex; justify-content: space-between; font-size: 11px; color: rgba(240,238,245,.4); flex-shrink: 0; }
     .fs-footer b { color: rgba(240,238,245,.7); font-weight: 500; }
@@ -237,7 +236,6 @@ function buildChunks(data) {
             <div class="fs-contact-label">Telegram</div>
             <div class="fs-contact-name">@FUTURE_178</div>
             <div class="fs-contact-handle">t.me/FUTURE_178</div>
-            <div class="fs-contact-hint">Наведите камеру на QR — откроется чат</div>
           </div>
         </div>
         <div class="fs-contact-card">
@@ -246,11 +244,10 @@ function buildChunks(data) {
             <div class="fs-contact-label">MAX</div>
             <div class="fs-contact-name">FUTURE STUDIO</div>
             <div class="fs-contact-handle">max.ru</div>
-            <div class="fs-contact-hint">Альтернатива Telegram</div>
           </div>
         </div>
       </div>
-      <div class="fs-direct" style="margin-top:12px">
+      <div class="fs-direct" style="margin-top:8px">
         <div class="fs-direct-row">
           <div class="fs-direct-icon">${ICON_PHONE}</div>
           <div class="fs-direct-info">

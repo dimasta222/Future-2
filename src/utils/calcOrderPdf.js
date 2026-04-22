@@ -1,6 +1,12 @@
 import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
+import QRCode from "qrcode";
 import { LOGO_FULL_SRC } from "../components/logoFullSrc";
+
+const TELEGRAM_URL = "https://t.me/FUTURE_178";
+const MAX_URL = "https://max.ru/u/f9LHodD0cOL0pTqxSNqIn22flD78BhADnB7BLdrGb3yZbXHeBKclVTh-b2I";
+const PHONE_DISPLAY = "+7 950 000-34-64";
+const EMAIL = "future178@yandex.ru";
 
 // A4 portrait at 96 DPI baseline.
 const PAGE_W_PX = 794;   // 210 mm @ 96dpi
@@ -89,6 +95,19 @@ function styleBlock() {
     .fs-total-label { font-size: 14px; font-weight: 500; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(240,238,245,.7); }
     .fs-total-value { font-size: 36px; font-weight: 700; color: #e84393; }
 
+    .fs-contacts { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .fs-contact-card { display: flex; align-items: center; gap: 16px; padding: 16px 18px; border-radius: 16px; background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.06); }
+    .fs-qr { width: 96px; height: 96px; background: #fff; border-radius: 10px; padding: 6px; box-sizing: border-box; flex-shrink: 0; }
+    .fs-qr img { width: 100%; height: 100%; display: block; image-rendering: pixelated; }
+    .fs-contact-info { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+    .fs-contact-label { font-size: 10px; letter-spacing: 2px; color: rgba(240,238,245,.4); text-transform: uppercase; }
+    .fs-contact-name { font-size: 15px; font-weight: 600; color: #f0eef5; }
+    .fs-contact-handle { font-size: 12px; color: rgba(240,238,245,.65); word-break: break-all; }
+
+    .fs-direct { display: flex; flex-wrap: wrap; gap: 18px; padding: 14px 18px; border-radius: 14px; background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.06); font-size: 12.5px; color: rgba(240,238,245,.85); }
+    .fs-direct b { color: rgba(240,238,245,.45); font-weight: 500; letter-spacing: .5px; margin-right: 6px; font-size: 11px; text-transform: uppercase; }
+    .fs-direct-item { display: flex; align-items: center; gap: 8px; }
+
     .fs-footer { padding-top: 18px; border-top: 1px solid rgba(255,255,255,.08); display: flex; justify-content: space-between; font-size: 11px; color: rgba(240,238,245,.4); flex-shrink: 0; }
     .fs-footer b { color: rgba(240,238,245,.7); font-weight: 500; }
   `;
@@ -116,14 +135,14 @@ function footerHtml() {
   return `
     <div class="fs-footer">
       <div><b>future-studio.ru</b> · СПб · DTF-печать</div>
-      <div>future178@yandex.ru · t.me/FUTURE_178</div>
+      <div>${PHONE_DISPLAY} · ${EMAIL}</div>
     </div>
   `;
 }
 
 // Build atomic content chunks. Each chunk is an indivisible unit; chunks are
 // distributed greedily across pages without splitting individual blocks.
-function buildChunks(data) {
+function buildChunks(data, qrTelegram, qrMax) {
   const chunks = [];
 
   chunks.push({
@@ -195,6 +214,35 @@ function buildChunks(data) {
       <div class="fs-total">
         <div class="fs-total-label">Итого</div>
         <div class="fs-total-value">${fmtRub(data.total)}</div>
+      </div>
+    `,
+  });
+
+  chunks.push({
+    kind: "contacts",
+    keepWithNext: false,
+    html: `
+      <div class="fs-contacts">
+        <div class="fs-contact-card">
+          <div class="fs-qr"><img src="${qrTelegram}" alt="Telegram QR" /></div>
+          <div class="fs-contact-info">
+            <div class="fs-contact-label">Telegram</div>
+            <div class="fs-contact-name">@FUTURE_178</div>
+            <div class="fs-contact-handle">t.me/FUTURE_178</div>
+          </div>
+        </div>
+        <div class="fs-contact-card">
+          <div class="fs-qr"><img src="${qrMax}" alt="MAX QR" /></div>
+          <div class="fs-contact-info">
+            <div class="fs-contact-label">MAX</div>
+            <div class="fs-contact-name">FUTURE STUDIO</div>
+            <div class="fs-contact-handle">max.ru</div>
+          </div>
+        </div>
+      </div>
+      <div class="fs-direct" style="margin-top:12px">
+        <div class="fs-direct-item"><b>Тел.</b> ${PHONE_DISPLAY}</div>
+        <div class="fs-direct-item"><b>E-mail</b> ${EMAIL}</div>
       </div>
     `,
   });
@@ -318,7 +366,13 @@ export async function generateCalcOrderPdf(data) {
   const dateStr = created.toLocaleString("ru-RU");
   const modeLabel = data.mode === "withApply" ? "Печать + нанесение" : "Только печать";
 
-  const chunks = buildChunks(data);
+  const qrOpts = { margin: 0, width: 384, color: { dark: "#08080c", light: "#ffffff" }, errorCorrectionLevel: "M" };
+  const [qrTelegram, qrMax] = await Promise.all([
+    QRCode.toDataURL(TELEGRAM_URL, qrOpts),
+    QRCode.toDataURL(MAX_URL, qrOpts),
+  ]);
+
+  const chunks = buildChunks(data, qrTelegram, qrMax);
   const heights = await measureChunks(chunks);
   const pageGroups = packPages(chunks, heights);
   const pageCount = pageGroups.length;

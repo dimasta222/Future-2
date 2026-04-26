@@ -163,6 +163,14 @@ function scanFonts() {
       supportsItalic: hasItalic,
       regularWeight,
       boldWeight,
+      // Маппинг variantKey → URL TTF/OTF/WOFF файла. variantKey = `${weight}-${style}`,
+      // где style = "normal"|"italic". Используется opentype.js-парсером
+      // (src/utils/textGlyphBbox.js) для точного измерения glyph-path bbox.
+      urls: variants.reduce((acc, v) => {
+        const variantKey = `${v.weight}-${v.italic ? "italic" : "normal"}`;
+        acc[variantKey] = v.urlPath;
+        return acc;
+      }, {}),
     });
   }
 

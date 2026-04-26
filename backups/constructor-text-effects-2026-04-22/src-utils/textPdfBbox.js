@@ -17,7 +17,7 @@ export function clearTextPdfBboxCache() {
   cache.clear();
 }
 
-function makeCacheKey(layer, physW, baselinePhysW, boxWidthOverride, linesOverride) {
+function makeCacheKey(layer, physW, baselinePhysW) {
   return [
     layer.value || "",
     layer.uppercase ? 1 : 0,
@@ -29,8 +29,6 @@ function makeCacheKey(layer, physW, baselinePhysW, boxWidthOverride, linesOverri
     layer.lineHeight,
     layer.letterSpacing,
     layer.strokeWidth,
-    layer.textOutlineOnly ? 1 : 0,
-    layer.outlineWidth || 0,
     layer.shadowEnabled ? 1 : 0,
     layer.shadowOffsetX,
     layer.shadowOffsetY,
@@ -39,35 +37,14 @@ function makeCacheKey(layer, physW, baselinePhysW, boxWidthOverride, linesOverri
     layer.strikethrough ? 1 : 0,
     physW,
     baselinePhysW,
-    boxWidthOverride ?? "",
-    linesOverride ? linesOverride.join("\u0001") : "",
   ].join("|");
 }
-
-// Допуск переноса: ctx.measureText включает trailing letter-spacing после
-// последней буквы, а DOM его не рисует — добавляем одну
-// letter-spacing к лимиту, иначе короткие строки ложно переносятся.
-const WRAP_TOLERANCE_PX = 1;
 
 function wrapText(text, fontStr, maxWidth, letterSpacingPx) {
   const c = document.createElement("canvas");
   const ctx = c.getContext("2d");
   ctx.font = fontStr;
   ctx.letterSpacing = `${letterSpacingPx || 0}px`;
-  const limit = maxWidth + Math.max(0, letterSpacingPx || 0) + WRAP_TOLERANCE_PX;
-  const breakLongToken = (token, lines) => {
-    let buf = "";
-    for (const ch of token) {
-      const candidate = buf + ch;
-      if (buf && ctx.measureText(candidate).width > limit) {
-        lines.push(buf);
-        buf = ch;
-      } else {
-        buf = candidate;
-      }
-    }
-    return buf;
-  };
   const paragraphs = String(text || "").split("\n");
   const out = [];
   for (const para of paragraphs) {
@@ -76,16 +53,9 @@ function wrapText(text, fontStr, maxWidth, letterSpacingPx) {
     let line = "";
     for (const word of words) {
       const test = line + word;
-      if (ctx.measureText(test).width > limit && line.length > 0) {
+      if (ctx.measureText(test).width > maxWidth && line.length > 0) {
         out.push(line);
-        const trimmed = word.trimStart();
-        if (ctx.measureText(trimmed).width > limit) {
-          line = breakLongToken(trimmed, out);
-        } else {
-          line = trimmed;
-        }
-      } else if (!line && ctx.measureText(test).width > limit) {
-        line = breakLongToken(test, out);
+        line = word.trimStart();
       } else {
         line = test;
       }
@@ -106,16 +76,6 @@ export function measureTextPdfInkBboxCm({
   fontStyle,
   physicalWidthCm,
   baselinePhysicalWidthCm,
-  // Optional: actual DOM-rendered box width in CURRENT physical cm. When
-  // passed, used instead of `(textBoxWidth%/100) * baseline` to derive the
-  // wrap width — that way canvas wrap matches DOM exactly even when the box
-  // sits exactly at the text edge (snug fit) and sub-pixel rounding would
-  // otherwise cause canvas to wrap an extra letter.
-  boxWidthCmOverride,
-  // Optional: lines as actually wrapped by the DOM. When passed, canvas skips
-  // its own wrap step (which can disagree with DOM due to kerning / font
-  // features) and renders these exact lines for the alpha-scan ink bbox.
-  linesOverride,
 }) {
   if (typeof document === "undefined") return null;
   const rawText = String(layer?.value || "");
@@ -126,7 +86,7 @@ export function measureTextPdfInkBboxCm({
   const safeBaseline = baselinePhysicalWidthCm > 0 ? baselinePhysicalWidthCm : physicalWidthCm;
   const sizeScale = physicalWidthCm / safeBaseline;
 
-  const cacheKey = makeCacheKey({ ...layer, fontFamily, weight: fontWeight, italic: fontStyle === "italic" }, physicalWidthCm, safeBaseline, boxWidthCmOverride, linesOverride);
+  const cacheKey = makeCacheKey({ ...layer, fontFamily, weight: fontWeight, italic: fontStyle === "italic" }, physicalWidthCm, safeBaseline);
   if (cache.has(cacheKey)) return cache.get(cacheKey);
 
   // Меряем в baseline (XS) масштабе — canvas всегда одного размера, glyph-метрики
@@ -135,11 +95,7 @@ export function measureTextPdfInkBboxCm({
   // использует те же формулы: всё умножается на sizeScale).
   const pxPerCm = TEXT_CANVAS_PX_PER_CM;
   const widthPercent = Math.min(100, Math.max(1, layer.textBoxWidth ?? 60));
-  // Если задан DOM-override — переводим его в baseline-масштаб, иначе берём
-  // ширину из layer.textBoxWidth %.
-  const boxWidthCm = boxWidthCmOverride > 0
-    ? boxWidthCmOverride / sizeScale
-    : (widthPercent / 100) * safeBaseline;
+  const boxWidthCm = (widthPercent / 100) * safeBaseline;
   const fontSizeCm = (layer.size ?? 36) / LOGICAL_PRINT_PX_PER_CM;
   const lineHeight = layer.lineHeight ?? 1.05;
   const letterSpacingCm = (layer.letterSpacing ?? 1) / LOGICAL_PRINT_PX_PER_CM;
@@ -147,10 +103,7 @@ export function measureTextPdfInkBboxCm({
   const fontSizePx = fontSizeCm * pxPerCm;
   const boxWidthPx = boxWidthCm * pxPerCm;
   const letterSpacingPx = letterSpacingCm * pxPerCm;
-  const isOutlineOnly = !!layer.textOutlineOnly && (Number(layer.outlineWidth) || 0) > 0;
-  const sourceStrokeWidth = isOutlineOnly ? (layer.outlineWidth ?? 0) : (layer.strokeWidth ?? 0);
-  const strokeColorEffective = isOutlineOnly ? (layer.color || "#ffffff") : (layer.strokeColor || "#111111");
-  const strokeWidthPx = (sourceStrokeWidth / LOGICAL_PRINT_PX_PER_CM) * pxPerCm;
+  const strokeWidthPx = ((layer.strokeWidth ?? 0) / LOGICAL_PRINT_PX_PER_CM) * pxPerCm;
   const shadowEnabled = layer.shadowEnabled === true;
   const shadowOffsetXPx = shadowEnabled ? ((layer.shadowOffsetX ?? 0) / LOGICAL_PRINT_PX_PER_CM) * pxPerCm : 0;
   const shadowOffsetYPx = shadowEnabled ? ((layer.shadowOffsetY ?? 2) / LOGICAL_PRINT_PX_PER_CM) * pxPerCm : 0;
@@ -158,9 +111,7 @@ export function measureTextPdfInkBboxCm({
 
   const canvasFontStr = `${fontStyle || "normal"} ${fontWeight || 400} ${fontSizePx}px ${fontFamily || "sans-serif"}`;
 
-  const lines = Array.isArray(linesOverride) && linesOverride.length
-    ? linesOverride.map((line) => (layer?.uppercase ? String(line).toUpperCase() : String(line)))
-    : wrapText(textValue, canvasFontStr, boxWidthPx, letterSpacingPx);
+  const lines = wrapText(textValue, canvasFontStr, boxWidthPx, letterSpacingPx);
   const lineHeightPx = fontSizePx * lineHeight;
   const textBlockHeight = lines.length * lineHeightPx;
 
@@ -198,15 +149,13 @@ export function measureTextPdfInkBboxCm({
     else if (align === "right") lineX = pad + boxWidthPx - lineWidth;
 
     if (strokeWidthPx > 0) {
-      ctx.strokeStyle = strokeColorEffective;
+      ctx.strokeStyle = layer.strokeColor || "#111111";
       ctx.lineWidth = strokeWidthPx;
       ctx.lineJoin = "round";
       ctx.strokeText(lines[i], lineX, lineY);
     }
     ctx.fillStyle = layer.color || "#ffffff";
-    if (!isOutlineOnly) {
-      ctx.fillText(lines[i], lineX, lineY);
-    }
+    ctx.fillText(lines[i], lineX, lineY);
 
     if (layer.underline || layer.strikethrough) {
       const decorThickness = fontSizePx * 0.06;
@@ -237,31 +186,9 @@ export function measureTextPdfInkBboxCm({
       }
     }
     if (maxX >= 0 && maxY >= 0) {
-      const inkWidthPx = maxX - minX + 1;
-      const inkHeightPx = maxY - minY + 1;
-      // Координаты ink относительно ВНУТРЕННЕГО layout (без pad), в исходных
-      // baseline-cm. Layout начинается в (pad, pad), его размер
-      // boxWidthPx × textBlockHeight, центр в (pad + boxWidthPx/2, pad + textBlockHeight/2).
-      const layoutWidthCm = (boxWidthPx / pxPerCm) * sizeScale;
-      const layoutHeightCm = (textBlockHeight / pxPerCm) * sizeScale;
-      const inkLeftOffsetCm = ((minX - pad) / pxPerCm) * sizeScale;
-      const inkTopOffsetCm = ((minY - pad) / pxPerCm) * sizeScale;
-      const inkCenterXCm = inkLeftOffsetCm + (inkWidthPx / pxPerCm) * sizeScale / 2;
-      const inkCenterYCm = inkTopOffsetCm + (inkHeightPx / pxPerCm) * sizeScale / 2;
-      const layoutCenterXCm = layoutWidthCm / 2;
-      const layoutCenterYCm = layoutHeightCm / 2;
       result = {
-        widthCm: (inkWidthPx / pxPerCm) * sizeScale,
-        heightCm: (inkHeightPx / pxPerCm) * sizeScale,
-        // Дополнительные поля для расчёта inkDyEm в превью:
-        // ink-center относительно layout-center (cm). Положительный = ink ниже центра.
-        inkOffsetXCm: inkCenterXCm - layoutCenterXCm,
-        inkOffsetYCm: inkCenterYCm - layoutCenterYCm,
-        layoutWidthCm,
-        layoutHeightCm,
-        inkLeftOffsetCm,
-        inkTopOffsetCm,
-        linesCount: lines.length,
+        widthCm: ((maxX - minX + 1) / pxPerCm) * sizeScale,
+        heightCm: ((maxY - minY + 1) / pxPerCm) * sizeScale,
       };
     }
   } catch { /* tainted, return null */ }

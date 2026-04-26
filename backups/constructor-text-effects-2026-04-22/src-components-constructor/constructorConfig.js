@@ -153,34 +153,6 @@ const CLASSIC_PRINT_AREA_PHYSICAL_SIZES = {
   "3XL": { physicalWidthCm: 46, physicalHeightCm: 60 },
 };
 
-// Преобразование «физических» размеров принт-зоны в «логический холст»:
-// все размеры используют единый scale = min(physW/baseW, physH/baseH),
-// и эффективные размеры = baselineW × scale, baselineH × scale.
-// Это гарантирует, что на любой футболке логический холст имеет одинаковый
-// aspect (= baseline aspect), а композиция (posX/posY в %) и относительные
-// размеры объектов сохраняются 1:1 при смене размера.
-// Реальный физический размер сохраняется в physicalAreaWidthCm/HeightCm для
-// справки/диагностики, но в рендере и экспорте используются "логические".
-function makeLogicalPhysicalSize(physicalSize, baselinePhysicalSize) {
-  const baseW = Number(baselinePhysicalSize.physicalWidthCm) || 0;
-  const baseH = Number(baselinePhysicalSize.physicalHeightCm) || 0;
-  const physW = Number(physicalSize.physicalWidthCm) || baseW;
-  const physH = Number(physicalSize.physicalHeightCm) || baseH;
-  if (baseW <= 0 || baseH <= 0) {
-    return { ...physicalSize, physicalAreaWidthCm: physW, physicalAreaHeightCm: physH };
-  }
-  const scale = Math.min(physW / baseW, physH / baseH);
-  const logicalW = baseW * scale;
-  const logicalH = baseH * scale;
-  return {
-    ...physicalSize,
-    physicalWidthCm: Number(logicalW.toFixed(4)),
-    physicalHeightCm: Number(logicalH.toFixed(4)),
-    physicalAreaWidthCm: physW,
-    physicalAreaHeightCm: physH,
-  };
-}
-
 function buildPrintAreaSizeOverrides(side) {
   const resolvedSide = side === "back" ? "back" : "front";
   const baseGeometry = OVERSIZE_PRINT_AREA_GEOMETRY[resolvedSide];
@@ -198,7 +170,7 @@ function buildPrintAreaSizeOverrides(side) {
       {
         ...baseGeometry,
         ...(visualOverridesForSide[size] || {}),
-        ...makeLogicalPhysicalSize(physicalSize, baselinePhysicalSize),
+        ...physicalSize,
         baselinePhysicalWidthCm: baselinePhysicalSize.physicalWidthCm,
         baselinePhysicalHeightCm: baselinePhysicalSize.physicalHeightCm,
         ...buildOversizeMockupAssetSet(side),
@@ -219,7 +191,7 @@ function buildClassicPrintAreaSizeOverrides(side) {
       size,
       {
         ...CLASSIC_PRINT_AREA_GEOMETRY[side === "back" ? "back" : "front"],
-        ...makeLogicalPhysicalSize(physicalSize, baselinePhysicalSize),
+        ...physicalSize,
         baselinePhysicalWidthCm: baselinePhysicalSize.physicalWidthCm,
         baselinePhysicalHeightCm: baselinePhysicalSize.physicalHeightCm,
         ...buildClassicMockupAssetSet(side),
@@ -399,20 +371,7 @@ const BUILTIN_TEXT_FONTS = [
   { key: "mono", label: "IBM Plex Mono", family: "'IBM Plex Mono', monospace", group: "mono", supportsBold: true, supportsItalic: false, regularWeight: 500, boldWeight: 700 },
 ];
 
-export const CONSTRUCTOR_TEXT_FONTS = (() => {
-  // LOCAL_FONTS — автогенерируется из public/fonts и может случайно
-  // содержать шрифт, уже описанный вручную в BUILTIN_TEXT_FONTS / RUSSIAN_FONTS.
-  // Первое вхождение по `key` побеждает — иначе React ругается на дубликаты
-  // ключей в <option>/<li> списках шрифтов.
-  const seen = new Set();
-  const result = [];
-  for (const font of [...BUILTIN_TEXT_FONTS, ...RUSSIAN_FONTS, ...LOCAL_FONTS]) {
-    if (!font?.key || seen.has(font.key)) continue;
-    seen.add(font.key);
-    result.push(font);
-  }
-  return result;
-})();
+export const CONSTRUCTOR_TEXT_FONTS = [...BUILTIN_TEXT_FONTS, ...RUSSIAN_FONTS, ...LOCAL_FONTS];
 export { LOCAL_FONT_GROUP_LABELS };
 
 export const CONSTRUCTOR_TEXT_SOLID_COLORS = [

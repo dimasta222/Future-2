@@ -135,12 +135,14 @@ function wrapTextToWidth(text, maxWidthPx, letterSpacing = 0) {
 }
 
 function getTextVisualPaddingPx({
+  strokeWidth = 0,
   shadowOffsetX = 0,
   shadowOffsetY = 0,
   shadowBlur = 0,
   underline = false,
   fontSize = 0,
 }) {
+  const strokePaddingPx = Math.max(0, Number(strokeWidth) || 0);
   const blurPaddingPx = Math.max(0, Number(shadowBlur) || 0);
   const offsetX = Number(shadowOffsetX) || 0;
   const offsetY = Number(shadowOffsetY) || 0;
@@ -152,10 +154,10 @@ function getTextVisualPaddingPx({
   const bottomShadowPaddingPx = Math.max(0, blurPaddingPx + offsetY, underlinePaddingPx);
 
   return {
-    leftPaddingPx: leftShadowPaddingPx,
-    rightPaddingPx: rightShadowPaddingPx,
-    topPaddingPx: topShadowPaddingPx,
-    bottomPaddingPx: bottomShadowPaddingPx,
+    leftPaddingPx: Math.max(strokePaddingPx, leftShadowPaddingPx),
+    rightPaddingPx: Math.max(strokePaddingPx, rightShadowPaddingPx),
+    topPaddingPx: Math.max(strokePaddingPx, topShadowPaddingPx),
+    bottomPaddingPx: Math.max(strokePaddingPx, bottomShadowPaddingPx),
   };
 }
 
@@ -1094,8 +1096,7 @@ export default function useConstructorState({
       if (layer.strikethrough) textEffects.push("зачеркнутый");
       if (layer.uppercase) textEffects.push("прописные буквы");
       if ((layer.lineHeight ?? DEFAULT_TEXT_LINE_HEIGHT) !== DEFAULT_TEXT_LINE_HEIGHT) textEffects.push(`межстрочный ${layer.lineHeight ?? DEFAULT_TEXT_LINE_HEIGHT}`);
-      if ((layer.strokeWidth ?? 0) > 0 && !layer.textOutlineOnly) textEffects.push(`обводка ${layer.strokeWidth}px`);
-      if (layer.textOutlineOnly && (layer.outlineWidth ?? 0) > 0) textEffects.push(`контур ${layer.outlineWidth}px`);
+      if ((layer.strokeWidth ?? 0) > 0) textEffects.push(`обводка ${layer.strokeWidth}px`);
       if (layer.shadowEnabled) textEffects.push(`мягкая тень ${layer.shadowOffsetX ?? 0}/${layer.shadowOffsetY ?? 2}/${layer.shadowBlur ?? 14}`);
       return `${layer.name}: «${textPreview.trim()}», шрифт ${layer.fontLabel || DEFAULT_TEXT_FONT.label}, ширина текстового блока ${layer.textBoxWidth ?? 88}%, интервал ${layer.letterSpacing ?? 1}px, выравнивание ${TEXT_ALIGN_LABELS[layer.textAlign] || TEXT_ALIGN_LABELS.center}${textEffects.length ? `, эффекты ${textEffects.join(", ")}` : ""}`;
     }
@@ -1193,18 +1194,31 @@ export default function useConstructorState({
       fontSize: layer.size ?? 36,
     });
     const hasVisibleText = resolvedText.trim().length > 0;
-    // Размер слоя считаем по CSS line-box (то же, что рисуется в DOM-превью
-    // и в canvas-рендере PDF). Это обеспечивает 1:1 соответствие между цифрой
-    // в UI, визуальной рамкой текста на превью и итоговой версткой PDF/PNG.
+    // Приоритет — ink-bbox в точно той же шкале, как в PDF (shadow / stroke /
+    // decorations / glyph overshoot), чтобы sizeLabel совпадал с Photoshop Trim.
     const baselinePhysicalWidthCm = Number(areaMetrics.baselinePhysicalWidthCm) || 0;
+    const pdfInk = hasVisibleText
+      ? measureTextPdfInkBboxCm({
+          layer,
+          fontFamily,
+          fontWeight,
+          fontStyle,
+          physicalWidthCm: areaMetrics.areaWidthCm,
+          baselinePhysicalWidthCm,
+        })
+      : null;
     const sizeScale = areaMetrics.areaWidthCm > 0 && baselinePhysicalWidthCm > 0
       ? areaMetrics.areaWidthCm / baselinePhysicalWidthCm
       : 1;
     const rawContentWidthPx = hasVisibleText
-      ? Math.min(renderWidthPx, Math.max(1, contentMetrics.contentWidthPx * sizeScale))
+      ? (pdfInk
+        ? Math.min(renderWidthPx, Math.max(1, (pdfInk.widthCm / areaMetrics.areaWidthCm) * renderWidthPx))
+        : Math.min(renderWidthPx, Math.max(1, contentMetrics.contentWidthPx * sizeScale)))
       : Math.max(1, boxWidthPx);
     const rawContentHeightPx = hasVisibleText
-      ? Math.min(renderHeightPx, Math.max(1, contentMetrics.contentHeightPx * sizeScale))
+      ? (pdfInk
+        ? Math.min(renderHeightPx, Math.max(1, (pdfInk.heightCm / areaMetrics.areaHeightCm) * renderHeightPx))
+        : Math.min(renderHeightPx, Math.max(1, contentMetrics.contentHeightPx * sizeScale)))
       : Math.max(1, (layer.size ?? 36) * (layer.lineHeight ?? DEFAULT_TEXT_LINE_HEIGHT) * sizeScale);
     const contentWidthPx = hasVisibleText
       ? Math.min(renderWidthPx, Math.max(1, rawContentWidthPx + visualPadding.leftPaddingPx + visualPadding.rightPaddingPx))
@@ -1272,22 +1286,6 @@ export default function useConstructorState({
     }
 
     if (layer?.type === "text") {
-      // Сначала пытаемся взять реальный DOM bbox активного слоя — это
-      // визуальный размер, к которому снэпятся другие слои, и тот же
-      // размер, что показывает sidebar. Falls back на canvas-обмер только
-      // если runtime-данные ещё не пришли.
-      const runtimeBounds = resolveRuntimeLayerBoundsCm(layer);
-      if (runtimeBounds
-        && runtimeBounds.right > runtimeBounds.left
-        && runtimeBounds.bottom > runtimeBounds.top) {
-        return clampBoundsCmToPrintArea({
-          left: runtimeBounds.left,
-          right: runtimeBounds.right,
-          top: runtimeBounds.top,
-          bottom: runtimeBounds.bottom,
-        }, areaMetrics);
-      }
-
       const textMetricsCm = getTextVisualMetricsCm(layer, areaMetrics);
       if (!textMetricsCm) return null;
 
@@ -1388,27 +1386,6 @@ export default function useConstructorState({
     }
 
     if (layer?.type === "text") {
-      // Сначала пробуем runtime DOM-bounds — те же числа, что показывает sidebar.
-      const runtimeBounds = resolveRuntimeLayerBoundsCm(layer);
-      if (runtimeBounds
-        && runtimeBounds.right > runtimeBounds.left
-        && runtimeBounds.bottom > runtimeBounds.top) {
-        const w = runtimeBounds.right - runtimeBounds.left;
-        const h = runtimeBounds.bottom - runtimeBounds.top;
-        const rotDegRt = normalizeRotationDeg(layer.rotationDeg ?? 0);
-        if (rotDegRt) {
-          const rotRadRt = (rotDegRt * Math.PI) / 180;
-          return {
-            widthCm: Number((Math.abs(w * Math.cos(rotRadRt)) + Math.abs(h * Math.sin(rotRadRt))).toFixed(1)),
-            heightCm: Number((Math.abs(w * Math.sin(rotRadRt)) + Math.abs(h * Math.cos(rotRadRt))).toFixed(1)),
-          };
-        }
-        return {
-          widthCm: Number(w.toFixed(1)),
-          heightCm: Number(h.toFixed(1)),
-        };
-      }
-
       const textMetricsCm = getTextVisualMetricsCm(layer, areaMetrics);
       if (!textMetricsCm) return null;
 
@@ -1665,8 +1642,6 @@ export default function useConstructorState({
     textAlign: "center",
     strokeWidth: 0,
     strokeColor: DEFAULT_TEXT_STROKE_COLOR,
-    textOutlineOnly: false,
-    outlineWidth: 0,
     shadowEnabled: false,
     shadowMode: "soft",
     shadowColor: DEFAULT_TEXT_SHADOW_COLOR,
@@ -1842,9 +1817,7 @@ export default function useConstructorState({
     const { width: areaWidth, height: areaHeight } = printAreaRef.current.getBoundingClientRect();
     if (!areaWidth || !areaHeight) return null;
 
-    const physicalAreaForLayerMetrics = getPhysicalPrintArea(getLayerSide(resolvedLayer));
-    const { widthCm: areaWidthCm } = physicalAreaForLayerMetrics;
-    const areaHeightCm = Number(physicalAreaForLayerMetrics?.heightCm) || 0;
+    const { widthCm: areaWidthCm } = getPhysicalPrintArea(getLayerSide(resolvedLayer));
 
     if (resolvedLayer.type === "upload") {
       const widthCm = resolvedLayer.widthCm;
@@ -1947,21 +1920,17 @@ export default function useConstructorState({
     });
     const hasVisibleText = resolvedText.trim().length > 0;
     const rawContentWidth = hasVisibleText
-      ? Math.max(1, contentMetrics.contentWidthPx)
+      ? Math.min(areaWidth, Math.max(1, contentMetrics.contentWidthPx))
       : Math.max(1, boxWidth);
     const rawContentHeight = hasVisibleText
-      ? Math.max(1, contentMetrics.contentHeightPx)
+      ? Math.min(areaHeight, Math.max(1, contentMetrics.contentHeightPx))
       : Math.max(1, (resolvedLayer.size ?? 36) * (resolvedLayer.lineHeight ?? DEFAULT_TEXT_LINE_HEIGHT));
     const contentWidth = hasVisibleText
-      ? Math.max(1, contentMetrics.contentWidthPx + visualPadding.leftPaddingPx + visualPadding.rightPaddingPx)
+      ? Math.min(areaWidth, Math.max(1, contentMetrics.contentWidthPx + visualPadding.leftPaddingPx + visualPadding.rightPaddingPx))
       : Math.max(1, boxWidth);
     const contentHeight = hasVisibleText
-      ? Math.max(1, contentMetrics.contentHeightPx + visualPadding.topPaddingPx + visualPadding.bottomPaddingPx)
+      ? Math.min(areaHeight, Math.max(1, contentMetrics.contentHeightPx + visualPadding.topPaddingPx + visualPadding.bottomPaddingPx))
       : Math.max(1, (resolvedLayer.size ?? 36) * (resolvedLayer.lineHeight ?? DEFAULT_TEXT_LINE_HEIGHT));
-    // Кламп идёт по ink-bbox (то, что реально печатается в PDF), а не по
-    // DOM line-box. Это позволяет придвинуть текст вплотную к краю
-    // печатной области — line-box браузера обычно больше ink на
-    // (ascender_pad + descender_pad), но эти зоны на печать не идут.
     const textRotationDeg = normalizeRotationDeg(resolvedLayer.rotationDeg ?? 0);
     const textRotationRad = (textRotationDeg * Math.PI) / 180;
     const rotatedContentWidth = textRotationDeg
@@ -1970,74 +1939,11 @@ export default function useConstructorState({
     const rotatedContentHeight = textRotationDeg
       ? (Math.abs(contentWidth * Math.sin(textRotationRad)) + Math.abs(contentHeight * Math.cos(textRotationRad)))
       : contentHeight;
-
-    // Clamp по НАСТОЯЩЕМУ CSS line-box. Это не contentMetrics (ink-bbox),
-    // а ровно то прямоугольное пространство, которое браузер размечает
-    // под текст: ширина = boxWidth (textBoxWidth% printArea), высота =
-    // N_lines × fontSize × lineHeight. Глифы могут быть смещены внутри
-    // этого бокса (asymmetric ascender/descender), но clamp работает по
-    // самому боксу — текстовая рамка не выходит за границы печатной зоны.
-    const lineBoxLines = Array.isArray(contentMetrics.lines) && contentMetrics.lines.length
-      ? contentMetrics.lines.length
-      : 1;
-    const lineBoxFontSize = resolvedLayer.size ?? 36;
-    const lineBoxLineHeight = resolvedLayer.lineHeight ?? DEFAULT_TEXT_LINE_HEIGHT;
-    const lineBoxWidthPxComputed = boxWidth;
-    const lineBoxHeightPxComputed = Math.max(1, lineBoxLines * lineBoxFontSize * lineBoxLineHeight);
-    // Если есть runtime DOM-bounds (реальный размер CSS line-box, как
-    // браузер его разметил после word-wrap) — используем их. Это точнее
-    // чем теоретическая формула, потому что DOM-wrap может отличаться от
-    // canvas-wrap (kerning, font features), плюс браузер мог добавить
-    // ascender/descender padding шрифта.
-    const runtimeBoundsCm = resolveRuntimeLayerBoundsCm(resolvedLayer);
-    const runtimeLineBoxWidthPx = (runtimeBoundsCm?.domLineBoxWidthCm > 0)
-      ? (runtimeBoundsCm.domLineBoxWidthCm / Math.max(0.001, areaWidthCm)) * areaWidth
-      : 0;
-    const runtimeLineBoxHeightPx = (runtimeBoundsCm?.domLineBoxHeightCm > 0)
-      ? (runtimeBoundsCm.domLineBoxHeightCm / Math.max(0.001, areaHeightCm)) * areaHeight
-      : 0;
-    const lineBoxWidthPx = Math.max(lineBoxWidthPxComputed, runtimeLineBoxWidthPx);
-    const lineBoxHeightPx = Math.max(lineBoxHeightPxComputed, runtimeLineBoxHeightPx);
-    // Берём МАКСИМУМ из line-box и фактической рамки контента (с visualPadding
-    // на shadow/stroke/underline). Так clamp гарантирует что НИ рамка, НИ тени,
-    // НИ обводка не вылезут за границы печатной зоны — даже при повороте
-    // (AABB ниже добавляет ещё запас).
-    const pdfInkWidthPx = Math.max(lineBoxWidthPx, contentWidth);
-    const pdfInkHeightPx = Math.max(lineBoxHeightPx, contentHeight);
-    const pdfInkOffsetXPx = 0;
-    const pdfInkOffsetYPx = 0;
-
-    // Clamp/snap по фактическим пикселям глифов (PDF ink). Для повёрнутого
-    // текста — AABB вокруг ink-bbox.
-    const cosR = Math.cos(textRotationRad);
-    const sinR = Math.sin(textRotationRad);
-    const clampInkWidth = textRotationDeg
-      ? (Math.abs(pdfInkWidthPx * cosR) + Math.abs(pdfInkHeightPx * sinR))
-      : pdfInkWidthPx;
-    const clampInkHeight = textRotationDeg
-      ? (Math.abs(pdfInkWidthPx * sinR) + Math.abs(pdfInkHeightPx * cosR))
-      : pdfInkHeightPx;
-    // Смещение центра ink-bbox относительно центра layer-рамки. При повороте
-    // вектор смещения вращается вместе с текстом.
-    const clampOffsetX = textRotationDeg
-      ? (pdfInkOffsetXPx * cosR - pdfInkOffsetYPx * sinR)
-      : pdfInkOffsetXPx;
-    const clampOffsetY = textRotationDeg
-      ? (pdfInkOffsetXPx * sinR + pdfInkOffsetYPx * cosR)
-      : pdfInkOffsetYPx;
-
     return {
       areaWidth,
       areaHeight,
       width: rotatedContentWidth,
       height: rotatedContentHeight,
-      clampWidth: clampInkWidth > 0 ? clampInkWidth : rotatedContentWidth,
-      clampHeight: clampInkHeight > 0 ? clampInkHeight : rotatedContentHeight,
-      // Смещение центра ink относительно центра слоя (px). Используется для
-      // асимметричного clamp/snap: магнит липнет к реальному нижнему/верхнему
-      // пикселю букв (низ хвоста g, верх Б), а не к центру воздушной рамки.
-      clampOffsetX,
-      clampOffsetY,
       boxWidth,
       contentWidth,
       contentHeight,
@@ -2059,40 +1965,15 @@ export default function useConstructorState({
     }
 
     const clampWidth = metrics.clampWidth ?? metrics.width;
+    const minX = (clampWidth / 2 / metrics.areaWidth) * 100;
+    const maxX = 100 - minX;
     const clampHeight = metrics.clampHeight ?? metrics.height;
-    // Асимметричный clamp: учитываем смещение центра ink относительно центра
-    // слоя. Левый край ink = position − clampWidth/2 + clampOffsetX, должен
-    // быть ≥ 0; правый край ink = position + clampWidth/2 + clampOffsetX,
-    // должен быть ≤ areaWidth. Аналогично для Y.
-    const offsetXPercent = ((metrics.clampOffsetX ?? 0) / metrics.areaWidth) * 100;
-    const offsetYPercent = ((metrics.clampOffsetY ?? 0) / metrics.areaHeight) * 100;
-    const halfWidthPercent = (clampWidth / 2 / metrics.areaWidth) * 100;
-    const halfHeightPercent = (clampHeight / 2 / metrics.areaHeight) * 100;
-    const minX = halfWidthPercent - offsetXPercent;
-    const maxX = 100 - halfWidthPercent - offsetXPercent;
-    const minY = halfHeightPercent - offsetYPercent;
-    const maxY = 100 - halfHeightPercent - offsetYPercent;
-
-    if (layer?.type === "text") {
-      try {
-        console.log("[clampInk]", layer.id, {
-          inX: Number(position.x?.toFixed?.(2)),
-          inY: Number(position.y?.toFixed?.(2)),
-          clampW: Number(clampWidth?.toFixed?.(2)),
-          clampH: Number(clampHeight?.toFixed?.(2)),
-          offX: Number((metrics.clampOffsetX ?? 0).toFixed(2)),
-          offY: Number((metrics.clampOffsetY ?? 0).toFixed(2)),
-          minX: Number(minX.toFixed(2)),
-          maxX: Number(maxX.toFixed(2)),
-          minY: Number(minY.toFixed(2)),
-          maxY: Number(maxY.toFixed(2)),
-        });
-      } catch { /* debug only */ }
-    }
+    const minY = (clampHeight / 2 / metrics.areaHeight) * 100;
+    const maxY = 100 - minY;
 
     return {
-      x: minX > maxX ? 50 - offsetXPercent : clamp(position.x, minX, maxX),
-      y: minY > maxY ? 50 - offsetYPercent : clamp(position.y, minY, maxY),
+      x: minX > maxX ? 50 : clamp(position.x, minX, maxX),
+      y: minY > maxY ? 50 : clamp(position.y, minY, maxY),
     };
   };
 
@@ -2110,17 +1991,13 @@ export default function useConstructorState({
 
     const boundWidth = metrics.clampWidth ?? metrics.width;
     const boundHeight = metrics.clampHeight ?? metrics.height;
-    // Сдвигаем границы snap на смещение центра ink относительно центра слоя,
-    // чтобы магнит липнул к реальному нижнему пикселю g, а не к центру рамки.
-    const offsetX = metrics.clampOffsetX ?? 0;
-    const offsetY = metrics.clampOffsetY ?? 0;
-    const inkCenterX = centerXPx + offsetX;
-    const inkCenterY = centerYPx + offsetY;
+    const top = centerYPx - (boundHeight / 2);
+    const bottom = centerYPx + (boundHeight / 2);
     return {
-      left: inkCenterX - (boundWidth / 2),
-      right: inkCenterX + (boundWidth / 2),
-      top: inkCenterY - (boundHeight / 2),
-      bottom: inkCenterY + (boundHeight / 2),
+      left: centerXPx - (boundWidth / 2),
+      right: centerXPx + (boundWidth / 2),
+      top,
+      bottom,
       width: boundWidth,
       height: boundHeight,
     };
@@ -2531,11 +2408,8 @@ export default function useConstructorState({
     updateLayer(activeLayer.id, { position: getLayerDefaultPosition(activeLayer.type) });
   };
 
-  const getCombinedSnapGuidesPx = (excludeLayerIds, areaWidth, areaHeight, options = {}) => {
+  const getCombinedSnapGuidesPx = (excludeLayerIds, areaWidth, areaHeight) => {
     const guides = getSnapGuidesPx(areaWidth, areaHeight);
-    // Если двигается текстовый слой — снэп ТОЛЬКО к границам печатной зоны.
-    // К другим слоям и фигурам текст не магнитится (требование пользователя).
-    if (options.printAreaOnly) return guides;
     const excludeSet = new Set(Array.isArray(excludeLayerIds) ? excludeLayerIds : [excludeLayerIds].filter(Boolean));
 
     layers.forEach((layer) => {
@@ -2601,12 +2475,7 @@ export default function useConstructorState({
     const groupHeight = startGroupBottom - startGroupTop;
     const guides = getCombinedSnapGuidesPx(moveLayerIds, rect.width, rect.height);
 
-    const isSingleLayerDrag = movingLayers.length === 1;
-    const singleItem = isSingleLayerDrag ? movingLayers[0] : null;
-    const pendingPositionsRef = new Map();
-    let lastSnapGuidesKey = "";
-
-    const computeNextPositions = (clientX, clientY) => {
+    const updatePositions = (clientX, clientY) => {
       const deltaX = clientX - startPointer.x;
       const deltaY = clientY - startPointer.y;
 
@@ -2622,71 +2491,26 @@ export default function useConstructorState({
       const appliedDeltaX = nextGroupLeft - startGroupLeft;
       const appliedDeltaY = nextGroupTop - startGroupTop;
 
-      const nextSnapGuides = [
+      setActiveSnapGuides([
         ...(snappedX.guide == null ? [] : [{ orientation: "vertical", positionPercent: (snappedX.guide / rect.width) * 100 }]),
         ...(snappedY.guide == null ? [] : [{ orientation: "horizontal", positionPercent: (snappedY.guide / rect.height) * 100 }]),
-      ];
-      const snapGuidesKey = nextSnapGuides.map((g) => `${g.orientation}:${g.positionPercent.toFixed(3)}`).join("|");
-      if (snapGuidesKey !== lastSnapGuidesKey) {
-        lastSnapGuidesKey = snapGuidesKey;
-        setActiveSnapGuides(nextSnapGuides);
-      }
+      ]);
 
-      const positions = [];
-      movingLayers.forEach((item) => {
-        const nextPosition = clampLayerPosition({
-          x: ((item.startCenterXPx + appliedDeltaX) / rect.width) * 100,
-          y: ((item.startCenterYPx + appliedDeltaY) / rect.height) * 100,
-        }, item.layer, item.metrics);
-        positions.push({ id: item.id, position: nextPosition });
-        pendingPositionsRef.set(item.id, nextPosition);
-      });
-      return positions;
-    };
-
-    const applyPositionsToDom = (positions) => {
-      positions.forEach((entry) => {
-        if (entry.id === singleItem?.id && node) {
-          node.style.left = `${entry.position.x}%`;
-          node.style.top = `${entry.position.y}%`;
-        }
-      });
-    };
-
-    const commitPositionsToState = () => {
-      if (pendingPositionsRef.size === 0) return;
       setLayers((currentLayers) => currentLayers.map((layer) => {
-        const next = pendingPositionsRef.get(layer.id);
-        if (!next) return layer;
-        if (layer.position.x === next.x && layer.position.y === next.y) return layer;
-        return { ...layer, position: next };
+        const movingItem = movingLayers.find((item) => item.id === layer.id);
+        if (!movingItem) return layer;
+
+        const nextPosition = clampLayerPosition({
+          x: ((movingItem.startCenterXPx + appliedDeltaX) / rect.width) * 100,
+          y: ((movingItem.startCenterYPx + appliedDeltaY) / rect.height) * 100,
+        }, layer, movingItem.metrics);
+
+        if (layer.position.x === nextPosition.x && layer.position.y === nextPosition.y) return layer;
+        return { ...layer, position: nextPosition };
       }));
     };
 
-    const updatePositions = (clientX, clientY) => {
-      const positions = computeNextPositions(clientX, clientY);
-      if (isSingleLayerDrag) {
-        applyPositionsToDom(positions);
-      } else {
-        setLayers((currentLayers) => currentLayers.map((layer) => {
-          const next = pendingPositionsRef.get(layer.id);
-          if (!next) return layer;
-          if (layer.position.x === next.x && layer.position.y === next.y) return layer;
-          return { ...layer, position: next };
-        }));
-      }
-    };
-
     node.setPointerCapture?.(pointerId);
-
-    let rafId = null;
-    let pendingClientX = 0;
-    let pendingClientY = 0;
-
-    const flushPosition = () => {
-      rafId = null;
-      updatePositions(pendingClientX, pendingClientY);
-    };
 
     const handlePointerMove = (moveEvent) => {
       if (moveEvent.pointerId !== pointerId) return;
@@ -2703,23 +2527,11 @@ export default function useConstructorState({
         setDraggingLayerId(layerId);
       }
 
-      pendingClientX = moveEvent.clientX;
-      pendingClientY = moveEvent.clientY;
-      if (rafId == null) {
-        rafId = window.requestAnimationFrame(flushPosition);
-      }
+      updatePositions(moveEvent.clientX, moveEvent.clientY);
     };
 
     const stopDragging = (endEvent) => {
       if (endEvent.pointerId !== pointerId) return;
-      if (rafId != null) {
-        window.cancelAnimationFrame(rafId);
-        rafId = null;
-        updatePositions(pendingClientX, pendingClientY);
-      }
-      if (isSingleLayerDrag && hasDragged) {
-        commitPositionsToState();
-      }
       if (hasDragged) {
         setDraggingLayerId(null);
       }
@@ -3093,24 +2905,6 @@ export default function useConstructorState({
   const setTextAlign = (nextTextAlign) => { pushHistoryCheckpoint(); updateActiveTextLayer({ textAlign: nextTextAlign }); };
   const setTextStrokeWidth = (nextStrokeWidth) => { pushHistoryCheckpoint(); updateActiveTextLayer({ strokeWidth: Math.min(30, Math.max(0, Number(nextStrokeWidth))) }); };
   const setTextStrokeColor = (nextStrokeColor) => { pushHistoryCheckpoint(); updateActiveTextLayer({ strokeColor: nextStrokeColor }); };
-  const setTextOutlineWidth = (nextOutlineWidth) => { pushHistoryCheckpoint(); updateActiveTextLayer({ outlineWidth: Math.min(30, Math.max(0, Number(nextOutlineWidth))) }); };
-  const setTextEffect = (mode) => {
-    if (!activeTextLayer) return;
-    pushHistoryCheckpoint();
-    if (mode === "none") {
-      updateActiveTextLayer({ strokeWidth: 0, outlineWidth: 0, textOutlineOnly: false });
-      return;
-    }
-    if (mode === "with-outline") {
-      const cur = Number(activeTextLayer.strokeWidth) || 0;
-      updateActiveTextLayer({ strokeWidth: cur > 0 ? cur : 4, textOutlineOnly: false });
-      return;
-    }
-    if (mode === "outline-only") {
-      const cur = Number(activeTextLayer.outlineWidth) || 0;
-      updateActiveTextLayer({ outlineWidth: cur > 0 ? cur : 2, textOutlineOnly: true });
-    }
-  };
   const setTextShadowEnabled = (nextShadowEnabled) => { pushHistoryCheckpoint(); updateActiveTextLayer({ shadowEnabled: nextShadowEnabled, shadowMode: "soft" }); };
   const setTextShadowColor = (nextShadowColor) => { pushHistoryCheckpoint(); updateActiveTextLayer({ shadowColor: nextShadowColor }); };
   const setTextShadowOffsetX = (nextShadowOffsetX) => { pushHistoryCheckpoint(); updateActiveTextLayer({ shadowOffsetX: Math.min(24, Math.max(-24, Math.round(nextShadowOffsetX))) }); };
@@ -3417,17 +3211,6 @@ export default function useConstructorState({
     setTextStrokeWidth,
     textStrokeColor: activeTextLayer?.strokeColor || DEFAULT_TEXT_STROKE_COLOR,
     setTextStrokeColor,
-    textOutlineOnly: activeTextLayer?.textOutlineOnly ?? false,
-    textOutlineWidth: activeTextLayer?.outlineWidth ?? 0,
-    setTextOutlineWidth,
-    textEffect: activeTextLayer
-      ? (activeTextLayer.textOutlineOnly && (activeTextLayer.outlineWidth ?? 0) > 0
-          ? "outline-only"
-          : (!activeTextLayer.textOutlineOnly && (activeTextLayer.strokeWidth ?? 0) > 0
-              ? "with-outline"
-              : "none"))
-      : "none",
-    setTextEffect,
     textShadowEnabled: activeTextLayer?.shadowEnabled ?? false,
     setTextShadowEnabled,
     textShadowMode: "soft",

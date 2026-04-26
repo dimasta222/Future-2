@@ -245,7 +245,7 @@ function LayerPreview({ layer }) {
 
   const previewText = getTextLayerDisplayLabel(layer, 56);
   return (
-    <div style={{ width: "100%", padding: "6px 12px", boxSizing: "border-box", display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", fontFamily: layer.fontFamily || "inherit", fontWeight: layer.weight || 700, fontStyle: layer.italic ? "italic" : "normal", fontSize: Math.max(14, Math.min(18, (layer.size || 36) * 0.4)), lineHeight: Math.min(1.25, layer.lineHeight || 1.05), letterSpacing: `${Math.max(-0.5, Math.min(4, (layer.letterSpacing || 0) * 0.35))}px`, color: layer.visible ? ((layer.textOutlineOnly && (layer.outlineWidth || 0) > 0) ? "transparent" : (layer.color || "#ffffff")) : "rgba(240,238,245,.5)", WebkitTextFillColor: layer.visible && layer.textOutlineOnly && (layer.outlineWidth || 0) > 0 ? "transparent" : undefined, textTransform: layer.uppercase ? "uppercase" : "none", whiteSpace: "pre-wrap", overflow: "hidden", overflowWrap: "anywhere", textDecorationLine: `${layer.underline ? "underline " : ""}${layer.strikethrough ? "line-through" : ""}`.trim() || "none", WebkitTextStroke: (layer.textOutlineOnly && (layer.outlineWidth || 0) > 0) ? `${Math.min(1.6, (layer.outlineWidth || 0) * 0.35)}px ${layer.color || "#ffffff"}` : ((layer.strokeWidth || 0) > 0 ? `${Math.min(1.2, layer.strokeWidth * 0.35)}px ${layer.strokeColor || "#111111"}` : "0 transparent"), textShadow: layer.shadowEnabled ? `${(layer.shadowOffsetX || 0) * 0.35}px ${(layer.shadowOffsetY || 2) * 0.35}px ${Math.max(1, (layer.shadowBlur || 14) * 0.2)}px ${layer.shadowColor || "#111111"}` : "none" }}>
+    <div style={{ width: "100%", padding: "6px 12px", boxSizing: "border-box", display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", fontFamily: layer.fontFamily || "inherit", fontWeight: layer.weight || 700, fontStyle: layer.italic ? "italic" : "normal", fontSize: Math.max(14, Math.min(18, (layer.size || 36) * 0.4)), lineHeight: Math.min(1.25, layer.lineHeight || 1.05), letterSpacing: `${Math.max(-0.5, Math.min(4, (layer.letterSpacing || 0) * 0.35))}px`, color: layer.visible ? (layer.color || "#ffffff") : "rgba(240,238,245,.5)", textTransform: layer.uppercase ? "uppercase" : "none", whiteSpace: "pre-wrap", overflow: "hidden", overflowWrap: "anywhere", textDecorationLine: `${layer.underline ? "underline " : ""}${layer.strikethrough ? "line-through" : ""}`.trim() || "none", WebkitTextStroke: (layer.strokeWidth || 0) > 0 ? `${Math.min(1.2, layer.strokeWidth * 0.35)}px ${layer.strokeColor || "#111111"}` : "0 transparent", textShadow: layer.shadowEnabled ? `${(layer.shadowOffsetX || 0) * 0.35}px ${(layer.shadowOffsetY || 2) * 0.35}px ${Math.max(1, (layer.shadowBlur || 14) * 0.2)}px ${layer.shadowColor || "#111111"}` : "none" }}>
       {previewText === layer.name ? "T" : previewText}
     </div>
   );
@@ -386,53 +386,6 @@ function ShapeEffectCard({ title, active = false, previewType, onClick }) {
   );
 }
 
-function TextEffectCard({ title, active = false, variant, previewStrokeWidth, onClick }) {
-  const accentColor = "#824ef0";
-  const fillColor = "#f0eef5";
-  const isOutlineOnly = variant === "outline-only";
-  const isWithOutline = variant === "with-outline";
-  const isShadow = variant === "shadow";
-  const isPlain = !isOutlineOnly && !isWithOutline && !isShadow;
-  const defaultStrokeWidthByVariant = {
-    "with-outline": 1,
-    "outline-only": 1,
-  };
-  const resolvedStrokeWidth = Number(previewStrokeWidth)
-    || defaultStrokeWidthByVariant[variant]
-    || 2;
-  let textColor;
-  if (isOutlineOnly) textColor = "transparent";
-  else if (isWithOutline) textColor = fillColor;
-  else if (isShadow) textColor = fillColor;
-  else textColor = accentColor;
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{ width: "100%", padding: 10, borderRadius: 18, border: active ? "2px solid rgba(130,78,240,.96)" : "1px solid rgba(255,255,255,.08)", background: active ? "rgba(130,78,240,.08)" : "rgba(255,255,255,.03)", cursor: "pointer", fontFamily: "inherit", textAlign: "left", color: "inherit" }}
-    >
-      <div style={{ position: "relative", height: 98, borderRadius: 14, background: "rgba(255,255,255,.02)", overflow: "hidden", marginBottom: 10, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <span
-          style={{
-            fontSize: 50,
-            fontWeight: 800,
-            fontFamily: "'Good Time Grotesk', sans-serif",
-            lineHeight: 1,
-            color: textColor,
-            WebkitTextFillColor: textColor,
-            WebkitTextStroke: isPlain || isShadow ? undefined : `${resolvedStrokeWidth}px ${accentColor}`,
-            paintOrder: "stroke fill",
-            textShadow: isShadow ? `3px 3px 6px ${accentColor}` : undefined,
-          }}
-        >
-          Ag
-        </span>
-      </div>
-      <div style={{ fontSize: 14, fontWeight: 500, color: "#f0eef5", textAlign: "center" }}>{title}</div>
-    </button>
-  );
-}
-
 function ClosablePanelHeader({ title, onClose, closeLabel = "Закрыть панель" }) {
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
@@ -530,6 +483,8 @@ export default function ConstructorSidebarPanel({
   activeUploadLayer,
   activeTextLayer,
   activeTextMetricsCm,
+  showTextInkGuide = false,
+  onShowTextInkGuideChange,
   activeTextToolPanel,
   textSidebarOverlayOpen = false,
   onCloseTextSidebarOverlay,
@@ -577,10 +532,6 @@ export default function ConstructorSidebarPanel({
   onTextStrokeWidthChange,
   textStrokeColor,
   onTextStrokeColorChange,
-  textOutlineWidth,
-  onTextOutlineWidthChange,
-  textEffect,
-  onTextEffectChange,
   textShadowEnabled,
   onTextShadowEnabledChange,
   textShadowColor,
@@ -1490,6 +1441,15 @@ export default function ConstructorSidebarPanel({
                     {activeTextMetricsCm ? `${activeTextMetricsCm.contentWidthCm} × ${activeTextMetricsCm.contentHeightCm} см` : "..."}
                   </div>
                 </div>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", borderRadius: 10, background: "rgba(255,255,255,.02)", border: "1px solid rgba(255,255,255,.06)", cursor: "pointer", userSelect: "none" }}>
+                  <input
+                    type="checkbox"
+                    checked={!!showTextInkGuide}
+                    onChange={(e) => onShowTextInkGuideChange?.(e.target.checked)}
+                    style={{ accentColor: "#7c5cff" }}
+                  />
+                  <span style={{ fontSize: 12, color: "rgba(240,238,245,.78)" }}>Показывать реальные границы текста</span>
+                </label>
               </div>
             </SidebarFieldRow>
         ) : null}
@@ -1690,59 +1650,21 @@ export default function ConstructorSidebarPanel({
 
             {currentTextToolPanel === "effects" ? (
               <>
-                <SidebarFieldRow label="Эффекты" minHeight={148}>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0,1fr))", gap: 10 }}>
-                    <TextEffectCard
-                      title="С контуром"
-                      variant="with-outline"
-                      previewStrokeWidth={8}
-                      active={textEffect === "with-outline"}
-                      onClick={() => onTextEffectChange(textEffect === "with-outline" ? "none" : "with-outline")}
-                    />
-                    <TextEffectCard
-                      title="Контур"
-                      variant="outline-only"
-                      previewStrokeWidth={1}
-                      active={textEffect === "outline-only"}
-                      onClick={() => onTextEffectChange(textEffect === "outline-only" ? "none" : "outline-only")}
-                    />
-                    <TextEffectCard
-                      title="Тень"
-                      variant="shadow"
-                      active={!!textShadowEnabled}
-                      onClick={() => onTextShadowEnabledChange(!textShadowEnabled)}
-                    />
+                <SidebarFieldRow label="Обводка">
+                  <div style={{ display: "grid", gap: 10 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                      <input type="range" min="0" max="30" step="0.5" value={textStrokeWidth} onChange={(event) => onTextStrokeWidthChange(Number(event.target.value))} style={{ width: "100%" }} />
+                      <span style={{ minWidth: 52, textAlign: "right", fontSize: 13, color: "rgba(240,238,245,.6)" }}>{textStrokeWidth}px</span>
+                    </div>
+                    {renderFreeColorControl({ fieldKey: "stroke", value: textStrokeColor, onChange: onTextStrokeColorChange, helperText: "Выберите цвет обводки через палитру или введите HEX-код." })}
                   </div>
                 </SidebarFieldRow>
 
-                {textEffect === "with-outline" ? (
-                  <SidebarFieldRow label="Толщина и цвет">
-                    <div style={{ display: "grid", gap: 10 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                        <input type="range" min="0.5" max="30" step="0.5" value={textStrokeWidth} onChange={(event) => onTextStrokeWidthChange(Number(event.target.value))} style={{ width: "100%" }} />
-                        <span style={{ minWidth: 52, textAlign: "right", fontSize: 13, color: "rgba(240,238,245,.6)" }}>{textStrokeWidth}px</span>
-                      </div>
-                      {renderFreeColorControl({ fieldKey: "stroke", value: textStrokeColor, onChange: onTextStrokeColorChange, helperText: "Цвет обводки — палитра или HEX." })}
-                    </div>
-                  </SidebarFieldRow>
-                ) : null}
-
-                {textEffect === "outline-only" ? (
-                  <SidebarFieldRow label="Толщина контура">
-                    <div style={{ display: "grid", gap: 8 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                        <input type="range" min="0.5" max="30" step="0.5" value={textOutlineWidth} onChange={(event) => onTextOutlineWidthChange(Number(event.target.value))} style={{ width: "100%" }} />
-                        <span style={{ minWidth: 52, textAlign: "right", fontSize: 13, color: "rgba(240,238,245,.6)" }}>{textOutlineWidth}px</span>
-                      </div>
-                      <div style={{ fontSize: 12, lineHeight: 1.5, color: "rgba(240,238,245,.42)" }}>
-                        Цвет контура берётся из цвета текста — поменяй его кнопкой «Цвет» в тулбаре.
-                      </div>
-                    </div>
-                  </SidebarFieldRow>
-                ) : null}
-
                 <SidebarFieldRow label="Тень">
                   <div style={{ display: "grid", gap: 10 }}>
+                    <label style={{ display: "inline-flex", alignItems: "center", gap: 10, fontSize: 14, color: "rgba(240,238,245,.65)", cursor: "pointer" }}>
+                      <input type="checkbox" checked={textShadowEnabled} onChange={(event) => onTextShadowEnabledChange(event.target.checked)} />Включить тень
+                    </label>
                     {textShadowEnabled ? (
                       <>
                         {renderFreeColorControl({ fieldKey: "shadow", value: textShadowColor, onChange: onTextShadowColorChange, helperText: "Выберите цвет тени через палитру или введите HEX-код." })}
@@ -1764,7 +1686,7 @@ export default function ConstructorSidebarPanel({
                       </>
                     ) : (
                       <div style={{ fontSize: 12, lineHeight: 1.5, color: "rgba(240,238,245,.42)" }}>
-                        Включите тень карточкой «Тень», чтобы настроить цвет, смещение и blur.
+                        Включите тень, чтобы настроить цвет, смещение и blur.
                       </div>
                     )}
                   </div>

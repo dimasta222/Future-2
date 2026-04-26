@@ -27,72 +27,6 @@ function isLineShape(layer) {
   return getConstructorShape(layer?.shapeKey)?.category === "lines";
 }
 
-// === DEBUG: реальный ink-bbox каждого слоя по итоговому canvas. Печатается
-// после рендера всех слоёв. Сравниваем с nominal layerPositionToCm() и с
-// размером в заказе — чтобы найти точку расхождения.
-const __exportInkDebug = [];
-
-// Измеряем реальный baseline DOM для заданных параметров шрифта. Возвращаем
-// смещение baseline от верха line-box в пикселях — то же значение нужно
-// использовать в canvas с textBaseline="alphabetic", чтобы глиф сел ровно там же,
-// где его рисует CSS внутри такого же line-box.
-const __cssBaselineCache = new Map();
-function measureCssBaselineOffsetPx(fontFamily, fontWeight, fontStyle, fontSizePx, lineHeight) {
-  const key = `${fontFamily}|${fontWeight}|${fontStyle}|${fontSizePx}|${lineHeight}`;
-  if (__cssBaselineCache.has(key)) return __cssBaselineCache.get(key);
-  if (typeof document === "undefined") return fontSizePx * 0.8;
-  const wrap = document.createElement("div");
-  wrap.style.cssText = `position:fixed;left:-9999px;top:-9999px;visibility:hidden;font-family:${fontFamily};font-weight:${fontWeight};font-style:${fontStyle};font-size:${fontSizePx}px;line-height:${lineHeight};white-space:pre;`;
-  // baselineMarker с vertical-align:baseline и нулевым размером
-  // ложится ровно на baseline строки.
-  const marker = document.createElement("span");
-  marker.style.cssText = "display:inline-block;width:0;height:0;vertical-align:baseline;";
-  wrap.appendChild(marker);
-  wrap.appendChild(document.createTextNode("M\u00c5\u042f\u0444"));
-  document.body.appendChild(wrap);
-  const wrapRect = wrap.getBoundingClientRect();
-  const markerRect = marker.getBoundingClientRect();
-  const baselineOffset = markerRect.top - wrapRect.top;
-  document.body.removeChild(wrap);
-  __cssBaselineCache.set(key, baselineOffset);
-  return baselineOffset;
-}
-
-function scanCanvasInkBboxPx(canvas) {
-  try {
-    const w = canvas.width;
-    const h = canvas.height;
-    const ctx = canvas.getContext("2d");
-    const data = ctx.getImageData(0, 0, w, h).data;
-    let minX = w;
-    let minY = h;
-    let maxX = -1;
-    let maxY = -1;
-    for (let y = 0; y < h; y++) {
-      const rowStart = y * w * 4;
-      for (let x = 0; x < w; x++) {
-        if (data[rowStart + x * 4 + 3] > 0) {
-          if (x < minX) minX = x;
-          if (x > maxX) maxX = x;
-          if (y < minY) minY = y;
-          if (y > maxY) maxY = y;
-        }
-      }
-    }
-    if (maxX < 0 || maxY < 0) return null;
-    return {
-      minX,
-      minY,
-      maxX: maxX + 1,
-      maxY: maxY + 1,
-      widthPx: (maxX + 1) - minX,
-      heightPx: (maxY + 1) - minY,
-    };
-  } catch {
-    return null;
-  }
-}
-
 function getLineShapeDimensionsCm(layer, printArea) {
   const physW = printArea.physicalWidthCm;
   const effH = printArea.effectivePhysH ?? printArea.physicalHeightCm;
@@ -155,9 +89,6 @@ export async function exportPrintPdf({ layers, printArea }) {
 
   console.log("[exportPrintPdf] start", { physW, physH, effectivePhysH, pageW, pageH, layerCount: layers.length });
 
-  // Сбрасываем накопитель перед новым экспортом.
-  __exportInkDebug.length = 0;
-
   const doc = new jsPDF({
     orientation: physW > effectivePhysH ? "landscape" : "portrait",
     unit: "pt",
@@ -173,6 +104,48 @@ export async function exportPrintPdf({ layers, printArea }) {
     const bi = layers.indexOf(b);
     return ai - bi;
   });
+
+  // DEBUG: per-layer cm bbox + composition bbox
+  const debugBoxes = [];
+  for (const layer of sortedLayers) {
+    if (!layer.visible) continue;
+    try {
+      const p = layerPositionToCm(layer, pa);
+      debugBoxes.push({
+        id: layer.id,
+        type: layer.type,
+        name: layer.name,
+        posX: layer.position?.x,
+        posY: layer.position?.y,
+        widthCm: Number(p.w.toFixed(2)),
+        heightCm: Number(p.h.toFixed(2)),
+        leftCm: Number(p.x.toFixed(2)),
+        topCm: Number(p.y.toFixed(2)),
+        rightCm: Number((p.x + p.w).toFixed(2)),
+        bottomCm: Number((p.y + p.h).toFixed(2)),
+        rotationDeg: layer.rotationDeg ?? 0,
+      });
+    } catch (e) {
+      console.warn("[exportPrintPdf][debug] failed bbox for layer", layer.id, e);
+    }
+  }
+  if (debugBoxes.length) {
+    const left = Math.min(...debugBoxes.map((b) => b.leftCm));
+    const top = Math.min(...debugBoxes.map((b) => b.topCm));
+    const right = Math.max(...debugBoxes.map((b) => b.rightCm));
+    const bottom = Math.max(...debugBoxes.map((b) => b.bottomCm));
+    console.table(debugBoxes);
+    console.log("[exportPrintPdf][debug] composition bbox cm", {
+      left: left.toFixed(2),
+      top: top.toFixed(2),
+      right: right.toFixed(2),
+      bottom: bottom.toFixed(2),
+      widthCm: (right - left).toFixed(2),
+      heightCm: (bottom - top).toFixed(2),
+      pageWcm: physW.toFixed(2),
+      pageHcm: effectivePhysH.toFixed(2),
+    });
+  }
 
   for (const layer of sortedLayers) {
     if (!layer.visible) continue;
@@ -195,23 +168,6 @@ export async function exportPrintPdf({ layers, printArea }) {
   }
 
   console.log("[exportPrintPdf] generating output");
-  if (__exportInkDebug.length) {
-    console.table(__exportInkDebug);
-    const inkLeft = Math.min(...__exportInkDebug.map((r) => r.inkLeft));
-    const inkTop = Math.min(...__exportInkDebug.map((r) => r.inkTop));
-    const inkRight = Math.max(...__exportInkDebug.map((r) => r.inkRight));
-    const inkBottom = Math.max(...__exportInkDebug.map((r) => r.inkBottom));
-    console.log("[exportPrintPdf][ink] composition ink-bbox cm", {
-      left: inkLeft.toFixed(3),
-      top: inkTop.toFixed(3),
-      right: inkRight.toFixed(3),
-      bottom: inkBottom.toFixed(3),
-      widthCm: (inkRight - inkLeft).toFixed(3),
-      heightCm: (inkBottom - inkTop).toFixed(3),
-      pageWcm: physW.toFixed(3),
-      pageHcm: effectivePhysH.toFixed(3),
-    });
-  }
   return doc.output("arraybuffer");
 }
 
@@ -283,9 +239,9 @@ async function renderUploadLayer(doc, layer, printArea) {
 async function renderTextLayer(doc, layer, printArea) {
   const physW = printArea.physicalWidthCm;
   const effH = printArea.effectivePhysH ?? printArea.physicalHeightCm;
-  // sizeScale масштабирует все «px-единицы» (fontSize, letterSpacing, stroke, shadow)
-  // относительно базового размера (XS). Фигуры/принты сохраняют widthCm уже
-  // умноженным на sizeScale в normalize, поэтому текст должен масштабироваться так же.
+  // sizeScale масштабирует все «px-единицы» (fontSize, letterSpacing, stroke, shadow,
+  // effectDistance) относительно базового размера (XS), чтобы на больших футболках
+  // эти элементы физически росли синхронно с фигурами (у которых widthCm уже скалируется в normalize).
   const baselinePhysW = Number(printArea.baselinePhysicalWidthCm) || physW;
   const sizeScale = physW / Math.max(0.001, baselinePhysW);
   const cx = (layer.position.x / 100) * physW;
@@ -334,10 +290,7 @@ async function renderTextViaCanvas(doc, layer, textValue, opts) {
   const fontSizePx = fontSizeCm * pxPerCm;
   const boxWidthPx = boxWidthCm * pxPerCm;
   const letterSpacingPx = letterSpacingCm * pxPerCm;
-  const isOutlineOnly = !!layer.textOutlineOnly && (Number(layer.outlineWidth) || 0) > 0;
-  const sourceStrokeWidth = isOutlineOnly ? (layer.outlineWidth ?? 0) : (layer.strokeWidth ?? 0);
-  const strokeColorEffective = isOutlineOnly ? (layer.color || "#ffffff") : (layer.strokeColor || "#111111");
-  const strokeWidthPx = (sourceStrokeWidth / LOGICAL_PRINT_PX_PER_CM) * pxPerCm;
+  const strokeWidthPx = ((layer.strokeWidth ?? 0) / LOGICAL_PRINT_PX_PER_CM) * pxPerCm;
   const shadowOffsetXPx = ((layer.shadowOffsetX ?? 0) / LOGICAL_PRINT_PX_PER_CM) * pxPerCm;
   const shadowOffsetYPx = ((layer.shadowOffsetY ?? 2) / LOGICAL_PRINT_PX_PER_CM) * pxPerCm;
   const shadowBlurPx = ((layer.shadowBlur ?? 14) / LOGICAL_PRINT_PX_PER_CM) * pxPerCm;
@@ -349,11 +302,6 @@ async function renderTextViaCanvas(doc, layer, textValue, opts) {
   const lines = wrapText(textValue, canvasFontStr, boxWidthPx, letterSpacingPx);
   const lineHeightPx = fontSizePx * lineHeight;
   const textBlockHeight = lines.length * lineHeightPx;
-  // CSS line-box делит leading пополам: глиф в каждой строке центрируется,
-  // а его EM-box смещается вниз на halfLeading относительно верха line-box.
-  // canvas с textBaseline="top" прижимает EM-box к lineY, поэтому нужна
-  // компенсация — иначе текст в PDF/PNG будет визуально выше, чем в DOM.
-  const halfLeadingPx = Math.max(0, (lineHeight - 1) * fontSizePx) / 2;
 
   const shadowPad = layer.shadowEnabled
     ? Math.ceil(shadowBlurPx + Math.max(Math.abs(shadowOffsetXPx), Math.abs(shadowOffsetYPx)))
@@ -361,7 +309,7 @@ async function renderTextViaCanvas(doc, layer, textValue, opts) {
   const strokePad = Math.ceil(strokeWidthPx);
   // Extra padding for glyph overshoot (italic slant, ascenders, descenders, script flourishes)
   const glyphOvershoot = Math.ceil(fontSizePx * 0.35);
-  const pad = Math.max(shadowPad, strokePad) + glyphOvershoot + Math.ceil(halfLeadingPx);
+  const pad = Math.max(shadowPad, strokePad) + glyphOvershoot;
 
   const canvasW = Math.ceil(boxWidthPx + pad * 2);
   const canvasH = Math.ceil(textBlockHeight + pad * 2);
@@ -371,13 +319,8 @@ async function renderTextViaCanvas(doc, layer, textValue, opts) {
   const ctx = canvas.getContext("2d");
 
   ctx.font = canvasFontStr;
-  ctx.textBaseline = "alphabetic";
+  ctx.textBaseline = "top";
   ctx.letterSpacing = `${letterSpacingPx}px`;
-
-  // CSS-baseline, измеренный в DOM с теми же параметрами. Это позволяет
-  // canvas рисовать глиф ровно там, где его располагает CSS line-box.
-  const cssBaselineOffsetPx = measureCssBaselineOffsetPx(font.family, fontWeight, fontStyle, fontSizePx, lineHeight);
-  const fontAscent = cssBaselineOffsetPx;
 
   const align = layer.textAlign || "center";
 
@@ -391,14 +334,13 @@ async function renderTextViaCanvas(doc, layer, textValue, opts) {
   const gradient = layer.textFillMode === "gradient" ? getConstructorTextGradient(layer.gradientKey) : null;
 
   for (let i = 0; i < lines.length; i++) {
-    // CSS-измеренный baseline уже включает halfLeading + ascent_metric из таблицы шрифта.
-    const lineY = pad + i * lineHeightPx + fontAscent;
+    const lineY = pad + i * lineHeightPx;
     let lineX = pad;
     if (align === "center") lineX = pad + (boxWidthPx - measureLineWidth(ctx, lines[i], letterSpacingPx)) / 2;
     else if (align === "right") lineX = pad + boxWidthPx - measureLineWidth(ctx, lines[i], letterSpacingPx);
 
     if (strokeWidthPx > 0) {
-      ctx.strokeStyle = strokeColorEffective;
+      ctx.strokeStyle = layer.strokeColor || "#111111";
       ctx.lineWidth = strokeWidthPx;
       ctx.lineJoin = "round";
       ctx.strokeText(lines[i], lineX, lineY);
@@ -414,9 +356,7 @@ async function renderTextViaCanvas(doc, layer, textValue, opts) {
     } else {
       ctx.fillStyle = layer.color || "#ffffff";
     }
-    if (!isOutlineOnly) {
-      ctx.fillText(lines[i], lineX, lineY);
-    }
+    ctx.fillText(lines[i], lineX, lineY);
 
     if (layer.underline || layer.strikethrough) {
       const lw = measureLineWidth(ctx, lines[i], letterSpacingPx);
@@ -425,13 +365,10 @@ async function renderTextViaCanvas(doc, layer, textValue, opts) {
       ctx.shadowColor = "transparent";
       ctx.fillStyle = gradient ? ctx.fillStyle : (layer.color || "#ffffff");
       if (layer.underline) {
-        ctx.fillRect(lineX, lineY + fontSizePx * 0.12, lw, decorThickness);
+        ctx.fillRect(lineX, lineY + fontSizePx * 1.12, lw, decorThickness);
       }
       if (layer.strikethrough) {
-        ctx.fillRect(lineX, lineY - fontSizePx * 0.30, lw, decorThickness);
-      }
-      if (layer.strikethrough) {
-        ctx.fillRect(lineX, lineY - fontSizePx * 0.30, lw, decorThickness);
+        ctx.fillRect(lineX, lineY + fontSizePx * 0.55, lw, decorThickness);
       }
       ctx.restore();
     }
@@ -443,81 +380,38 @@ async function renderTextViaCanvas(doc, layer, textValue, opts) {
   const imgHeightCm = (canvasH / pxPerCm) * sizeScale;
 
   // Find real ink bbox of rendered canvas (incl. shadow/stroke/decoration)
-  // и используем его только для отладочной разметки. Центрирование canvas
-  // делаем строго по геометрическому центру (= центр CSS line-box), потому
-  // что в DOM-превью слой тоже центрируется по line-box. Иначе текст в PDF
-  // будет визуально смещён относительно превью на величину дисбаланса
-  // half-leading + ascent vs descent.
-  const inkCenterXcm = imgWidthCm / 2;
-  const inkCenterYcm = imgHeightCm / 2;
+  // and align so the ink center lands exactly on (cx, cy). This makes the
+  // PDF and the Photoshop trim match what the UI summary shows in cm.
+  let inkCenterXcm = imgWidthCm / 2;
+  let inkCenterYcm = imgHeightCm / 2;
+  try {
+    const scanCtx = canvas.getContext("2d");
+    const pixels = scanCtx.getImageData(0, 0, canvasW, canvasH).data;
+    let minX = canvasW;
+    let minY = canvasH;
+    let maxX = -1;
+    let maxY = -1;
+    for (let y = 0; y < canvasH; y++) {
+      const rowStart = y * canvasW * 4;
+      for (let x = 0; x < canvasW; x++) {
+        // Используем порог alpha=0 — точно как Photoshop Trim "Based On Transparent Pixels".
+        if (pixels[rowStart + x * 4 + 3] > 0) {
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+        }
+      }
+    }
+    if (maxX >= 0 && maxY >= 0) {
+      inkCenterXcm = (((minX + maxX + 1) / 2) / pxPerCm) * sizeScale;
+      inkCenterYcm = (((minY + maxY + 1) / 2) / pxPerCm) * sizeScale;
+    }
+  } catch {
+    // CORS-tainted canvas, fall back to geometric center
+  }
   const drawX = cx - inkCenterXcm;
   const drawY = cy - inkCenterYcm;
-
-  try {
-    const ink = scanCanvasInkBboxPx(canvas);
-    if (ink) {
-      const inkLeftCm = drawX + (ink.minX / pxPerCm) * sizeScale;
-      const inkTopCm = drawY + (ink.minY / pxPerCm) * sizeScale;
-      const inkRightCm = drawX + (ink.maxX / pxPerCm) * sizeScale;
-      const inkBottomCm = drawY + (ink.maxY / pxPerCm) * sizeScale;
-      const inkCenterCanvasYpx = (ink.minY + ink.maxY) / 2;
-      const canvasGeomCenterYpx = canvasH / 2;
-      const inkVsGeomDeltaPx = inkCenterCanvasYpx - canvasGeomCenterYpx;
-      // Снимем DOM-bbox того же слоя из превью, чтобы сравнить.
-      let domBbox = null;
-      try {
-        const domNode = document.querySelector(`[data-text-layer-id="${layer.id}"]`)
-          || document.querySelector(`[data-layer-id="${layer.id}"]`);
-        if (domNode) {
-          const r = domNode.getBoundingClientRect();
-          const printAreaNode = domNode.closest("[data-print-area]")
-            || document.querySelector("[data-print-area]");
-          if (printAreaNode) {
-            const pr = printAreaNode.getBoundingClientRect();
-            domBbox = {
-              relTopPct: ((r.top - pr.top) / pr.height) * 100,
-              relLeftPct: ((r.left - pr.left) / pr.width) * 100,
-              relCxPct: ((r.left + r.width / 2 - pr.left) / pr.width) * 100,
-              relCyPct: ((r.top + r.height / 2 - pr.top) / pr.height) * 100,
-              widthPct: (r.width / pr.width) * 100,
-              heightPct: (r.height / pr.height) * 100,
-            };
-          }
-        }
-      } catch { /* ignore */ }
-      __exportInkDebug.push({
-        id: layer.id, type: "text", name: layer.name,
-        value: (textValue || "").slice(0, 24),
-        posX: layer.position?.x, posY: layer.position?.y,
-        cx: Number(cx.toFixed(3)), cy: Number(cy.toFixed(3)),
-        canvasW: canvasW, canvasH: canvasH,
-        imgW: Number(imgWidthCm.toFixed(3)), imgH: Number(imgHeightCm.toFixed(3)),
-        inkCenterXcm: Number(inkCenterXcm.toFixed(3)),
-        inkCenterYcm: Number(inkCenterYcm.toFixed(3)),
-        drawLeft: Number(drawX.toFixed(3)), drawTop: Number(drawY.toFixed(3)),
-        inkLeft: Number(inkLeftCm.toFixed(3)), inkTop: Number(inkTopCm.toFixed(3)),
-        inkRight: Number(inkRightCm.toFixed(3)), inkBottom: Number(inkBottomCm.toFixed(3)),
-        inkW: Number((inkRightCm - inkLeftCm).toFixed(3)),
-        inkH: Number((inkBottomCm - inkTopCm).toFixed(3)),
-        linesCount: lines.length,
-        textBlockHeightPx: Number(textBlockHeight.toFixed(2)),
-        padPx: pad,
-        // === diagnostic ===
-        fontSizePx: Number(fontSizePx.toFixed(2)),
-        lineHeight,
-        halfLeadingPx: Number(halfLeadingPx.toFixed(2)),
-        fontAscentPx: Number(fontAscent.toFixed(2)),
-        baselineYpx: Number((pad + fontAscent).toFixed(2)),
-        inkCenterCanvasYpx: Number(inkCenterCanvasYpx.toFixed(2)),
-        canvasGeomCenterYpx: Number(canvasGeomCenterYpx.toFixed(2)),
-        inkVsGeomDeltaPx: Number(inkVsGeomDeltaPx.toFixed(2)),
-        domRelCxPct: domBbox ? Number(domBbox.relCxPct.toFixed(3)) : null,
-        domRelCyPct: domBbox ? Number(domBbox.relCyPct.toFixed(3)) : null,
-        domWidthPct: domBbox ? Number(domBbox.widthPct.toFixed(3)) : null,
-        domHeightPct: domBbox ? Number(domBbox.heightPct.toFixed(3)) : null,
-      });
-    }
-  } catch { /* debug only */ }
 
   const xPt = cmToPt(drawX);
   const yPt = cmToPt(drawY);
@@ -543,31 +437,11 @@ async function renderTextViaCanvas(doc, layer, textValue, opts) {
   }
 }
 
-// Допуск переноса: ctx.measureText в canvas включает trailing letter-spacing после
-// последней буквы, а DOM его не рисует — поэтому к лимиту добавляем одну
-// letter-spacing + маленький субпиксельный запас. Без этого короткие строки
-// (напр. IVANOV) ложно переносятся на лишнюю строку.
-const WRAP_TOLERANCE_PX = 1;
-
 function wrapText(text, fontStr, maxWidth, letterSpacingPx) {
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d");
   ctx.font = fontStr;
   ctx.letterSpacing = `${letterSpacingPx}px`;
-  const limit = maxWidth + Math.max(0, letterSpacingPx) + WRAP_TOLERANCE_PX;
-  const breakLongToken = (token, lines) => {
-    let buf = "";
-    for (const ch of token) {
-      const candidate = buf + ch;
-      if (buf && measureLineWidth(ctx, candidate, letterSpacingPx) > limit) {
-        lines.push(buf);
-        buf = ch;
-      } else {
-        buf = candidate;
-      }
-    }
-    return buf;
-  };
   const paragraphs = text.split("\n");
   const lines = [];
   for (const para of paragraphs) {
@@ -576,16 +450,9 @@ function wrapText(text, fontStr, maxWidth, letterSpacingPx) {
     let line = "";
     for (const word of words) {
       const test = line + word;
-      if (measureLineWidth(ctx, test, letterSpacingPx) > limit && line.length > 0) {
+      if (measureLineWidth(ctx, test, letterSpacingPx) > maxWidth && line.length > 0) {
         lines.push(line);
-        const trimmed = word.trimStart();
-        if (measureLineWidth(ctx, trimmed, letterSpacingPx) > limit) {
-          line = breakLongToken(trimmed, lines);
-        } else {
-          line = trimmed;
-        }
-      } else if (!line && measureLineWidth(ctx, test, letterSpacingPx) > limit) {
-        line = breakLongToken(test, lines);
+        line = word.trimStart();
       } else {
         line = test;
       }
@@ -734,28 +601,6 @@ async function renderShapeLayer(doc, layer, printArea) {
       drawXCm -= effectOffset.x / 2;
       drawYCm -= effectOffset.y / 2;
     }
-
-    try {
-      const ink = scanCanvasInkBboxPx(canvas);
-      if (ink) {
-        const inkLeftCm = drawXCm + (ink.minX / SHAPE_PX_PER_CM);
-        const inkTopCm = drawYCm + (ink.minY / SHAPE_PX_PER_CM);
-        const inkRightCm = drawXCm + (ink.maxX / SHAPE_PX_PER_CM);
-        const inkBottomCm = drawYCm + (ink.maxY / SHAPE_PX_PER_CM);
-        __exportInkDebug.push({
-          id: layer.id, type: "shape", name: layer.name,
-          shapeKey: layer.shapeKey, effect: effectType,
-          posX: layer.position?.x, posY: layer.position?.y,
-          cx: Number(pos.cx.toFixed(3)), cy: Number(pos.cy.toFixed(3)),
-          drawLeft: Number(drawXCm.toFixed(3)), drawTop: Number(drawYCm.toFixed(3)),
-          drawW: Number(totalWCm.toFixed(3)), drawH: Number(totalHCm.toFixed(3)),
-          inkLeft: Number(inkLeftCm.toFixed(3)), inkTop: Number(inkTopCm.toFixed(3)),
-          inkRight: Number(inkRightCm.toFixed(3)), inkBottom: Number(inkBottomCm.toFixed(3)),
-          inkW: Number((inkRightCm - inkLeftCm).toFixed(3)),
-          inkH: Number((inkBottomCm - inkTopCm).toFixed(3)),
-        });
-      }
-    } catch { /* debug only */ }
 
     if (rotationDeg) {
       const cxPt = cmToPt(pos.cx);

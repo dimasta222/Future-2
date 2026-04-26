@@ -3,7 +3,6 @@ import { buildConstructorShapeSvg, getConstructorLineVisualMetrics, getConstruct
 import { resizeLayer } from "../../utils/constructor/resize/resizeLayer.js";
 import { getShapeFrameMetricsPx } from "../../utils/constructor/shapeFrame.js";
 import { measureTextInkBboxPx } from "../../utils/textInkBbox.js";
-import { measureTextPdfInkBboxCm } from "../../utils/textPdfBbox.js";
 
 const DEFAULT_TEXT_SHADOW = {
   light: "0 2px 14px rgba(0,0,0,.16)",
@@ -37,6 +36,32 @@ const DEFAULT_TEXT_LINE_HEIGHT = 1.05;
 
 const textMeasureCanvas = typeof document !== "undefined" ? document.createElement("canvas") : null;
 const textMeasureContext = textMeasureCanvas?.getContext("2d") || null;
+
+function getTextVerticalCenterPadding({ fontFamily, fontSize, fontWeight, fontStyle, lineHeight }) {
+  if (!textMeasureContext) return { top: 0, bottom: 0 };
+
+  textMeasureContext.font = `${fontStyle} ${fontWeight} ${fontSize}px ${fontFamily}`;
+  const metrics = textMeasureContext.measureText("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghjkpqy");
+  const fontAscent = metrics.fontBoundingBoxAscent;
+  const fontDescent = metrics.fontBoundingBoxDescent;
+  if (fontAscent == null || fontDescent == null) return { top: 0, bottom: 0 };
+
+  const emHeight = fontAscent + fontDescent;
+  const lineBoxHeight = fontSize * lineHeight;
+  const halfLeading = (lineBoxHeight - emHeight) / 2;
+  const actualAscent = metrics.actualBoundingBoxAscent ?? fontAscent;
+  const actualDescent = metrics.actualBoundingBoxDescent ?? fontDescent;
+  const glyphTop = halfLeading + (fontAscent - actualAscent);
+  const glyphBottom = glyphTop + actualAscent + actualDescent;
+  const spaceAbove = glyphTop;
+  const spaceBelow = lineBoxHeight - glyphBottom;
+  const offset = (spaceBelow - spaceAbove) / 2;
+
+  return {
+    top: Math.max(0, Math.round(offset * 100) / 100),
+    bottom: Math.max(0, Math.round(-offset * 100) / 100),
+  };
+}
 
 function getResizeHandleAnchorStyle(handleKey, anchorPoint) {
   if (!anchorPoint) return null;
@@ -82,6 +107,35 @@ function getDirectionalOffset(angle, distance) {
   };
 }
 
+function measureTextSelectionBounds(node) {
+  if (!node) return null;
+
+  const textValue = String(node.textContent || "").replace(/\r/g, "");
+  if (!textValue.trim().length) return null;
+
+  const doc = node.ownerDocument;
+  if (!doc?.createRange) return null;
+
+  const range = doc.createRange();
+  range.selectNodeContents(node);
+  const rects = Array.from(range.getClientRects()).filter((rect) => rect.width > 0 || rect.height > 0);
+  if (!rects.length) return null;
+
+  const left = Math.min(...rects.map((rect) => rect.left));
+  const right = Math.max(...rects.map((rect) => rect.right));
+  const top = Math.min(...rects.map((rect) => rect.top));
+  const bottom = Math.max(...rects.map((rect) => rect.bottom));
+
+  return {
+    left,
+    right,
+    top,
+    bottom,
+    width: Math.max(0, right - left),
+    height: Math.max(0, bottom - top),
+  };
+}
+
 function measureCanvasTextWidth(text, letterSpacing = 0) {
   if (!textMeasureContext) return 0;
 
@@ -121,71 +175,6 @@ function wrapTextToWidth(text, maxWidthPx, letterSpacing = 0) {
   });
 
   return lines.length ? lines : [""];
-}
-
-// Возвращает массив строк (как DOM их реально перенёс), используя Range над
-// контейнером с текстом. Walks по символам и группирует по top-координате.
-function sliceTextByDomLines(node, fullText) {
-  if (typeof document === "undefined" || !node || !fullText) return null;
-  const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT, null);
-  const textNodes = [];
-  let n = walker.nextNode();
-  while (n) { textNodes.push(n); n = walker.nextNode(); }
-  if (!textNodes.length) return null;
-
-  const range = document.createRange();
-  const lines = [];
-  let currentLine = "";
-  let currentTop = null;
-  const tolerance = 2;
-
-  const positionToNodeOffset = (globalIdx) => {
-    let remain = globalIdx;
-    for (const tn of textNodes) {
-      const len = tn.textContent.length;
-      if (remain <= len) return { node: tn, offset: remain };
-      remain -= len;
-    }
-    return null;
-  };
-
-  const totalLen = textNodes.reduce((sum, tn) => sum + tn.textContent.length, 0);
-  for (let i = 0; i < totalLen; i++) {
-    const start = positionToNodeOffset(i);
-    const end = positionToNodeOffset(i + 1);
-    if (!start || !end) continue;
-    range.setStart(start.node, start.offset);
-    range.setEnd(end.node, end.offset);
-    const rects = range.getClientRects();
-    let charTop = null;
-    for (const r of rects) {
-      if (r.width > 0 && r.height > 0) {
-        charTop = r.top;
-        break;
-      }
-    }
-    const ch = fullText[i] ?? "";
-    if (ch === "\n") {
-      lines.push(currentLine);
-      currentLine = "";
-      currentTop = null;
-      continue;
-    }
-    if (charTop == null) {
-      currentLine += ch;
-      continue;
-    }
-    if (currentTop == null || Math.abs(charTop - currentTop) < tolerance) {
-      currentLine += ch;
-      currentTop = currentTop ?? charTop;
-    } else {
-      lines.push(currentLine);
-      currentLine = ch;
-      currentTop = charTop;
-    }
-  }
-  if (currentLine.length || lines.length === 0) lines.push(currentLine);
-  return lines.length ? lines : null;
 }
 
 function getTextContentMetricsPx({
@@ -369,26 +358,20 @@ export default function ConstructorPreviewPanel({
   getTextGradientByKey,
   setActiveSnapGuides,
   getCombinedSnapGuidesPx,
+  showTextInkGuide = false,
 }) {
   const [resizingLayerId, setResizingLayerId] = useState(null);
   const [rotatingLayerId, setRotatingLayerId] = useState(null);
   const [hoveredLayerId, setHoveredLayerId] = useState(null);
   const [marqueeSelection, setMarqueeSelection] = useState(null);
   const [printAreaPixelSize, setPrintAreaPixelSize] = useState({ width: 0, height: 0 });
-  // Тик инвалидируется когда textInkBbox видит, что какой-то шрифт догрузился
-  // в FontFaceSet — нужно перепересчитать ink-метрики (они были с fallback).
-  const [, setFontReloadTick] = useState(0);
-  useEffect(() => {
-    const handler = () => setFontReloadTick((n) => n + 1);
-    window.addEventListener("textInkBboxFontLoaded", handler);
-    return () => window.removeEventListener("textInkBboxFontLoaded", handler);
-  }, []);
   const editableTextLayerRefs = useRef({});
   const layerNodeRefs = useRef({});
   const textContentLayerRefs = useRef({});
   const textLayerRefs = useRef({});
   const lastFocusedEditingLayerIdRef = useRef(null);
   const activeTextMetricsRef = useRef(null);
+  const [activeTextInkBoxPx, setActiveTextInkBoxPx] = useState(null);
   const physicalWidthCm = Math.max(1, Number(printArea?.physicalWidthCm) || 1);
   const physicalHeightCm = Math.max(1, Number(printArea?.physicalHeightCm) || 1);
   // Baseline (XS) physical width/height — используется для стабильных измерений
@@ -456,13 +439,13 @@ export default function ConstructorPreviewPanel({
   }, [editingTextLayerId, editingLayerValue]);
 
   useLayoutEffect(() => {
-    if (draggingLayerId) return undefined;
     if (!activeTextLayer || !printAreaRef.current) {
       const clearFrame = window.requestAnimationFrame(() => {
         if (activeTextMetricsRef.current) {
           activeTextMetricsRef.current = null;
           onActiveTextMetricsChange?.(null);
         }
+        setActiveTextInkBoxPx(null);
       });
 
       return () => window.cancelAnimationFrame(clearFrame);
@@ -502,43 +485,13 @@ export default function ConstructorPreviewPanel({
         letterSpacing: activeTextLayer.letterSpacing,
         boxWidthPx,
       });
-      // Используем canvas alpha-scan ink (true glyph ink, как Photoshop Trim),
-      // а не DOM Range bbox — последний даёт line-box (с ascender/descender
-      // padding шрифта) и расходится со snap-границами других слоёв.
-      // linesOverride: даём DOM-перенос строк, чтобы canvas не делал свой
-      // (snug-box проблема при разнице sub-pixel).
-      const textContentNode = textContentLayerRefs.current[activeTextLayer.id] || null;
-      let domLines = null;
-      if (!textRotDeg && textContentNode && displayText.trim().length) {
-        try {
-          const fullText = String(textContentNode.textContent || displayText);
-          domLines = sliceTextByDomLines(textContentNode, fullText);
-        } catch { /* ignore */ }
-      }
-      const boxWidthCmForMeasure = textRotDeg
-        ? null
-        : (boxWidthPx / printAreaBounds.width) * physicalWidthCm;
-      const pdfInk = displayText.trim().length
-        ? measureTextPdfInkBboxCm({
-            layer: activeTextLayer,
-            fontFamily: activeTextLayer.fontFamily || layerFont.family,
-            fontWeight,
-            fontStyle,
-            physicalWidthCm,
-            baselinePhysicalWidthCm,
-            boxWidthCmOverride: boxWidthCmForMeasure,
-            linesOverride: domLines,
-          })
-        : null;
-      const pdfInkWidthPx = pdfInk ? (pdfInk.widthCm / physicalWidthCm) * printAreaBounds.width : null;
-      const pdfInkHeightPx = pdfInk ? (pdfInk.heightCm / physicalHeightCm) * printAreaBounds.height : null;
       const contentWidthPx = Number(Math.min(
         printAreaBounds.width,
-        pdfInkWidthPx ?? textMetrics.contentWidthPx,
+        textMetrics.contentWidthPx,
       ).toFixed(2));
       const contentHeightPx = Number(Math.min(
         printAreaBounds.height,
-        pdfInkHeightPx ?? textMetrics.contentHeightPx,
+        textMetrics.contentHeightPx,
       ).toFixed(2));
       const nextValue = {
         layerId: activeTextLayer.id,
@@ -562,6 +515,11 @@ export default function ConstructorPreviewPanel({
         return;
       }
       activeTextMetricsRef.current = nextValue;
+      setActiveTextInkBoxPx({
+        layerId: activeTextLayer.id,
+        widthPx: contentWidthPx,
+        heightPx: contentHeightPx,
+      });
 
       onActiveTextMetricsChange?.({
         contentWidthCm: Number(((contentWidthPx / printAreaBounds.width) * physicalWidthCm).toFixed(1)),
@@ -586,13 +544,8 @@ export default function ConstructorPreviewPanel({
     activeTextLayer?.italic,
     activeTextLayer?.uppercase,
     activeTextLayer?.strokeWidth,
-    activeTextLayer?.textOutlineOnly,
-    activeTextLayer?.outlineWidth,
-    activeTextLayer?.color,
     activeTextLayer?.textAlign,
     activeTextLayer?.rotationDeg,
-    baselinePhysicalWidthCm,
-    draggingLayerId,
     editingTextLayerId,
     onActiveTextMetricsChange,
     physicalHeightCm,
@@ -602,7 +555,6 @@ export default function ConstructorPreviewPanel({
   ]);
 
   useLayoutEffect(() => {
-    if (draggingLayerId) return undefined;
     if (!printAreaRef.current) {
       onRuntimeTextLayerBoundsChange?.(side, {});
       return undefined;
@@ -624,73 +576,26 @@ export default function ConstructorPreviewPanel({
         const textContentNode = textContentLayerRefs.current[layer.id];
         if (!textContentNode) return;
 
-        // Считаем true glyph ink через canvas alpha-scan (как Photoshop Trim),
-        // используя реальный DOM-перенос строк. Это та же метрика, что в
-        // sidebar — sidebar и order card получают одинаковые числа.
-        const textRotDeg = normalizeRotationDeg(Number(layer.rotationDeg) || 0);
-        const fullText = String(textContentNode.textContent || layer.value || "");
-        if (!fullText.trim().length) return;
+        const selectionBounds = measureTextSelectionBounds(textContentNode);
+        const textContentBounds = textContentNode.getBoundingClientRect();
+        const sourceBounds = selectionBounds || textContentBounds;
+        const resolvedBounds = {
+          left: Math.max(0, sourceBounds.left - printAreaBounds.left),
+          right: Math.min(printAreaBounds.width, sourceBounds.right - printAreaBounds.left),
+          top: Math.max(0, sourceBounds.top - printAreaBounds.top),
+          bottom: Math.min(printAreaBounds.height, sourceBounds.bottom - printAreaBounds.top),
+        };
 
-        const layerFontForRuntime = getConstructorTextFont(layer.fontKey);
-        const fontWeightRuntime = layerFontForRuntime.supportsBold ? layer.weight : (layerFontForRuntime.regularWeight ?? 400);
-        const fontStyleRuntime = layerFontForRuntime.supportsItalic && layer.italic ? "italic" : "normal";
-
-        const textLayerNode = textLayerRefs.current[layer.id];
-        const textLayerBoundsRuntime = textLayerNode ? textLayerNode.getBoundingClientRect() : null;
-        const boxWidthPxRuntime = textLayerBoundsRuntime
-          ? (textRotDeg
-              ? printAreaBounds.width * (Math.min(100, Math.max(1, layer.textBoxWidth ?? 88)) / 100)
-              : textLayerBoundsRuntime.width)
-          : printAreaBounds.width * (Math.min(100, Math.max(1, layer.textBoxWidth ?? 88)) / 100);
-        const boxWidthCmRuntime = textRotDeg ? null : (boxWidthPxRuntime / printAreaBounds.width) * physicalWidthCm;
-
-        let domLinesRuntime = null;
-        if (!textRotDeg) {
-          try {
-            domLinesRuntime = sliceTextByDomLines(textContentNode, fullText);
-          } catch { /* ignore */ }
-        }
-
-        const pdfInk = measureTextPdfInkBboxCm({
-          layer,
-          fontFamily: layer.fontFamily || layerFontForRuntime.family,
-          fontWeight: fontWeightRuntime,
-          fontStyle: fontStyleRuntime,
-          physicalWidthCm,
-          baselinePhysicalWidthCm,
-          boxWidthCmOverride: boxWidthCmRuntime,
-          linesOverride: domLinesRuntime,
-        });
-
-        if (!pdfInk || pdfInk.widthCm <= 0 || pdfInk.heightCm <= 0) return;
-
-        const centerXCm = ((Number(layer.position?.x) || 50) / 100) * physicalWidthCm;
-        const centerYCm = ((Number(layer.position?.y) || 50) / 100) * physicalHeightCm;
-        const halfW = pdfInk.widthCm / 2;
-        const halfH = pdfInk.heightCm / 2;
-
-        // Реальный размер DOM-обёртки текста — line-box, который CSS
-        // фактически разметил под этот слой. Передаём в clamp чтобы
-        // он работал по фактическим пикселям, а не по теоретической
-        // формуле N_lines × fontSize × lineHeight (которая может
-        // расходиться с DOM word-wrap).
-        const domLineBoxWidthCm = textLayerBoundsRuntime
-          ? (textLayerBoundsRuntime.width / printAreaBounds.width) * physicalWidthCm
-          : null;
-        const domLineBoxHeightCm = textLayerBoundsRuntime
-          ? (textLayerBoundsRuntime.height / printAreaBounds.height) * physicalHeightCm
-          : null;
+        if (resolvedBounds.right <= resolvedBounds.left || resolvedBounds.bottom <= resolvedBounds.top) return;
 
         nextBoundsById[layer.id] = {
-          left: Number((centerXCm - halfW).toFixed(3)),
-          right: Number((centerXCm + halfW).toFixed(3)),
-          top: Number((centerYCm - halfH).toFixed(3)),
-          bottom: Number((centerYCm + halfH).toFixed(3)),
-          source: "ink-canvas",
+          left: Number(((resolvedBounds.left / printAreaBounds.width) * physicalWidthCm).toFixed(3)),
+          right: Number(((resolvedBounds.right / printAreaBounds.width) * physicalWidthCm).toFixed(3)),
+          top: Number(((resolvedBounds.top / printAreaBounds.width) * physicalWidthCm).toFixed(3)),
+          bottom: Number(((resolvedBounds.bottom / printAreaBounds.width) * physicalWidthCm).toFixed(3)),
+          source: selectionBounds ? "selection" : "content-box",
           positionX: Number(layer.position?.x) || 50,
           positionY: Number(layer.position?.y) || 50,
-          domLineBoxWidthCm,
-          domLineBoxHeightCm,
         };
       });
 
@@ -700,11 +605,9 @@ export default function ConstructorPreviewPanel({
     return () => window.cancelAnimationFrame(frame);
   }, [
     layers,
-    draggingLayerId,
     onRuntimeTextLayerBoundsChange,
     physicalHeightCm,
     physicalWidthCm,
-    baselinePhysicalWidthCm,
     printAreaRef,
     resizingLayerId,
     side,
@@ -1230,7 +1133,7 @@ export default function ConstructorPreviewPanel({
     <div className="constructor-preview" style={{ minWidth: 0, position: "relative", overflowAnchor: "none" }}>
       <div className="constructor-preview-stage" style={{ position: "relative", minHeight: 640, overflowAnchor: "none" }} onPointerDown={handlePreviewBackgroundPointerDown}>
         <img src={previewSrc} alt={`${productName} — ${color}`} draggable={false} style={{ width: "100%", display: "block", userSelect: "none", WebkitUserDrag: "none", pointerEvents: "none" }} />
-        <div ref={printAreaRef} data-print-area="true" style={{ position: "absolute", left: `${printArea.left}%`, top: `${printArea.top}%`, width: `${printArea.width}%`, height: printArea.height ? `${printArea.height}%` : undefined, aspectRatio: printArea.height ? undefined : `${physicalWidthCm} / ${physicalHeightCm}`, transform: "translate(-50%, -50%)", display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
+        <div ref={printAreaRef} style={{ position: "absolute", left: `${printArea.left}%`, top: `${printArea.top}%`, width: `${printArea.width}%`, height: printArea.height ? `${printArea.height}%` : undefined, aspectRatio: printArea.height ? undefined : `${physicalWidthCm} / ${physicalHeightCm}`, transform: "translate(-50%, -50%)", display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
           {activeSnapGuides.map((guide, index) => {
             const isVertical = guide.orientation === "vertical";
 
@@ -1257,18 +1160,6 @@ export default function ConstructorPreviewPanel({
           })}
           {layers.map((layer, index) => {
             if (!layer.visible) return null;
-
-            // Preview text CSS масштаб: layer.size и прочие "in-px" поля заданы в
-            // логических print-пикселях baseline-размера (XS: 41 cm ≈ 10 px/cm).
-            // В превью printArea имеет одинаковый визуальный размер (одинаковые
-            // % ширины/высоты) для всех размеров футболки — меняется только
-            // physicalWidthCm (метрика). Чтобы текст при переключении размера
-            // не "плавал" и соответствовал позиции фигур (которые % от printArea),
-            // scale считается от BASELINE-cm, а не от текущего physicalWidthCm.
-            const pxPerCmPreview = printAreaPixelSize.width > 0
-              ? printAreaPixelSize.width / Math.max(1, baselinePhysicalWidthCm)
-              : LOGICAL_PRINT_PX_PER_CM;
-            const previewTextScale = pxPerCmPreview / LOGICAL_PRINT_PX_PER_CM;
 
             const active = layer.id === activeLayerId;
             const selected = selectedLayerIds.includes(layer.id);
@@ -1462,11 +1353,10 @@ export default function ConstructorPreviewPanel({
               ? `${frameStyle}, inset 0 0 0 1px rgba(255,255,255,.24)`
               : frameStyle;
             const textShadowValue = layer.shadowEnabled
-              ? `${(layer.shadowOffsetX ?? 0) * previewTextScale}px ${(layer.shadowOffsetY ?? 2) * previewTextScale}px ${(layer.shadowBlur ?? 14) * previewTextScale}px ${layer.shadowColor || "#111111"}`
+              ? `${layer.shadowOffsetX ?? 0}px ${layer.shadowOffsetY ?? 2}px ${layer.shadowBlur ?? 14}px ${layer.shadowColor || "#111111"}`
               : "none";
-            const hasStroke = (layer.strokeWidth ?? 0) > 0 && !layer.textOutlineOnly;
-            const isOutlineOnly = !!layer.textOutlineOnly && (layer.outlineWidth ?? 0) > 0;
-            const outlineColor = layer.color || "#ffffff";
+            const hasStroke = (layer.strokeWidth ?? 0) > 0;
+            const strokeFilterId = hasStroke ? `ts-${layer.id}` : null;
             const layerFont = getConstructorTextFont(layer.fontKey);
             const activeGradient = layer.textFillMode === "gradient" ? getTextGradientByKey(layer.gradientKey) : null;
             const textDecorationLine = getTextDecorationLine(layer);
@@ -1474,24 +1364,61 @@ export default function ConstructorPreviewPanel({
             const textTransform = layer.uppercase ? "uppercase" : "none";
             const fontWeight = layerFont.supportsBold ? layer.weight : (layerFont.regularWeight ?? 400);
             const fontStyle = layerFont.supportsItalic && layer.italic ? "italic" : "normal";
-            const scaledFontSizePx = layer.size * previewTextScale;
-            const scaledLetterSpacingPx = (layer.letterSpacing ?? 1) * previewTextScale;
-            const scaledStrokeWidthPx = (layer.strokeWidth ?? 0) * previewTextScale;
-            const scaledOutlineWidthPx = (layer.outlineWidth ?? 0) * previewTextScale;
             const textMinHeight = !hasVisibleText
-              ? `${Math.max(scaledFontSizePx * (layer.lineHeight ?? 1.05), scaledFontSizePx)}px`
+              ? `${Math.max(layer.size * (layer.lineHeight ?? 1.05), layer.size)}px`
               : undefined;
-            const halfLetterSpacing = scaledLetterSpacingPx / 2;
-            // Превью выравнено с PDF: text-layer центр сидит ровно в position.x/y
-            // (translate(-50%,-50%) от верхнего-левого угла), без дополнительных
-            // ink-сдвигов. Clamp в useConstructorState учитывает асимметрию ink
-            // через clampOffsetX/Y (опираясь на opentype.js glyph bbox).
+            const halfLetterSpacing = (layer.letterSpacing ?? 1) / 2;
+            const verticalPad = getTextVerticalCenterPadding({
+              fontFamily: layer.fontFamily || "'Outfit', sans-serif",
+              fontSize: layer.size,
+              fontWeight,
+              fontStyle,
+              lineHeight: layer.lineHeight ?? DEFAULT_TEXT_LINE_HEIGHT,
+            });
+
+            // Compute ink-bbox offset relative to layout center, in em units
+            // (so it scales with fontSize). Apply as additional translate to
+            // align ink-center with position.x/y — matching PDF/preview-PNG.
+            let inkDxEm = 0;
+            let inkDyEm = 0;
+            if (hasVisibleText && layer.size > 0) {
+              try {
+                const measureBoxWidthPx = Math.max(1, ((layer.textBoxWidth ?? 88) / 100) * baselinePhysicalWidthCm * LOGICAL_PRINT_PX_PER_CM);
+                const ink = measureTextInkBboxPx({
+                  text: layer.uppercase ? overlayText.toUpperCase() : overlayText,
+                  fontFamily: layer.fontFamily || layerFont.family,
+                  fontSize: layer.size,
+                  fontWeight,
+                  fontStyle,
+                  lineHeight: layer.lineHeight ?? DEFAULT_TEXT_LINE_HEIGHT,
+                  letterSpacing: layer.letterSpacing ?? 1,
+                  boxWidthPx: measureBoxWidthPx,
+                  textAlign: layer.textAlign || "center",
+                });
+                if (ink && ink.inkWidthPx > 0 && ink.inkHeightPx > 0) {
+                  // measureTextInkBboxPx draws layout starting at (overshoot, overshoot)
+                  // where overshoot = ceil(fontSize * 0.6). Reconstruct it to find layout center.
+                  const overshoot = Math.ceil(layer.size * 0.6);
+                  const layoutCenterX = ink.layoutWidthPx / 2 + overshoot;
+                  const layoutCenterY = ink.layoutHeightPx / 2 + overshoot;
+                  const inkCenterX = ink.inkLeftOffsetPx + ink.inkWidthPx / 2;
+                  const inkCenterY = ink.inkTopOffsetPx + ink.inkHeightPx / 2;
+                  const dxPx = inkCenterX - layoutCenterX;
+                  const dyPx = inkCenterY - layoutCenterY;
+                  // Convert to em (relative to fontSize) so it scales with CSS rendering.
+                  inkDxEm = dxPx / layer.size;
+                  inkDyEm = dyPx / layer.size;
+                }
+              } catch { /* fallback to no offset */ }
+            }
+            const inkTransform = (inkDxEm || inkDyEm)
+              ? ` translate(${(-inkDxEm).toFixed(4)}em, ${(-inkDyEm).toFixed(4)}em)`
+              : "";
 
             return (
               <div
                 key={layer.id}
                 data-constructor-interactive="true"
-                data-text-layer-id={layer.id}
                 ref={(node) => {
                   layerNodeRefs.current[layer.id] = node;
                   textLayerRefs.current[layer.id] = node;
@@ -1505,8 +1432,25 @@ export default function ConstructorPreviewPanel({
                   event.stopPropagation();
                   onLayerEditOpen(layer.id);
                 }}
-                style={{ position: "absolute", left: `${layer.position.x}%`, top: `${layer.position.y}%`, transform: `translate(-50%, -50%)${layer.rotationDeg ? ` rotate(${layer.rotationDeg}deg)` : ""}`, transformOrigin: "center center", width: `${layer.textBoxWidth ?? 88}%`, maxWidth: "100%", minHeight: textMinHeight, padding: `0 0 0 ${halfLetterSpacing}px`, textAlign: layer.textAlign || "center", fontSize: `${scaledFontSizePx}px`, lineHeight: layer.lineHeight ?? 1.05, fontWeight, fontStyle, fontFamily: layer.fontFamily || "'Outfit', sans-serif", color: activeGradient ? "transparent" : layer.color, letterSpacing: `${scaledLetterSpacingPx}px`, whiteSpace: "pre-wrap", overflowWrap: "anywhere", wordBreak: "break-word", hyphens: "none", textShadow: textShadowValue, pointerEvents: "auto", cursor: allowTextEditing ? "text" : resizing ? "nwse-resize" : layer.locked ? "default" : dragging ? "grabbing" : "grab", touchAction: allowTextEditing ? "auto" : "none", boxShadow: showTextBoxGuides ? textGuideShadow : frameStyle, borderRadius: 0, outline: "none", outlineOffset: 0, background: "transparent", zIndex: index + 1 }}
+                style={{ position: "absolute", left: `${layer.position.x}%`, top: `${layer.position.y}%`, transform: `translate(-50%, -50%)${inkTransform}${layer.rotationDeg ? ` rotate(${layer.rotationDeg}deg)` : ""}`, transformOrigin: "center center", width: `${layer.textBoxWidth ?? 88}%`, maxWidth: "100%", minHeight: textMinHeight, padding: `${verticalPad.top}px 0 ${verticalPad.bottom}px ${halfLetterSpacing}px`, textAlign: layer.textAlign || "center", fontSize: `${layer.size}px`, lineHeight: layer.lineHeight ?? 1.05, fontWeight, fontStyle, fontFamily: layer.fontFamily || "'Outfit', sans-serif", color: activeGradient ? "transparent" : layer.color, letterSpacing: `${layer.letterSpacing ?? 1}px`, whiteSpace: "pre-wrap", overflowWrap: "anywhere", wordBreak: "break-word", hyphens: "none", textShadow: textShadowValue, pointerEvents: "auto", cursor: allowTextEditing ? "text" : resizing ? "nwse-resize" : layer.locked ? "default" : dragging ? "grabbing" : "grab", touchAction: allowTextEditing ? "auto" : "none", boxShadow: showTextBoxGuides ? textGuideShadow : frameStyle, borderRadius: 0, outline: "none", outlineOffset: 0, background: "transparent", zIndex: index + 1 }}
               >
+                {hasStroke && (
+                  <>
+                    <svg width="0" height="0" style={{ position: "absolute", overflow: "hidden" }}>
+                      <defs>
+                        <filter id={strokeFilterId} x="-50%" y="-50%" width="200%" height="200%">
+                          <feMorphology operator="dilate" radius={layer.strokeWidth / 2} />
+                        </filter>
+                      </defs>
+                    </svg>
+                    <div
+                      aria-hidden="true"
+                      style={{ position: "absolute", inset: 0, padding: `${verticalPad.top}px 0 ${verticalPad.bottom}px ${halfLetterSpacing}px`, color: layer.strokeColor || "#111111", WebkitTextFillColor: layer.strokeColor || "#111111", filter: `url(#${strokeFilterId})`, textShadow: "none", pointerEvents: "none", textTransform, minHeight: textMinHeight, whiteSpace: "pre-wrap", overflowWrap: "anywhere", wordBreak: "break-word", hyphens: "none" }}
+                    >
+                      {overlayText}
+                    </div>
+                  </>
+                )}
                 {allowTextEditing ? (
                   <div
                     ref={(node) => {
@@ -1526,14 +1470,14 @@ export default function ConstructorPreviewPanel({
                       const nextValue = event.currentTarget.innerText.replace(/\r/g, "").replace(/\n$/, "");
                       onActiveTextValueChange(nextValue);
                     }}
-                    style={{ position: "relative", minHeight: textMinHeight, outline: "none", cursor: "text", userSelect: "text", WebkitUserSelect: "text", color: isOutlineOnly ? "transparent" : (activeGradient ? "transparent" : layer.color), backgroundImage: (activeGradient && !isOutlineOnly) ? activeGradient.css : "none", WebkitBackgroundClip: (activeGradient && !isOutlineOnly) ? "text" : "border-box", backgroundClip: (activeGradient && !isOutlineOnly) ? "text" : "border-box", WebkitTextFillColor: isOutlineOnly ? "transparent" : (activeGradient ? "transparent" : layer.color), WebkitTextStroke: isOutlineOnly ? `${scaledOutlineWidthPx}px ${outlineColor}` : (hasStroke ? `${scaledStrokeWidthPx}px ${layer.strokeColor || "#111111"}` : undefined), paintOrder: (isOutlineOnly || hasStroke) ? "stroke fill" : undefined, caretColor: layer.color || "#f0eef5", fontStyle, textTransform: "none", textDecorationLine, textDecorationColor: decorationColor, textDecorationThickness: textDecorationLine === "none" ? undefined : "0.08em", textUnderlineOffset: layer.underline ? "0.14em" : undefined, whiteSpace: "pre-wrap", overflowWrap: "anywhere", wordBreak: "break-word", hyphens: "none", padding: 0, margin: 0 }}
+                    style={{ position: "relative", minHeight: textMinHeight, outline: "none", cursor: "text", userSelect: "text", WebkitUserSelect: "text", color: activeGradient ? "transparent" : layer.color, backgroundImage: activeGradient ? activeGradient.css : "none", WebkitBackgroundClip: activeGradient ? "text" : "border-box", backgroundClip: activeGradient ? "text" : "border-box", WebkitTextFillColor: activeGradient ? "transparent" : layer.color, caretColor: layer.color || "#f0eef5", fontStyle, textTransform: "none", textDecorationLine, textDecorationColor: decorationColor, textDecorationThickness: textDecorationLine === "none" ? undefined : "0.08em", textUnderlineOffset: layer.underline ? "0.14em" : undefined, whiteSpace: "pre-wrap", overflowWrap: "anywhere", wordBreak: "break-word", hyphens: "none", padding: 0, margin: 0 }}
                   />
                 ) : (
                   <div
                     ref={(node) => {
                       textContentLayerRefs.current[layer.id] = node;
                     }}
-                    style={{ position: "relative", minHeight: textMinHeight, outline: "none", cursor: "inherit", color: isOutlineOnly ? "transparent" : (activeGradient ? "transparent" : layer.color), backgroundImage: (activeGradient && !isOutlineOnly) ? activeGradient.css : "none", WebkitBackgroundClip: (activeGradient && !isOutlineOnly) ? "text" : "border-box", backgroundClip: (activeGradient && !isOutlineOnly) ? "text" : "border-box", WebkitTextFillColor: isOutlineOnly ? "transparent" : (activeGradient ? "transparent" : layer.color), WebkitTextStroke: isOutlineOnly ? `${scaledOutlineWidthPx}px ${outlineColor}` : (hasStroke ? `${scaledStrokeWidthPx}px ${layer.strokeColor || "#111111"}` : undefined), paintOrder: (isOutlineOnly || hasStroke) ? "stroke fill" : undefined, caretColor: layer.color || "#f0eef5", fontStyle, textTransform, textDecorationLine, textDecorationColor: decorationColor, textDecorationThickness: textDecorationLine === "none" ? undefined : "0.08em", textUnderlineOffset: layer.underline ? "0.14em" : undefined, whiteSpace: "pre-wrap", overflowWrap: "anywhere", wordBreak: "break-word", hyphens: "none", padding: 0, margin: 0 }}
+                    style={{ position: "relative", minHeight: textMinHeight, outline: "none", cursor: "inherit", color: activeGradient ? "transparent" : layer.color, backgroundImage: activeGradient ? activeGradient.css : "none", WebkitBackgroundClip: activeGradient ? "text" : "border-box", backgroundClip: activeGradient ? "text" : "border-box", WebkitTextFillColor: activeGradient ? "transparent" : layer.color, caretColor: layer.color || "#f0eef5", fontStyle, textTransform, textDecorationLine, textDecorationColor: decorationColor, textDecorationThickness: textDecorationLine === "none" ? undefined : "0.08em", textUnderlineOffset: layer.underline ? "0.14em" : undefined, whiteSpace: "pre-wrap", overflowWrap: "anywhere", wordBreak: "break-word", hyphens: "none", padding: 0, margin: 0 }}
                   >
                     {overlayText}
                   </div>
@@ -1548,6 +1492,23 @@ export default function ConstructorPreviewPanel({
               </div>
             );
           })}
+          {showTextInkGuide && activeTextLayer && activeTextInkBoxPx && activeTextInkBoxPx.layerId === activeTextLayer.id && activeTextInkBoxPx.widthPx > 0 && activeTextInkBoxPx.heightPx > 0 ? (
+            <div
+              aria-hidden="true"
+              style={{
+                position: "absolute",
+                left: `${activeTextLayer.position?.x ?? 50}%`,
+                top: `${activeTextLayer.position?.y ?? 50}%`,
+                width: activeTextInkBoxPx.widthPx,
+                height: activeTextInkBoxPx.heightPx,
+                transform: `translate(-50%, -50%)${activeTextLayer.rotationDeg ? ` rotate(${activeTextLayer.rotationDeg}deg)` : ""}`,
+                border: "1px dashed rgba(108,231,164,.95)",
+                boxShadow: "0 0 0 1px rgba(0,0,0,.32)",
+                pointerEvents: "none",
+                zIndex: 7,
+              }}
+            />
+          ) : null}
         </div>
         {marqueeSelection ? (
           <div

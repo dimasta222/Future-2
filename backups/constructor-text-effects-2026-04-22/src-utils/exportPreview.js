@@ -47,53 +47,11 @@ function isTextBold(layer) {
   return (layer.weight ?? font.regularWeight ?? 500) >= 700;
 }
 
-// Измеряем реальный baseline DOM для шрифта с заданными параметрами и
-// возвращаем смещение baseline от верха line-box в пикселях. Используется
-// в canvas-рендере (textBaseline="alphabetic"), чтобы глиф сел ровно туда,
-// куда его кладёт CSS. Кешируется по (font, weight, style, size, lineHeight).
-const __previewBaselineCache = new Map();
-function measurePreviewBaselineOffsetPx(fontFamily, fontWeight, fontStyle, fontSizePx, lineHeight) {
-  const key = `${fontFamily}|${fontWeight}|${fontStyle}|${fontSizePx}|${lineHeight}`;
-  if (__previewBaselineCache.has(key)) return __previewBaselineCache.get(key);
-  if (typeof document === "undefined") return fontSizePx * 0.8;
-  const wrap = document.createElement("div");
-  wrap.style.cssText = `position:fixed;left:-9999px;top:-9999px;visibility:hidden;font-family:${fontFamily};font-weight:${fontWeight};font-style:${fontStyle};font-size:${fontSizePx}px;line-height:${lineHeight};white-space:pre;`;
-  const marker = document.createElement("span");
-  marker.style.cssText = "display:inline-block;width:0;height:0;vertical-align:baseline;";
-  wrap.appendChild(marker);
-  wrap.appendChild(document.createTextNode("M\u00c5\u042f\u0444"));
-  document.body.appendChild(wrap);
-  const wrapRect = wrap.getBoundingClientRect();
-  const markerRect = marker.getBoundingClientRect();
-  const baselineOffset = markerRect.top - wrapRect.top;
-  document.body.removeChild(wrap);
-  __previewBaselineCache.set(key, baselineOffset);
-  return baselineOffset;
-}
-
-// Допуск переноса: см. textPdfBbox.js. Добавляем trailing letter-spacing,
-// иначе canvas measureText жирнее DOM на одну letter-spacing.
-const WRAP_TOLERANCE_PX = 1;
-
 function wrapTextForPreview(text, fontStr, maxWidth, letterSpacingPx) {
   const c = document.createElement("canvas");
   const cx = c.getContext("2d");
   cx.font = fontStr;
   if (cx.letterSpacing !== undefined) cx.letterSpacing = `${letterSpacingPx}px`;
-  const limit = maxWidth + Math.max(0, letterSpacingPx || 0) + WRAP_TOLERANCE_PX;
-  const breakLongToken = (token, lines) => {
-    let buf = "";
-    for (const ch of token) {
-      const candidate = buf + ch;
-      if (buf && cx.measureText(candidate).width > limit) {
-        lines.push(buf);
-        buf = ch;
-      } else {
-        buf = candidate;
-      }
-    }
-    return buf;
-  };
   const paragraphs = text.split("\n");
   const lines = [];
   for (const para of paragraphs) {
@@ -102,16 +60,9 @@ function wrapTextForPreview(text, fontStr, maxWidth, letterSpacingPx) {
     let line = "";
     for (const word of words) {
       const test = line + word;
-      if (cx.measureText(test).width > limit && line.length > 0) {
+      if (cx.measureText(test).width > maxWidth && line.length > 0) {
         lines.push(line);
-        const trimmed = word.trimStart();
-        if (cx.measureText(trimmed).width > limit) {
-          line = breakLongToken(trimmed, lines);
-        } else {
-          line = trimmed;
-        }
-      } else if (!line && cx.measureText(test).width > limit) {
-        line = breakLongToken(test, lines);
+        line = word.trimStart();
       } else {
         line = test;
       }
@@ -185,8 +136,7 @@ async function renderTextOnCanvas(ctx, layer, areaW, _areaH, physW, _physH, prin
   const font = getConstructorTextFont(layer.fontKey || "outfit");
   const pxPerCm = areaW / physW;
   // sizeScale: хранимые «px-единицы» интерпретируются как baseline (XS)
-  // и вырастают пропорционально физическому размеру текущей футболки —
-  // как и фигуры/принты (widthCm уже отнормализован на sizeScale).
+  // и вырастают пропорционально физическому размеру текущей футболки.
   const baselinePhysW = Number(printArea?.baselinePhysicalWidthCm) || physW;
   const sizeScale = physW / Math.max(0.001, baselinePhysW);
   const fontSizeCm = ((layer.size ?? 24) / LOGICAL_PRINT_PX_PER_CM) * sizeScale;
@@ -208,14 +158,9 @@ async function renderTextOnCanvas(ctx, layer, areaW, _areaH, physW, _physH, prin
   const lines = wrapTextForPreview(textValue, fontStr, boxWidthPx, letterSpacingPx);
   const lineHeightPx = fontSizePx * lineHeight;
   const totalHeight = lines.length * lineHeightPx;
-  // CSS half-leading compensation (matches DOM line-box vertical centering)
-  const halfLeadingPx = Math.max(0, (lineHeight - 1) * fontSizePx) / 2;
   const align = layer.textAlign || "center";
 
-  const isOutlineOnly = !!layer.textOutlineOnly && (Number(layer.outlineWidth) || 0) > 0;
-  const sourceStrokeWidth = isOutlineOnly ? (layer.outlineWidth ?? 0) : (layer.strokeWidth ?? 0);
-  const strokeColorEffective = isOutlineOnly ? (layer.color || "#ffffff") : (layer.strokeColor || "#111111");
-  const strokeWidthPx = (sourceStrokeWidth / LOGICAL_PRINT_PX_PER_CM) * sizeScale * pxPerCm;
+  const strokeWidthPx = ((layer.strokeWidth ?? 0) / LOGICAL_PRINT_PX_PER_CM) * sizeScale * pxPerCm;
 
   const shadowOffsetXPx = layer.shadowEnabled ? ((layer.shadowOffsetX ?? 0) / LOGICAL_PRINT_PX_PER_CM) * sizeScale * pxPerCm : 0;
   const shadowOffsetYPx = layer.shadowEnabled ? ((layer.shadowOffsetY ?? 2) / LOGICAL_PRINT_PX_PER_CM) * sizeScale * pxPerCm : 0;
@@ -228,7 +173,7 @@ async function renderTextOnCanvas(ctx, layer, areaW, _areaH, physW, _physH, prin
     : 0;
   const strokePad = Math.ceil(strokeWidthPx);
   const overshoot = Math.ceil(fontSizePx * 0.45);
-  const pad = Math.max(shadowPad, strokePad) + overshoot + Math.ceil(halfLeadingPx);
+  const pad = Math.max(shadowPad, strokePad) + overshoot;
 
   const offW = Math.ceil(boxWidthPx + pad * 2);
   const offH = Math.ceil(totalHeight + pad * 2);
@@ -237,11 +182,8 @@ async function renderTextOnCanvas(ctx, layer, areaW, _areaH, physW, _physH, prin
   off.height = offH;
   const offCtx = off.getContext("2d");
   offCtx.font = fontStr;
-  offCtx.textBaseline = "alphabetic";
+  offCtx.textBaseline = "top";
   if (offCtx.letterSpacing !== undefined) offCtx.letterSpacing = `${letterSpacingPx}px`;
-  // Измеряем реальный baseline DOM, чтобы canvas нарисовал глиф
-  // ровно там, где его поместит CSS line-box.
-  const fontAscent = measurePreviewBaselineOffsetPx(font.family, weight, italic ? "italic" : "normal", fontSizePx, lineHeight);
   if (layer.shadowEnabled) {
     offCtx.shadowOffsetX = shadowOffsetXPx;
     offCtx.shadowOffsetY = shadowOffsetYPx;
@@ -252,7 +194,7 @@ async function renderTextOnCanvas(ctx, layer, areaW, _areaH, physW, _physH, prin
   const gradient = layer.textFillMode === "gradient" ? getConstructorTextGradient(layer.gradientKey) : null;
 
   for (let i = 0; i < lines.length; i++) {
-    const lineY = pad + i * lineHeightPx + fontAscent;
+    const lineY = pad + i * lineHeightPx;
     const lineW = offCtx.measureText(lines[i]).width;
     let lineX;
     if (align === "center") lineX = pad + (boxWidthPx - lineW) / 2;
@@ -260,7 +202,7 @@ async function renderTextOnCanvas(ctx, layer, areaW, _areaH, physW, _physH, prin
     else lineX = pad;
 
     if (strokeWidthPx > 0) {
-      offCtx.strokeStyle = strokeColorEffective;
+      offCtx.strokeStyle = layer.strokeColor || "#111111";
       offCtx.lineWidth = strokeWidthPx;
       offCtx.lineJoin = "round";
       offCtx.strokeText(lines[i], lineX, lineY);
@@ -275,27 +217,45 @@ async function renderTextOnCanvas(ctx, layer, areaW, _areaH, physW, _physH, prin
     } else {
       offCtx.fillStyle = layer.color || "#ffffff";
     }
-    if (!isOutlineOnly) {
-      offCtx.fillText(lines[i], lineX, lineY);
-    }
+    offCtx.fillText(lines[i], lineX, lineY);
 
     if (layer.underline || layer.strikethrough) {
       const decorThickness = fontSizePx * 0.06;
       offCtx.save();
       offCtx.shadowColor = "transparent";
-      if (layer.underline) offCtx.fillRect(lineX, lineY + fontSizePx * 0.12, lineW, decorThickness);
-      if (layer.strikethrough) offCtx.fillRect(lineX, lineY - fontSizePx * 0.30, lineW, decorThickness);
+      if (layer.underline) offCtx.fillRect(lineX, lineY + fontSizePx * 1.12, lineW, decorThickness);
+      if (layer.strikethrough) offCtx.fillRect(lineX, lineY + fontSizePx * 0.55, lineW, decorThickness);
       offCtx.restore();
     }
   }
 
-  // Центрируем по геометрическому центру off-canvas (= центр CSS line-box),
-  // а не по центру чернил, чтобы PNG-скриншот совпадал с DOM-превью, где
-  // слой позиционируется по центру line-box через translate(-50%,-50%).
-  const inkCenterX = offW / 2;
-  const inkCenterY = offH / 2;
+  // Find ink bbox in off-screen canvas
+  let inkCenterX = offW / 2;
+  let inkCenterY = offH / 2;
+  try {
+    const data = offCtx.getImageData(0, 0, offW, offH).data;
+    let minX = offW;
+    let minY = offH;
+    let maxX = -1;
+    let maxY = -1;
+    for (let y = 0; y < offH; y++) {
+      const rowStart = y * offW * 4;
+      for (let x = 0; x < offW; x++) {
+        if (data[rowStart + x * 4 + 3] > 8) {
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+        }
+      }
+    }
+    if (maxX >= 0 && maxY >= 0) {
+      inkCenterX = (minX + maxX + 1) / 2;
+      inkCenterY = (minY + maxY + 1) / 2;
+    }
+  } catch { /* tainted, fallback geometric */ }
 
-  // The main ctx is already translated to (cx, cy). Place off canvas so geometric center hits (0,0).
+  // The main ctx is already translated to (cx, cy). Place off canvas so ink-center hits (0,0).
   ctx.drawImage(off, -inkCenterX, -inkCenterY);
 }
 

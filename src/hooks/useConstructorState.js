@@ -2063,6 +2063,12 @@ export default function useConstructorState({
       areaHeight,
       width: rotatedContentWidth,
       height: rotatedContentHeight,
+      // Реальная высота DOM line-box, которую отрисует браузер
+      // (lines × fontSize × lineHeight). Используется для top-anchor
+      // при изменении размера/ширины: визуальный top — это центр минус
+      // половина line-box, а не половина ink-bbox.
+      lineBoxHeight: lineBoxHeightPx,
+      lineBoxWidth: lineBoxWidthPx,
       clampWidth: clampInkWidth > 0 ? clampInkWidth : rotatedContentWidth,
       clampHeight: clampInkHeight > 0 ? clampInkHeight : rotatedContentHeight,
       // Смещение центра ink относительно центра слоя (px). Используется для
@@ -3059,6 +3065,37 @@ export default function useConstructorState({
     });
   };
 
+  // При изменении размера/ширины текстового слоя через тулбар (+/− и ползунки)
+  // привязываем верхний край рамки: пользователь ожидает, что текст растёт
+  // вниз, а не «съезжает» из-за пересчёта центра. Считаем top-edge до патча
+  // и восстанавливаем его после, затем нормализуем (clamp учтёт края).
+  const updateActiveTextLayerKeepTopAnchor = (patch) => {
+    if (!activeTextLayer) return;
+    updateLayer(activeTextLayer.id, (layer) => {
+      const beforeMetrics = getLayerMetrics(layer);
+      const draft = typeof patch === "function" ? patch(layer) : { ...layer, ...patch };
+      const afterMetrics = getLayerMetrics(draft);
+      let nextDraft = draft;
+      // Используем lineBoxHeight (реальная высота DOM-бокса = lines × size ×
+      // lineHeight), а не ink-bbox: визуально пользователь видит именно
+      // line-box, и top edge должен «зацепиться» за неё.
+      const beforeBoxH = beforeMetrics?.lineBoxHeight ?? beforeMetrics?.height;
+      const afterBoxH = afterMetrics?.lineBoxHeight ?? afterMetrics?.height;
+      if (beforeMetrics?.areaHeight && afterMetrics?.areaHeight && beforeBoxH && afterBoxH) {
+        const oldHalfHPercent = (beforeBoxH / 2) / beforeMetrics.areaHeight * 100;
+        const newHalfHPercent = (afterBoxH / 2) / afterMetrics.areaHeight * 100;
+        const currentY = Number(layer.position?.y);
+        if (Number.isFinite(currentY)) {
+          const topPercent = currentY - oldHalfHPercent;
+          const nextY = topPercent + newHalfHPercent;
+          const basePosition = draft.position ?? layer.position ?? { x: 50, y: 50 };
+          nextDraft = { ...draft, position: { ...basePosition, y: nextY } };
+        }
+      }
+      return normalizeTextLayerState(nextDraft, layer);
+    });
+  };
+
   const updateActiveShapeLayer = (patch) => {
     if (!activeShapeLayer) return;
     updateLayer(activeShapeLayer.id, (layer) => {
@@ -3081,7 +3118,7 @@ export default function useConstructorState({
 
     const clampedSize = Math.min(MAX_TEXT_FONT_SIZE, Math.max(MIN_TEXT_FONT_SIZE, Number(nextSize)));
     pushHistoryCheckpoint();
-    updateActiveTextLayer({ size: clampedSize });
+    updateActiveTextLayerKeepTopAnchor({ size: clampedSize });
   };
   const setTextColor = (nextColor) => { pushHistoryCheckpoint(); updateActiveTextLayer({ textFillMode: "solid", color: nextColor }); };
   const setTextGradientKey = (nextGradientKey) => {
@@ -3119,8 +3156,8 @@ export default function useConstructorState({
       italic: nextFont.supportsItalic ? layer.italic : false,
     }));
   };
-  const setTextBoxWidth = (nextTextBoxWidth) => { pushHistoryCheckpoint(); updateActiveTextLayer({ textBoxWidth: Math.min(100, Math.max(MIN_TEXT_BOX_WIDTH_PERCENT, Number(nextTextBoxWidth))) }); };
-  const setTextLineHeight = (nextLineHeight) => { pushHistoryCheckpoint(); updateActiveTextLayer({ lineHeight: Math.min(2, Math.max(0.5, Number(nextLineHeight.toFixed(2)))) }); };
+  const setTextBoxWidth = (nextTextBoxWidth) => { pushHistoryCheckpoint(); updateActiveTextLayerKeepTopAnchor({ textBoxWidth: Math.min(100, Math.max(MIN_TEXT_BOX_WIDTH_PERCENT, Number(nextTextBoxWidth))) }); };
+  const setTextLineHeight = (nextLineHeight) => { pushHistoryCheckpoint(); updateActiveTextLayerKeepTopAnchor({ lineHeight: Math.min(2, Math.max(0.5, Number(nextLineHeight.toFixed(2)))) }); };
   const setTextLetterSpacing = (nextLetterSpacing) => { pushHistoryCheckpoint(); updateActiveTextLayer({ letterSpacing: nextLetterSpacing }); };
   const setTextAlign = (nextTextAlign) => { pushHistoryCheckpoint(); updateActiveTextLayer({ textAlign: nextTextAlign }); };
   const setTextStrokeWidth = (nextStrokeWidth) => { pushHistoryCheckpoint(); updateActiveTextLayer({ strokeWidth: Math.min(30, Math.max(0, Number(nextStrokeWidth))) }); };

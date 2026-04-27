@@ -886,7 +886,9 @@ function CalcPage({ onBack }) {
   const [printsExpanded, setPrintsExpanded] = useState(false);
   const [orderModalOpen, setOrderModalOpen] = useState(false);
   const [highlightedItemId, setHighlightedItemId] = useState(null);
+  const [isCalcDropActive, setIsCalcDropActive] = useState(false);
   const layoutViewportRef = useRef(null);
+  const calcDragDepthRef = useRef(0);
 
   const goToPrintFile = (targetId) => {
     setOrderModalOpen(false);
@@ -992,6 +994,44 @@ function CalcPage({ onBack }) {
         if (node) node.scrollIntoView({ behavior: "smooth", block: "center" });
       }));
       setTimeout(() => setHighlightedItemId(null), 4000);
+    }
+  };
+
+  const hasDraggedFiles = (event) => {
+    const types = Array.from(event.dataTransfer?.types || []);
+    return types.includes("Files");
+  };
+
+  const handleCalcDragOver = (event) => {
+    if (!hasDraggedFiles(event)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+  };
+
+  const handleCalcDragEnter = (event) => {
+    if (!hasDraggedFiles(event)) return;
+    event.preventDefault();
+    calcDragDepthRef.current += 1;
+    setIsCalcDropActive(true);
+  };
+
+  const handleCalcDragLeave = (event) => {
+    if (!hasDraggedFiles(event)) return;
+    event.preventDefault();
+    calcDragDepthRef.current = Math.max(0, calcDragDepthRef.current - 1);
+    if (calcDragDepthRef.current === 0) {
+      setIsCalcDropActive(false);
+    }
+  };
+
+  const handleCalcDrop = (event) => {
+    if (!hasDraggedFiles(event)) return;
+    event.preventDefault();
+    calcDragDepthRef.current = 0;
+    setIsCalcDropActive(false);
+    const droppedFiles = event.dataTransfer?.files;
+    if (droppedFiles?.length) {
+      handleMultiFileUpload(droppedFiles);
     }
   };
 
@@ -1145,8 +1185,16 @@ function CalcPage({ onBack }) {
   })();
 
   return (
-    <div style={{ fontFamily: "'Outfit',sans-serif", background: "#08080c", color: "#f0eef5", minHeight: "100vh" }}>
+    <div onDragEnter={handleCalcDragEnter} onDragLeave={handleCalcDragLeave} onDragOver={handleCalcDragOver} onDrop={handleCalcDrop} style={{ fontFamily: "'Outfit',sans-serif", background: "#08080c", color: "#f0eef5", minHeight: "100vh" }}>
       <style>{STYLES}</style>
+
+      {isCalcDropActive ? (
+        <div style={{ position: "fixed", inset: 0, zIndex: 1200, pointerEvents: "none", background: "rgba(8,8,12,.58)", display: "flex", alignItems: "center", justifyContent: "center", padding: 32 }}>
+          <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "16px 22px", borderRadius: 18, border: "1px dashed #e84393", background: "rgba(14,14,22,.38)", boxShadow: "0 16px 40px rgba(0,0,0,.2)", textAlign: "center", fontSize: "clamp(20px, 3vw, 28px)", fontWeight: 600, letterSpacing: ".01em", backgroundImage: "linear-gradient(135deg,#e84393,#6c5ce7)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+            Поместить файлы
+          </div>
+        </div>
+      ) : null}
 
       <div className="page-shell-narrow" style={{ maxWidth: 1100, margin: "0 auto", padding: "28px 5% 0" }}>
         <button type="button" onClick={onBack} style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 12, background: "none", border: "none", color: "inherit", padding: 0, font: "inherit" }}>

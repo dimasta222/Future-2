@@ -674,10 +674,14 @@ export default function ConstructorPreviewPanel({
         // он работал по фактическим пикселям, а не по теоретической
         // формуле N_lines × fontSize × lineHeight (которая может
         // расходиться с DOM word-wrap).
-        const domLineBoxWidthCm = textLayerBoundsRuntime
+        // ВАЖНО: при rotation getBoundingClientRect возвращает AABB вокруг
+        // повёрнутой рамки — его НЕЛЬЗЯ передавать как «line-box», иначе
+        // clamp в useConstructorState ещё раз свернёт его в AABB через
+        // cos/sin и рамка не сможет дойти до края печатной области.
+        const domLineBoxWidthCm = (textLayerBoundsRuntime && !textRotDeg)
           ? (textLayerBoundsRuntime.width / printAreaBounds.width) * physicalWidthCm
           : null;
-        const domLineBoxHeightCm = textLayerBoundsRuntime
+        const domLineBoxHeightCm = (textLayerBoundsRuntime && !textRotDeg)
           ? (textLayerBoundsRuntime.height / printAreaBounds.height) * physicalHeightCm
           : null;
 

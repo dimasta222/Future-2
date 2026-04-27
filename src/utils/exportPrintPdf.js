@@ -255,19 +255,52 @@ async function renderUploadLayer(doc, layer, printArea) {
   };
 
   if (layer.sourceType === "svg" && layer.originalSvgText) {
+    // svg2pdf.js не умеет корректно конвертировать сложные градиенты
+    // (radialGradient + gradientTransform) и фильтры — в PDF могут пропасть
+    // фоны и эффекты. Поэтому растрируем SVG в высоком разрешении (300 dpi)
+    // и вставляем как PNG. Векторный оригинал всё равно отдельно
+    // прикладывается в originals/ — печатник может использовать его при
+    // необходимости.
     try {
-      const parser = new DOMParser();
-      const svgDoc = parser.parseFromString(layer.originalSvgText, "image/svg+xml");
-      const svgEl = svgDoc.documentElement;
-      svgEl.setAttribute("width", String(wPt));
-      svgEl.setAttribute("height", String(hPt));
-      document.body.appendChild(svgEl);
+      const targetPxW = Math.max(64, Math.ceil(wPt * DPI_300_SCALE));
+      const targetPxH = Math.max(64, Math.ceil(hPt * DPI_300_SCALE));
+      const svgBlob = new Blob([layer.originalSvgText], { type: "image/svg+xml" });
+      const url = URL.createObjectURL(svgBlob);
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      const loaded = new Promise((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = (e) => reject(e);
+      });
+      img.src = url;
+      await loaded;
+      const canvas = document.createElement("canvas");
+      canvas.width = targetPxW;
+      canvas.height = targetPxH;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0, targetPxW, targetPxH);
+      const pngData = canvas.toDataURL("image/png");
+      URL.revokeObjectURL(url);
       applyRotation();
-      await doc.svg(svgEl, { x: xPt, y: yPt, width: wPt, height: hPt });
+      doc.addImage(pngData, "PNG", xPt, yPt, wPt, hPt);
       restoreRotation();
-      document.body.removeChild(svgEl);
       return;
-    } catch { /* fallback to raster */ }
+    } catch (svgErr) {
+      console.warn("[exportPrintPdf] SVG rasterize failed, falling back to svg2pdf", svgErr);
+      try {
+        const parser = new DOMParser();
+        const svgDoc = parser.parseFromString(layer.originalSvgText, "image/svg+xml");
+        const svgEl = svgDoc.documentElement;
+        svgEl.setAttribute("width", String(wPt));
+        svgEl.setAttribute("height", String(hPt));
+        document.body.appendChild(svgEl);
+        applyRotation();
+        await doc.svg(svgEl, { x: xPt, y: yPt, width: wPt, height: hPt });
+        restoreRotation();
+        document.body.removeChild(svgEl);
+        return;
+      } catch { /* fallback to raster */ }
+    }
   }
 
   if (layer.sourceType === "pdf" && layer.originalData) {

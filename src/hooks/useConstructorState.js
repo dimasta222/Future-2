@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { getConstructorLineMinAspectRatio, getConstructorLineVisualMetrics, getConstructorPrintFormat, getConstructorShape, getConstructorShapeTightBounds, getConstructorTextFont, getConstructorTextGradient, readImageContentBounds, resolveConstructorPrintArea, supportsConstructorShapeCornerRoundness } from "../components/constructor/constructorConfig.js";
 import { getShapeFrameMetricsPx } from "../utils/constructor/shapeFrame.js";
 import { measureTextInkBboxPx } from "../utils/textInkBbox.js";
-import { measureTextPdfInkBboxCm, clearTextPdfBboxCache } from "../utils/textPdfBbox.js";
+import { measureTextPdfInkBboxCm, measureRotatedTextInkBboxCm, clearTextPdfBboxCache } from "../utils/textPdfBbox.js";
 import { saveConstructorMeta, loadConstructorMeta, clearConstructorMeta, saveImage, loadImage, clearImages } from "../utils/persistStorage.js";
 
 const FALLBACK_PRODUCT = {
@@ -1304,68 +1304,65 @@ export default function useConstructorState({
     }
 
     if (layer?.type === "text") {
-      // Сначала пытаемся взять реальный DOM bbox активного слоя — это
-      // визуальный размер, к которому снэпятся другие слои, и тот же
-      // размер, что показывает sidebar. Falls back на canvas-обмер только
-      // если runtime-данные ещё не пришли.
-      const runtimeBounds = resolveRuntimeLayerBoundsCm(layer);
-      if (runtimeBounds
-        && runtimeBounds.right > runtimeBounds.left
-        && runtimeBounds.bottom > runtimeBounds.top) {
-        return clampBoundsCmToPrintArea({
-          left: runtimeBounds.left,
-          right: runtimeBounds.right,
-          top: runtimeBounds.top,
-          bottom: runtimeBounds.bottom,
-        }, areaMetrics);
-      }
-
-      const textMetricsCm = getTextVisualMetricsCm(layer, areaMetrics);
-      if (!textMetricsCm) return null;
-
-      const rawContentWidthCm = Math.max(0, textMetricsCm.rawContentWidthCm);
-      const rawContentHeightCm = Math.max(0, textMetricsCm.rawContentHeightCm);
-      const boxWidthCm = Math.max(rawContentWidthCm, textMetricsCm.boxWidthCm);
+      // Размер текста в «Размере композиции» должен совпадать с тем, что
+      // видит Photoshop после Trim — т.е. AABB реальных глифов, а НЕ CSS
+      // line-box (который включает ascender/descender padding и делает
+      // высоту композиции искусственно больше).
+      // measureTextPdfInkBboxCm использует тот же canvas-render path, что
+      // экспорт PDF, поэтому результат 1:1 совпадает с реальной PDF.
       const centerXCm = ((Number(layer.position?.x) || 50) / 100) * areaMetrics.areaWidthCm;
       const centerYCm = ((Number(layer.position?.y) || 50) / 100) * areaMetrics.areaHeightCm;
-      const boxLeftCm = centerXCm - (boxWidthCm / 2);
-      const boxRightCm = centerXCm + (boxWidthCm / 2);
-      const textAlign = layer.textAlign || "center";
-
-      let left = centerXCm - (rawContentWidthCm / 2);
-      let right = centerXCm + (rawContentWidthCm / 2);
-
-      if (textAlign === "left") {
-        left = boxLeftCm;
-        right = boxLeftCm + rawContentWidthCm;
-      } else if (textAlign === "right") {
-        right = boxRightCm;
-        left = boxRightCm - rawContentWidthCm;
-      }
-
-      const top = centerYCm - (rawContentHeightCm / 2);
-      const bottom = centerYCm + (rawContentHeightCm / 2);
-
       const rotDeg = normalizeRotationDeg(layer.rotationDeg ?? 0);
-      if (rotDeg) {
-        const contentW = right - left;
-        const contentH = bottom - top;
-        const rotRad = (rotDeg * Math.PI) / 180;
-        const aabbW = Math.abs(contentW * Math.cos(rotRad)) + Math.abs(contentH * Math.sin(rotRad));
-        const aabbH = Math.abs(contentW * Math.sin(rotRad)) + Math.abs(contentH * Math.cos(rotRad));
-        return clampBoundsCmToPrintArea({
-          left: centerXCm - (aabbW / 2),
-          right: centerXCm + (aabbW / 2),
-          top: centerYCm - (aabbH / 2),
-          bottom: centerYCm + (aabbH / 2),
-        }, areaMetrics);
+
+      const resolvedFontTx = getConstructorTextFont(layer.fontKey || DEFAULT_TEXT_FONT.key);
+      const fontFamilyTx = layer.fontFamily || resolvedFontTx.family || DEFAULT_TEXT_FONT.family;
+      const fontWeightTx = resolvedFontTx.supportsBold
+        ? (layer.weight ?? resolvedFontTx.regularWeight ?? DEFAULT_TEXT_WEIGHT)
+        : (resolvedFontTx.regularWeight ?? 400);
+      const fontStyleTx = resolvedFontTx.supportsItalic && layer.italic ? "italic" : "normal";
+      const pdfInk = rotDeg
+        ? measureRotatedTextInkBboxCm({
+            layer,
+            fontFamily: fontFamilyTx,
+            fontWeight: fontWeightTx,
+            fontStyle: fontStyleTx,
+            physicalWidthCm: areaMetrics.areaWidthCm,
+            baselinePhysicalWidthCm: areaMetrics.baselinePhysicalWidthCm,
+            rotationDeg: rotDeg,
+          })
+        : measureTextPdfInkBboxCm({
+            layer,
+            fontFamily: fontFamilyTx,
+            fontWeight: fontWeightTx,
+            fontStyle: fontStyleTx,
+            physicalWidthCm: areaMetrics.areaWidthCm,
+            baselinePhysicalWidthCm: areaMetrics.baselinePhysicalWidthCm,
+          });
+
+      let inkW;
+      let inkH;
+      if (pdfInk && pdfInk.widthCm > 0 && pdfInk.heightCm > 0) {
+        inkW = pdfInk.widthCm;
+        inkH = pdfInk.heightCm;
+      } else {
+        // Fallback: когда canvas-обмер не доступен (SSR / пустой текст) —
+        // берём CSS line-box, это хотя бы не null.
+        const fallbackMetricsCm = getTextVisualMetricsCm(layer, areaMetrics);
+        if (!fallbackMetricsCm) return null;
+        inkW = Math.max(0, fallbackMetricsCm.rawContentWidthCm);
+        inkH = Math.max(0, fallbackMetricsCm.rawContentHeightCm);
       }
+
+      // Для rotated: measureRotatedTextInkBboxCm уже вернула AABB повёрнутых
+      // глифов, так что дополнительно крутить НЕ нужно.
+      const aabbW = inkW;
+      const aabbH = inkH;
 
       return clampBoundsCmToPrintArea({
-        left,
-        right,
-        top,
-        bottom,
+        left: centerXCm - (aabbW / 2),
+        right: centerXCm + (aabbW / 2),
+        top: centerYCm - (aabbH / 2),
+        bottom: centerYCm + (aabbH / 2),
       }, areaMetrics);
     }
 
@@ -1420,43 +1417,51 @@ export default function useConstructorState({
     }
 
     if (layer?.type === "text") {
-      // Сначала пробуем runtime DOM-bounds — те же числа, что показывает sidebar.
-      const runtimeBounds = resolveRuntimeLayerBoundsCm(layer);
-      if (runtimeBounds
-        && runtimeBounds.right > runtimeBounds.left
-        && runtimeBounds.bottom > runtimeBounds.top) {
-        const w = runtimeBounds.right - runtimeBounds.left;
-        const h = runtimeBounds.bottom - runtimeBounds.top;
-        const rotDegRt = normalizeRotationDeg(layer.rotationDeg ?? 0);
-        if (rotDegRt) {
-          const rotRadRt = (rotDegRt * Math.PI) / 180;
-          return {
-            widthCm: Number((Math.abs(w * Math.cos(rotRadRt)) + Math.abs(h * Math.sin(rotRadRt))).toFixed(1)),
-            heightCm: Number((Math.abs(w * Math.sin(rotRadRt)) + Math.abs(h * Math.cos(rotRadRt))).toFixed(1)),
-          };
-        }
-        return {
-          widthCm: Number(w.toFixed(1)),
-          heightCm: Number(h.toFixed(1)),
-        };
-      }
-
-      const textMetricsCm = getTextVisualMetricsCm(layer, areaMetrics);
-      if (!textMetricsCm) return null;
-
-      const rawW = Math.max(0, textMetricsCm.rawContentWidthCm);
-      const rawH = Math.max(0, textMetricsCm.rawContentHeightCm);
+      // «Размер объекта» текста должен совпадать с Photoshop Trim — берём
+      // real PDF ink bbox и при необходимости поворачиваем AABB.
       const rotDeg = normalizeRotationDeg(layer.rotationDeg ?? 0);
-      if (rotDeg) {
-        const rotRad = (rotDeg * Math.PI) / 180;
-        return {
-          widthCm: Number((Math.abs(rawW * Math.cos(rotRad)) + Math.abs(rawH * Math.sin(rotRad))).toFixed(1)),
-          heightCm: Number((Math.abs(rawW * Math.sin(rotRad)) + Math.abs(rawH * Math.cos(rotRad))).toFixed(1)),
-        };
+      const resolvedFontTx = getConstructorTextFont(layer.fontKey || DEFAULT_TEXT_FONT.key);
+      const fontFamilyTx = layer.fontFamily || resolvedFontTx.family || DEFAULT_TEXT_FONT.family;
+      const fontWeightTx = resolvedFontTx.supportsBold
+        ? (layer.weight ?? resolvedFontTx.regularWeight ?? DEFAULT_TEXT_WEIGHT)
+        : (resolvedFontTx.regularWeight ?? 400);
+      const fontStyleTx = resolvedFontTx.supportsItalic && layer.italic ? "italic" : "normal";
+      const pdfInk = rotDeg
+        ? measureRotatedTextInkBboxCm({
+            layer,
+            fontFamily: fontFamilyTx,
+            fontWeight: fontWeightTx,
+            fontStyle: fontStyleTx,
+            physicalWidthCm: areaMetrics.areaWidthCm,
+            baselinePhysicalWidthCm: areaMetrics.baselinePhysicalWidthCm,
+            rotationDeg: rotDeg,
+          })
+        : measureTextPdfInkBboxCm({
+            layer,
+            fontFamily: fontFamilyTx,
+            fontWeight: fontWeightTx,
+            fontStyle: fontStyleTx,
+            physicalWidthCm: areaMetrics.areaWidthCm,
+            baselinePhysicalWidthCm: areaMetrics.baselinePhysicalWidthCm,
+          });
+
+      let inkW;
+      let inkH;
+      if (pdfInk && pdfInk.widthCm > 0 && pdfInk.heightCm > 0) {
+        inkW = pdfInk.widthCm;
+        inkH = pdfInk.heightCm;
+      } else {
+        const fallbackMetricsCm = getTextVisualMetricsCm(layer, areaMetrics);
+        if (!fallbackMetricsCm) return null;
+        inkW = Math.max(0, fallbackMetricsCm.rawContentWidthCm);
+        inkH = Math.max(0, fallbackMetricsCm.rawContentHeightCm);
       }
+
+      // measureRotatedTextInkBboxCm вернул AABB растеризованных повёрнутых
+      // глифов — крутить больше не надо.
       return {
-        widthCm: Number(rawW.toFixed(1)),
-        heightCm: Number(rawH.toFixed(1)),
+        widthCm: Number(inkW.toFixed(1)),
+        heightCm: Number(inkH.toFixed(1)),
       };
     }
 

@@ -17,16 +17,17 @@ function cmToPt(cm) {
   return cm * CM_TO_PT;
 }
 
-// Применяет CSS-style вращение слоя через PDF CTM. jsPDF принимает координаты
-// пользователя (top-left, y-down), но `setCurrentTransformationMatrix` пишет
-// `cm`-оператор, который применяется в PDF native (bottom-left, y-up). Поэтому
-// центр поворота надо инвертировать по Y: pivotY_pdf = pageH - pivotY_user.
-// Без этого pivot оказывается возле нижнего края страницы и слой улетает за
-// пределы листа (как симптом — «квадрат повёрнут на 90° → пропал», «текст
-// уехал в сторону», «линии под наклоном сместились вверх»).
+// Применяет CSS-style вращение слоя через PDF CTM. Тонкости:
+//   1) `setCurrentTransformationMatrix` пишет PDF-оператор `cm`, который
+//      применяется в нативной системе PDF (origin bottom-left, y-up).
+//      Координаты pivot из jsPDF user-space (top-left, y-down) надо
+//      инвертировать по Y: pivotY_pdf = pageH - pivotY_user.
+//   2) CSS `rotate(+θ)` визуально по часовой стрелке (y-down CW). PDF
+//      нативная матрица с +θ крутит CCW (y-up). Поэтому в матрицу подаём
+//      `-θ`, чтобы итоговое направление совпало с превью.
 function applyLayerRotation(doc, rotationDeg, cxPt, cyPt, pageHPt) {
   if (!rotationDeg) return false;
-  const rad = (rotationDeg * Math.PI) / 180;
+  const rad = -((rotationDeg * Math.PI) / 180);
   const cos = Math.cos(rad);
   const sin = Math.sin(rad);
   const px = cxPt;

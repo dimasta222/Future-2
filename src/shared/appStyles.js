@@ -123,8 +123,9 @@ input[type=number]{-moz-appearance:textfield}
 @media(max-width:1180px){
 	.constructor-shell{grid-template-columns:1fr!important}
 	.constructor-preview{position:relative!important;top:auto!important}
-	.constructor-shape-toolbar{flex-wrap:wrap!important}
-	.constructor-shape-toolbar-main{flex:1 1 100%!important;min-width:0!important}
+	.constructor-shape-toolbar{flex-wrap:wrap!important;justify-content:center!important}
+	.constructor-shape-toolbar-main{flex:0 1 auto!important;min-width:0!important}
+	.constructor-shape-toolbar>button,.constructor-shape-toolbar>div:not(.constructor-shape-toolbar-main){flex:0 1 auto!important;min-width:0!important}
 	.constructor-shape-popover{width:100%!important}
 	.constructor-tabs-grid{display:flex!important;flex-wrap:wrap!important;gap:6px!important;justify-content:center!important}
 	.constructor-tabs-button{min-height:auto!important;width:auto!important;flex:1 1 calc(20% - 6px)!important;padding:8px 6px!important;aspect-ratio:1!important;max-width:64px!important}
@@ -132,6 +133,7 @@ input[type=number]{-moz-appearance:textfield}
 	.constructor-order-row{grid-template-columns:1fr!important;gap:6px!important}
 	.constructor-order-label{white-space:normal!important}
 	.constructor-order-value{text-align:left!important;overflow-wrap:break-word!important;word-break:normal!important}
+	.constructor-sidebar-close{display:flex!important}
 }
 @media(max-width:860px){
 	.nav-desktop-calc,.nav-desktop-main{display:none!important}

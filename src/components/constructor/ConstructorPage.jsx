@@ -816,7 +816,7 @@ export default function ConstructorPage({ onBack, products, onOpenProductDetails
 
     // На мобильных экранах панель показывается через активную вкладку (без overlay-флага),
     // поэтому крестик должен также сбрасывать активную вкладку — иначе панель остаётся видна.
-    if (closeMobileTab && typeof window !== "undefined" && window.innerWidth <= 860 && activeTab === "shapes") {
+    if (closeMobileTab && typeof window !== "undefined" && window.innerWidth <= 1180 && activeTab === "shapes") {
       setActiveTab(null);
     }
   };
@@ -828,7 +828,7 @@ export default function ConstructorPage({ onBack, products, onOpenProductDetails
       setActiveTextToolPanel("font");
     }
 
-    if (closeMobileTab && typeof window !== "undefined" && window.innerWidth <= 860 && activeTab === "text") {
+    if (closeMobileTab && typeof window !== "undefined" && window.innerWidth <= 1180 && activeTab === "text") {
       setActiveTab(null);
     }
   };
@@ -848,8 +848,10 @@ export default function ConstructorPage({ onBack, products, onOpenProductDetails
     }
 
     if (nextTab === activeTab) {
-      // На мобильных экранах повторный тап по активной вкладке сворачивает её содержимое.
-      if (typeof window !== "undefined" && window.innerWidth <= 860) {
+      // Повторный тап по активной вкладке сворачивает её содержимое в стэкнутом
+      // мобильном/планшетном лейауте (срабатывает при той же ширине, при которой
+      // CSS-переключает констуктор на single-column).
+      if (typeof window !== "undefined" && window.innerWidth <= 1180) {
         setActiveTab(null);
       }
       return;
@@ -946,14 +948,14 @@ export default function ConstructorPage({ onBack, products, onOpenProductDetails
 
   const handleAddTextLayer = () => {
     addTextLayer();
-    if (window.innerWidth <= 860) {
+    if (window.innerWidth <= 1180) {
       setActiveTab(null);
     }
   };
 
   const handleAddShapeLayer = (shapeKey) => {
     addShapeLayer(shapeKey);
-    if (window.innerWidth <= 860) {
+    if (window.innerWidth <= 1180) {
       setActiveTab(null);
     }
   };
@@ -967,7 +969,7 @@ export default function ConstructorPage({ onBack, products, onOpenProductDetails
       closeShapeSidebarOverlay({ resetToolPanel: true });
     }
     resetShapeReplaceMode({ showShapeCatalog: targetLayer?.type === "shape" || activeTab === "shapes" });
-    const isMobile = window.innerWidth <= 860;
+    const isMobile = window.innerWidth <= 1180;
     const prevTab = activeTab;
     openLayerEditor(layerId);
     if (isMobile && targetLayer?.type === "text") {

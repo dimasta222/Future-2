@@ -339,7 +339,7 @@ function ShapeOptionPreview({ shape, fillMode = "solid", color = "#ffffff", grad
 
 function CirclePalette({ colors, value, onChange }) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 10 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(28px, 34px))", gap: 8, justifyContent: "start" }}>
       {colors.map(([hex, label]) => {
         const active = value === hex;
 
@@ -1774,7 +1774,7 @@ export default function ConstructorSidebarPanel({
             {currentTextToolPanel === "effects" ? (
               <>
                 <SidebarFieldRow label="Эффекты" minHeight={148}>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0,1fr))", gap: 10 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10 }}>
                     <TextEffectCard
                       title="С контуром"
                       variant="with-outline"
@@ -1824,34 +1824,28 @@ export default function ConstructorSidebarPanel({
                   </SidebarFieldRow>
                 ) : null}
 
-                <SidebarFieldRow label="Тень">
-                  <div style={{ display: "grid", gap: 10 }}>
-                    {textShadowEnabled ? (
-                      <>
-                        {renderFreeColorControl({ fieldKey: "shadow", value: textShadowColor, onChange: onTextShadowColorChange, helperText: "Выберите цвет тени через палитру или введите HEX-код." })}
-                        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                          <span style={{ width: 22, fontSize: 13, color: "rgba(240,238,245,.48)" }}>X</span>
-                          <input type="range" min="-24" max="24" step="1" value={textShadowOffsetX} onChange={(event) => onTextShadowOffsetXChange(Number(event.target.value))} style={{ width: "100%" }} />
-                          <span style={{ minWidth: 52, textAlign: "right", fontSize: 13, color: "rgba(240,238,245,.6)" }}>{textShadowOffsetX}px</span>
-                        </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                          <span style={{ width: 22, fontSize: 13, color: "rgba(240,238,245,.48)" }}>Y</span>
-                          <input type="range" min="-24" max="24" step="1" value={textShadowOffsetY} onChange={(event) => onTextShadowOffsetYChange(Number(event.target.value))} style={{ width: "100%" }} />
-                          <span style={{ minWidth: 52, textAlign: "right", fontSize: 13, color: "rgba(240,238,245,.6)" }}>{textShadowOffsetY}px</span>
-                        </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                          <span style={{ width: 22, fontSize: 13, color: "rgba(240,238,245,.48)" }}>B</span>
-                          <input type="range" min="0" max="32" step="1" value={textShadowBlur} onChange={(event) => onTextShadowBlurChange(Number(event.target.value))} style={{ width: "100%" }} />
-                          <span style={{ minWidth: 52, textAlign: "right", fontSize: 13, color: "rgba(240,238,245,.6)" }}>{textShadowBlur}px</span>
-                        </div>
-                      </>
-                    ) : (
-                      <div style={{ fontSize: 12, lineHeight: 1.5, color: "rgba(240,238,245,.42)" }}>
-                        Включите тень карточкой «Тень», чтобы настроить цвет, смещение и blur.
+                {textShadowEnabled ? (
+                  <SidebarFieldRow label="Тень">
+                    <div style={{ display: "grid", gap: 10 }}>
+                      {renderFreeColorControl({ fieldKey: "shadow", value: textShadowColor, onChange: onTextShadowColorChange, helperText: "Выберите цвет тени через палитру или введите HEX-код." })}
+                      <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                        <span style={{ width: 22, fontSize: 13, color: "rgba(240,238,245,.48)" }}>X</span>
+                        <input type="range" min="-24" max="24" step="1" value={textShadowOffsetX} onChange={(event) => onTextShadowOffsetXChange(Number(event.target.value))} style={{ width: "100%" }} />
+                        <span style={{ minWidth: 52, textAlign: "right", fontSize: 13, color: "rgba(240,238,245,.6)" }}>{textShadowOffsetX}px</span>
                       </div>
-                    )}
-                  </div>
-                </SidebarFieldRow>
+                      <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                        <span style={{ width: 22, fontSize: 13, color: "rgba(240,238,245,.48)" }}>Y</span>
+                        <input type="range" min="-24" max="24" step="1" value={textShadowOffsetY} onChange={(event) => onTextShadowOffsetYChange(Number(event.target.value))} style={{ width: "100%" }} />
+                        <span style={{ minWidth: 52, textAlign: "right", fontSize: 13, color: "rgba(240,238,245,.6)" }}>{textShadowOffsetY}px</span>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                        <span style={{ width: 22, fontSize: 13, color: "rgba(240,238,245,.48)" }}>B</span>
+                        <input type="range" min="0" max="32" step="1" value={textShadowBlur} onChange={(event) => onTextShadowBlurChange(Number(event.target.value))} style={{ width: "100%" }} />
+                        <span style={{ minWidth: 52, textAlign: "right", fontSize: 13, color: "rgba(240,238,245,.6)" }}>{textShadowBlur}px</span>
+                      </div>
+                    </div>
+                  </SidebarFieldRow>
+                ) : null}
               </>
             ) : null}
 
@@ -2151,7 +2145,7 @@ export default function ConstructorSidebarPanel({
           activeShapeLayer ? (
             <>
               <SidebarFieldRow label="Эффекты" minHeight={148}>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0,1fr))", gap: 10 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10 }}>
                   <ShapeEffectCard title="Падающая тень" previewType="drop-shadow" active={shapeEffectType === "drop-shadow"} onClick={() => { setActiveShapeEffectColorTarget("shadow"); onShapeEffectTypeChange(shapeEffectType === "drop-shadow" ? "none" : "drop-shadow"); }} />
                   <ShapeEffectCard title="Искажение" previewType="distort" active={shapeEffectType === "distort"} onClick={() => { setActiveShapeEffectColorTarget("distort-a"); onShapeEffectTypeChange(shapeEffectType === "distort" ? "none" : "distort"); }} />
                 </div>

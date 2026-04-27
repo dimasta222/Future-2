@@ -682,7 +682,7 @@ export default function ConstructorSidebarPanel({
       labelMatchQuery: fontLabel.includes(matchedVariant) ? matchedVariant : "",
       optionId: `${fontListId}-${font.key}`,
     };
-  }).filter(Boolean);
+  }).filter(Boolean).sort((a, b) => a.label.localeCompare(b.label, "en", { sensitivity: "base" }));
   const groupedTextFonts = filteredTextFonts.reduce((groups, font) => {
     const nextGroupKey = font.group || "sans";
     if (!groups[nextGroupKey]) {

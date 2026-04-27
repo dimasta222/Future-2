@@ -347,66 +347,23 @@ export function getConstructorSizeGuide(model) {
 
 import { LOCAL_FONTS, LOCAL_FONT_GROUP_LABELS } from "../../generated/localFonts.js";
 
-const RUSSIAN_FONTS = [
-  { key: "great-vibes-ru", label: "Great Vibes", family: "'Great Vibes', cursive", group: "Русские", supportsBold: false, supportsItalic: false, regularWeight: 400, boldWeight: 400 },
-  { key: "alumni-sans-ru", label: "Alumni Sans", family: "'Alumni Sans', sans-serif", group: "Русские", supportsBold: false, supportsItalic: false, regularWeight: 400, boldWeight: 400 },
-  { key: "fira-sans-condensed-ru", label: "Fira Sans Condensed", family: "'Fira Sans Condensed', sans-serif", group: "Русские", supportsBold: false, supportsItalic: false, regularWeight: 400, boldWeight: 400 },
-  { key: "caveat-ru", label: "Caveat", family: "'Caveat', cursive", group: "Русские", supportsBold: false, supportsItalic: false, regularWeight: 400, boldWeight: 400 },
-  { key: "comfortaa-ru", label: "Comfortaa", family: "'Comfortaa', cursive", group: "Русские", supportsBold: false, supportsItalic: false, regularWeight: 400, boldWeight: 400 },
-  { key: "lobster-ru", label: "Lobster", family: "'Lobster', cursive", group: "Русские", supportsBold: false, supportsItalic: false, regularWeight: 400, boldWeight: 400 },
-  { key: "pacifico-ru", label: "Pacifico", family: "'Pacifico', cursive", group: "Русские", supportsBold: false, supportsItalic: false, regularWeight: 400, boldWeight: 400 },
-  { key: "roboto-slab-ru", label: "Roboto Slab", family: "'Roboto Slab', serif", group: "Русские", supportsBold: false, supportsItalic: false, regularWeight: 400, boldWeight: 400 },
-  { key: "oswald-ru", label: "Oswald", family: "'Oswald', sans-serif", group: "Русские", supportsBold: false, supportsItalic: false, regularWeight: 400, boldWeight: 400 },
-  { key: "rubik-mono-one-ru", label: "Rubik Mono One", family: "'Rubik Mono One', monospace", group: "Русские", supportsBold: false, supportsItalic: false, regularWeight: 400, boldWeight: 400 },
-  { key: "press-start-2p-ru", label: "Press Start 2P", family: "'Press Start 2P', monospace", group: "Русские", supportsBold: false, supportsItalic: false, regularWeight: 400, boldWeight: 400 },
-  { key: "advent-pro-ru", label: "Advent Pro", family: "'Advent Pro', sans-serif", group: "Русские", supportsBold: false, supportsItalic: false, regularWeight: 400, boldWeight: 400 },
-  { key: "yanone-kaffeesatz-ru", label: "Yanone Kaffeesatz", family: "'Yanone Kaffeesatz', sans-serif", group: "Русские", supportsBold: false, supportsItalic: false, regularWeight: 400, boldWeight: 400 },
-  { key: "amatic-sc-ru", label: "Amatic SC", family: "'Amatic SC', cursive", group: "Русские", supportsBold: false, supportsItalic: false, regularWeight: 400, boldWeight: 400 },
-  { key: "old-standard-tt-ru", label: "Old Standard TT", family: "'Old Standard TT', serif", group: "Русские", supportsBold: false, supportsItalic: false, regularWeight: 400, boldWeight: 400 },
-  { key: "dela-gothic-one-ru", label: "Dela Gothic One", family: "'Dela Gothic One', sans-serif", group: "Русские", supportsBold: false, supportsItalic: false, regularWeight: 400, boldWeight: 400 },
-  { key: "bad-script-ru", label: "Bad Script", family: "'Bad Script', cursive", group: "Русские", supportsBold: false, supportsItalic: false, regularWeight: 400, boldWeight: 400 },
-  { key: "pangolin-ru", label: "Pangolin", family: "'Pangolin', cursive", group: "Русские", supportsBold: false, supportsItalic: false, regularWeight: 400, boldWeight: 400 },
-  { key: "marck-script-ru", label: "Marck Script", family: "'Marck Script', cursive", group: "Русские", supportsBold: false, supportsItalic: false, regularWeight: 400, boldWeight: 400 },
-  { key: "neucha-ru", label: "Neucha", family: "'Neucha', cursive", group: "Русские", supportsBold: false, supportsItalic: false, regularWeight: 400, boldWeight: 400 },
-  { key: "pattaya-ru", label: "Pattaya", family: "'Pattaya', sans-serif", group: "Русские", supportsBold: false, supportsItalic: false, regularWeight: 400, boldWeight: 400 },
-  { key: "rampart-one-ru", label: "Rampart One", family: "'Rampart One', sans-serif", group: "Русские", supportsBold: false, supportsItalic: false, regularWeight: 400, boldWeight: 400 },
-  { key: "rubik-wet-paint-ru", label: "Rubik Wet Paint", family: "'Rubik Wet Paint', sans-serif", group: "Русские", supportsBold: false, supportsItalic: false, regularWeight: 400, boldWeight: 400 },
-  { key: "reggae-one-ru", label: "Reggae One", family: "'Reggae One', sans-serif", group: "Русские", supportsBold: false, supportsItalic: false, regularWeight: 400, boldWeight: 400 },
-  { key: "kelly-slab-ru", label: "Kelly Slab", family: "'Kelly Slab', serif", group: "Русские", supportsBold: false, supportsItalic: false, regularWeight: 400, boldWeight: 400 },
-  { key: "ruslan-display-ru", label: "Ruslan Display", family: "'Ruslan Display', sans-serif", group: "Русские", supportsBold: false, supportsItalic: false, regularWeight: 400, boldWeight: 400 },
-  { key: "rubik-dirt-ru", label: "Rubik Dirt", family: "'Rubik Dirt', sans-serif", group: "Русские", supportsBold: false, supportsItalic: false, regularWeight: 400, boldWeight: 400 },
-  { key: "rubik-glitch-ru", label: "Rubik Glitch", family: "'Rubik Glitch', sans-serif", group: "Русские", supportsBold: false, supportsItalic: false, regularWeight: 400, boldWeight: 400 },
-  { key: "train-one-ru", label: "Train One", family: "'Train One', sans-serif", group: "Русские", supportsBold: false, supportsItalic: false, regularWeight: 400, boldWeight: 400 },
-  { key: "rubik-doodle-shadow-ru", label: "Rubik Doodle Shadow", family: "'Rubik Doodle Shadow', sans-serif", group: "Русские", supportsBold: false, supportsItalic: false, regularWeight: 400, boldWeight: 400 },
-  { key: "kablammo-ru", label: "Kablammo", family: "'Kablammo', sans-serif", group: "Русские", supportsBold: false, supportsItalic: false, regularWeight: 400, boldWeight: 400 },
-  { key: "stick-ru", label: "Stick", family: "'Stick', sans-serif", group: "Русские", supportsBold: false, supportsItalic: false, regularWeight: 400, boldWeight: 400 },
-  { key: "rubik-bubbles-ru", label: "Rubik Bubbles", family: "'Rubik Bubbles', sans-serif", group: "Русские", supportsBold: false, supportsItalic: false, regularWeight: 400, boldWeight: 400 },
-  { key: "comforter-ru", label: "Comforter", family: "'Comforter', cursive", group: "Русские", supportsBold: false, supportsItalic: false, regularWeight: 400, boldWeight: 400 },
-  { key: "climate-crisis-ru", label: "Climate Crisis", family: "'Climate Crisis', sans-serif", group: "Русские", supportsBold: false, supportsItalic: false, regularWeight: 400, boldWeight: 400 },
-  { key: "tiny5-ru", label: "Tiny5", family: "'Tiny5', monospace", group: "Русские", supportsBold: false, supportsItalic: false, regularWeight: 400, boldWeight: 400 },
-  { key: "comforter-brush-ru", label: "Comforter Brush", family: "'Comforter Brush', cursive", group: "Русские", supportsBold: false, supportsItalic: false, regularWeight: 400, boldWeight: 400 },
-  { key: "stalinist-one-ru", label: "Stalinist One", family: "'Stalinist One', sans-serif", group: "Русские", supportsBold: false, supportsItalic: false, regularWeight: 400, boldWeight: 400 },
-  { key: "oi-ru", label: "Oi", family: "'Oi', sans-serif", group: "Русские", supportsBold: false, supportsItalic: false, regularWeight: 400, boldWeight: 400 },
-  { key: "rubik-marker-hatch-ru", label: "Rubik Marker Hatch", family: "'Rubik Marker Hatch', sans-serif", group: "Русские", supportsBold: false, supportsItalic: false, regularWeight: 400, boldWeight: 400 },
-];
-
 const BUILTIN_TEXT_FONTS = [
-  { key: "outfit", label: "Outfit", family: "'Outfit', sans-serif", group: "sans", supportsBold: true, supportsItalic: false, regularWeight: 500, boldWeight: 800 },
-  { key: "inter", label: "Inter", family: "'Inter', sans-serif", group: "sans", supportsBold: true, supportsItalic: false, regularWeight: 500, boldWeight: 800 },
-  { key: "bebas", label: "Bebas Neue", family: "'Bebas Neue', sans-serif", group: "display", supportsBold: false, supportsItalic: false, regularWeight: 400, boldWeight: 400 },
-  { key: "unbounded", label: "Unbounded", family: "'Unbounded', sans-serif", group: "display", supportsBold: true, supportsItalic: false, regularWeight: 500, boldWeight: 700 },
-  { key: "script", label: "Marck Script", family: "'Marck Script', cursive", group: "script", supportsBold: false, supportsItalic: false, regularWeight: 400, boldWeight: 400 },
-  { key: "mono", label: "IBM Plex Mono", family: "'IBM Plex Mono', monospace", group: "mono", supportsBold: true, supportsItalic: false, regularWeight: 500, boldWeight: 700 },
+  { key: "outfit", label: "Outfit", family: "'Outfit', sans-serif", group: "google", supportsBold: true, supportsItalic: false, regularWeight: 500, boldWeight: 800 },
+  { key: "inter", label: "Inter", family: "'Inter', sans-serif", group: "google", supportsBold: true, supportsItalic: false, regularWeight: 500, boldWeight: 800 },
+  { key: "bebas", label: "Bebas Neue", family: "'Bebas Neue', sans-serif", group: "google", supportsBold: false, supportsItalic: false, regularWeight: 400, boldWeight: 400 },
+  { key: "unbounded", label: "Unbounded", family: "'Unbounded', sans-serif", group: "google", supportsBold: true, supportsItalic: false, regularWeight: 500, boldWeight: 700 },
+  { key: "script", label: "Marck Script", family: "'Marck Script', cursive", group: "google", supportsBold: false, supportsItalic: false, regularWeight: 400, boldWeight: 400 },
+  { key: "mono", label: "IBM Plex Mono", family: "'IBM Plex Mono', monospace", group: "google", supportsBold: true, supportsItalic: false, regularWeight: 500, boldWeight: 700 },
 ];
 
 export const CONSTRUCTOR_TEXT_FONTS = (() => {
   // LOCAL_FONTS — автогенерируется из public/fonts и может случайно
-  // содержать шрифт, уже описанный вручную в BUILTIN_TEXT_FONTS / RUSSIAN_FONTS.
+  // содержать шрифт, уже описанный вручную в BUILTIN_TEXT_FONTS.
   // Первое вхождение по `key` побеждает — иначе React ругается на дубликаты
   // ключей в <option>/<li> списках шрифтов.
   const seen = new Set();
   const result = [];
-  for (const font of [...BUILTIN_TEXT_FONTS, ...RUSSIAN_FONTS, ...LOCAL_FONTS]) {
+  for (const font of [...BUILTIN_TEXT_FONTS, ...LOCAL_FONTS]) {
     if (!font?.key || seen.has(font.key)) continue;
     seen.add(font.key);
     result.push(font);

@@ -770,6 +770,15 @@ export default function ConstructorPage({ onBack, products, onOpenProductDetails
   const shapeCornerButtonRef = useRef(null);
   const [shapeStrokePopoverLeft, setShapeStrokePopoverLeft] = useState(0);
   const [shapeCornerPopoverLeft, setShapeCornerPopoverLeft] = useState(0);
+  const resolveShapePopoverLeft = (buttonRef, popoverWidth = 332) => {
+    if (!shapeToolbarOverlayRef.current || !buttonRef.current) return 0;
+
+    const overlayWidth = shapeToolbarOverlayRef.current.offsetWidth || 0;
+    const buttonLeft = buttonRef.current.offsetLeft || 0;
+    const maxLeft = Math.max(0, overlayWidth - popoverWidth);
+
+    return Math.min(buttonLeft, maxLeft);
+  };
   const showTextQuickToolbar = Boolean(activeTextLayer);
   const showShapeQuickToolbar = Boolean(activeShapeLayer);
   const textToolPanelVisible = activeTab === "text" || textSidebarOverlayOpen;
@@ -1180,12 +1189,14 @@ export default function ConstructorPage({ onBack, products, onOpenProductDetails
         cornerPopoverAnchorRef={shapeCornerButtonRef}
         onToggleCornerPopover={() => {
           setShowShapeStrokePopover(false);
+          setShapeCornerPopoverLeft(resolveShapePopoverLeft(shapeCornerButtonRef));
           setShowShapeCornerPopover((currentValue) => !currentValue);
         }}
         isCornerPopoverOpen={showShapeCornerPopover}
         strokePopoverAnchorRef={shapeStrokeButtonRef}
         onToggleStrokePopover={() => {
           setShowShapeCornerPopover(false);
+          setShapeStrokePopoverLeft(resolveShapePopoverLeft(shapeStrokeButtonRef));
           setShowShapeStrokePopover((currentValue) => !currentValue);
         }}
         isStrokePopoverOpen={showShapeStrokePopover}
@@ -1215,12 +1226,7 @@ export default function ConstructorPage({ onBack, products, onOpenProductDetails
     if (!showShapeStrokePopover) return undefined;
 
     const syncStrokePopoverPosition = () => {
-      if (!shapeToolbarOverlayRef.current || !shapeStrokeButtonRef.current) return;
-
-      const overlayWidth = shapeToolbarOverlayRef.current.offsetWidth || 0;
-      const buttonLeft = shapeStrokeButtonRef.current.offsetLeft || 0;
-      const maxLeft = Math.max(0, overlayWidth - 332);
-      setShapeStrokePopoverLeft(Math.min(buttonLeft, maxLeft));
+      setShapeStrokePopoverLeft(resolveShapePopoverLeft(shapeStrokeButtonRef));
     };
 
     syncStrokePopoverPosition();
@@ -1242,12 +1248,7 @@ export default function ConstructorPage({ onBack, products, onOpenProductDetails
     if (!showShapeCornerPopover) return undefined;
 
     const syncCornerPopoverPosition = () => {
-      if (!shapeToolbarOverlayRef.current || !shapeCornerButtonRef.current) return;
-
-      const overlayWidth = shapeToolbarOverlayRef.current.offsetWidth || 0;
-      const buttonLeft = shapeCornerButtonRef.current.offsetLeft || 0;
-      const maxLeft = Math.max(0, overlayWidth - 332);
-      setShapeCornerPopoverLeft(Math.min(buttonLeft, maxLeft));
+      setShapeCornerPopoverLeft(resolveShapePopoverLeft(shapeCornerButtonRef));
     };
 
     syncCornerPopoverPosition();

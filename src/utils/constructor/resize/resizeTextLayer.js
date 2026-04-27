@@ -1,6 +1,6 @@
 const MIN_TEXT_BOX_WIDTH_PX = 4;
 const MIN_TEXT_HEIGHT_PX = 4;
-const MIN_TEXT_FONT_SIZE = 12;
+const MIN_TEXT_FONT_SIZE = 6;
 const TEXT_BOX_MIN_WIDTH_SAFETY_PX = 2;
 
 const textMeasureCanvas = typeof document !== "undefined" ? document.createElement("canvas") : null;

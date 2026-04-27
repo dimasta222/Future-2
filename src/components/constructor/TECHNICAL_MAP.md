@@ -237,6 +237,7 @@ Props:
 - marquee-selection rectangle across the full preview surface and selected-layer highlighting for preview multi-select
 - active text box guide overlay for a single working text container
 - 8 resize handles for active upload/shape/text layer: for text side handles change container width and wrapping, corner handles scale the text box and font together
+- manual cm-input for active text layer width/height in sidebar with always-locked aspect ratio: typing into either field calls `scaleActiveTextLayer(newCm / currentCm)` which uniformly scales font size, textBoxWidth, letterSpacing, stroke, outline and shadow offsets/blur (mirrors corner-handle resize math)
 - smart guides overlay for drag/resize snapping to print-area and other visible layers
 - direct text editing inside the active text layer on preview
 - active text factual metrics include visual padding from stroke/shadow/underline and are clamped to the current physical print-area bounds before converting to centimeters for the sidebar

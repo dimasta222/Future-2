@@ -530,12 +530,12 @@ export default function ConstructorSidebarPanel({
   activeUploadLayer,
   activeTextLayer,
   activeTextMetricsCm,
+  scaleActiveTextLayer,
   activeTextToolPanel,
   textSidebarOverlayOpen = false,
   onCloseTextSidebarOverlay,
   onTextToolPanelChange,
   activeShapeLayer,
-  activeShapeVisualMetricsCm,
   activeShapeToolPanel,
   shapeSidebarOverlayOpen = false,
   onCloseShapeSidebarOverlay,
@@ -599,6 +599,8 @@ export default function ConstructorSidebarPanel({
   shapeGradientKey,
   onShapeGradientKeyChange,
   shapeStrokeStyle,
+  shapeStrokeWidth,
+  onShapeStrokeWidthChange,
   shapeStrokeColor,
   onShapeStrokeColorChange,
   shapeEffectType,
@@ -638,6 +640,10 @@ export default function ConstructorSidebarPanel({
   const [shapeHeightInput, setShapeHeightInput] = useState("");
   const [shapeWidthFocused, setShapeWidthFocused] = useState(false);
   const [shapeHeightFocused, setShapeHeightFocused] = useState(false);
+  const [textWidthInput, setTextWidthInput] = useState("");
+  const [textHeightInput, setTextHeightInput] = useState("");
+  const [textWidthFocused, setTextWidthFocused] = useState(false);
+  const [textHeightFocused, setTextHeightFocused] = useState(false);
   const currentTextToolPanel = activeTextToolPanel || "font";
   const currentShapeToolPanel = activeShapeToolPanel || "edit";
   const showTextSidebarOverlay = textSidebarOverlayOpen && Boolean(activeTextLayer) && activeTab !== "text";
@@ -657,8 +663,6 @@ export default function ConstructorSidebarPanel({
     Number(printArea?.physicalAreaHeightCm) || Number(printArea?.physicalHeightCm) || 1,
   );
   const physicalPrintAreaLabel = `${safePrintAreaWidthCm} × ${safePrintAreaHeightCm} см`;
-  const safeShapeVisualWidthCm = Math.max(0.1, Number(activeShapeVisualMetricsCm?.widthCm) || 0.1);
-  const safeShapeVisualHeightCm = Math.max(0.1, Number(activeShapeVisualMetricsCm?.heightCm) || 0.1);
   const fontSearchVariants = buildFontSearchVariants(fontSearch);
   const orderedTextLayers = [...layers].filter((layer) => layer.type === "text").reverse();
   const orderedLayers = [...layers].reverse();
@@ -1434,11 +1438,6 @@ export default function ConstructorSidebarPanel({
                           {textLayerLabel}
                         </span>
                       </div>
-                      {isMobileTextTab && active && activeTextMetricsCm ? (
-                        <div style={{ fontSize: 11, lineHeight: 1.2, color: "rgba(240,238,245,.46)", marginTop: 2, paddingLeft: 18 }}>
-                          {activeTextMetricsCm.contentWidthCm} × {activeTextMetricsCm.contentHeightCm} см
-                        </div>
-                      ) : null}
                     </button>
                     <button
                       type="button"
@@ -1490,15 +1489,90 @@ export default function ConstructorSidebarPanel({
             </div>
           </SidebarFieldRow>
         ) : null}
-        {activeTextLayer && currentTextToolPanel === "font" && !isMobileView ? (
+        {activeTextLayer && currentTextToolPanel === "font" ? (
             <SidebarFieldRow label="Размер текста в см" minHeight={72}>
               <div style={{ display: "grid", gap: 8 }}>
-                <div style={{ padding: "8px 10px", borderRadius: 12, background: "rgba(255,255,255,.03)", border: "1px solid rgba(255,255,255,.08)" }}>
-                  <div style={{ fontSize: 10, lineHeight: 1.2, letterSpacing: ".08em", textTransform: "uppercase", color: "rgba(240,238,245,.38)", marginBottom: 4 }}>Фактический размер текста</div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: "#f0eef5", whiteSpace: "nowrap" }}>
-                    {activeTextMetricsCm ? `${activeTextMetricsCm.contentWidthCm} × ${activeTextMetricsCm.contentHeightCm} см` : "..."}
-                  </div>
-                </div>
+                {activeTextMetricsCm && scaleActiveTextLayer ? (() => {
+                  const currentTextWidthCm = Number(activeTextMetricsCm.contentWidthCm) || 0;
+                  const currentTextHeightCm = Number(activeTextMetricsCm.contentHeightCm) || 0;
+                  // Минимальный размер текста ограничен MIN_TEXT_FONT_SIZE (6 px
+                  // логического холста). На текущем масштабе это даёт минимум
+                  // в см, пропорциональный текущему фактическому размеру:
+                  // если шрифт сейчас N px, а минимум 6 px, то минимальная
+                  // ширина/высота = текущая × (6 / N).
+                  const TEXT_MIN_FONT_PX = 6;
+                  const currentFontPx = Math.max(TEXT_MIN_FONT_PX, Number(activeTextLayer?.size) || 36);
+                  const minMultiplier = TEXT_MIN_FONT_PX / currentFontPx;
+                  const minTextWidthCm = Math.max(0.1, Number((currentTextWidthCm * minMultiplier).toFixed(1)));
+                  const minTextHeightCm = Math.max(0.1, Number((currentTextHeightCm * minMultiplier).toFixed(1)));
+                  const applyTextDimensionCm = (axis, rawValue) => {
+                    const parsed = Number(rawValue);
+                    if (!Number.isFinite(parsed)) return null;
+                    const minCm = axis === "width" ? minTextWidthCm : minTextHeightCm;
+                    const baseCm = axis === "width" ? currentTextWidthCm : currentTextHeightCm;
+                    if (!baseCm) return null;
+                    const clampedCm = Math.max(minCm, parsed);
+                    scaleActiveTextLayer(clampedCm / baseCm);
+                    return clampedCm;
+                  };
+                  const handleTextInputChange = (axis, rawValue, setInput) => {
+                    setInput(rawValue);
+                    if (rawValue === "" || rawValue === "-") return;
+                    const applied = applyTextDimensionCm(axis, rawValue);
+                    const parsed = Number(rawValue);
+                    const minCm = axis === "width" ? minTextWidthCm : minTextHeightCm;
+                    // Если пользователь ввёл значение ниже минимума — сразу
+                    // подставляем в видимое поле фактический применённый минимум.
+                    if (Number.isFinite(parsed) && applied != null && parsed < minCm) {
+                      setInput(applied.toFixed(1));
+                    }
+                  };
+                  return (
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1, minWidth: 0 }}>
+                        <label style={{ fontSize: 11, color: "rgba(240,238,245,.4)", fontWeight: 500 }}>Ш, см</label>
+                        <input
+                          type="number"
+                          min={minTextWidthCm}
+                          max={safePrintAreaWidthCm}
+                          step="0.1"
+                          value={textWidthFocused ? textWidthInput : currentTextWidthCm.toFixed(1)}
+                          onFocus={(e) => { setTextWidthFocused(true); setTextWidthInput(currentTextWidthCm.toFixed(1)); e.target.select(); }}
+                          onBlur={() => { setTextWidthFocused(false); }}
+                          onChange={(e) => handleTextInputChange("width", e.target.value, setTextWidthInput)}
+                          onKeyDown={(e) => { if (e.key === "Enter") { e.target.blur(); } }}
+                          style={{ width: "100%", padding: "6px 8px", borderRadius: 8, border: "1px solid rgba(255,255,255,.1)", background: "rgba(255,255,255,.04)", color: "#f0eef5", fontSize: 13, fontFamily: "'Outfit',sans-serif", outline: "none", boxSizing: "border-box" }}
+                        />
+                      </div>
+                      <div
+                        title="Пропорции связаны"
+                        aria-label="Пропорции связаны"
+                        style={{ marginTop: 16, width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 7, border: "1px solid rgba(232,67,147,.35)", background: "rgba(232,67,147,.1)", color: "rgba(232,67,147,.9)", flexShrink: 0, padding: 0 }}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                          <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                        </svg>
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1, minWidth: 0 }}>
+                        <label style={{ fontSize: 11, color: "rgba(240,238,245,.4)", fontWeight: 500 }}>В, см</label>
+                        <input
+                          type="number"
+                          min={minTextHeightCm}
+                          max={safePrintAreaHeightCm}
+                          step="0.1"
+                          value={textHeightFocused ? textHeightInput : currentTextHeightCm.toFixed(1)}
+                          onFocus={(e) => { setTextHeightFocused(true); setTextHeightInput(currentTextHeightCm.toFixed(1)); e.target.select(); }}
+                          onBlur={() => { setTextHeightFocused(false); }}
+                          onChange={(e) => handleTextInputChange("height", e.target.value, setTextHeightInput)}
+                          onKeyDown={(e) => { if (e.key === "Enter") { e.target.blur(); } }}
+                          style={{ width: "100%", padding: "6px 8px", borderRadius: 8, border: "1px solid rgba(255,255,255,.1)", background: "rgba(255,255,255,.04)", color: "#f0eef5", fontSize: 13, fontFamily: "'Outfit',sans-serif", outline: "none", boxSizing: "border-box" }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })() : null}
+                <div style={{ fontSize: 12, color: "rgba(240,238,245,.48)" }}>Максимальная зона — {physicalPrintAreaLabel}.</div>
               </div>
             </SidebarFieldRow>
         ) : null}
@@ -1807,16 +1881,59 @@ export default function ConstructorSidebarPanel({
     const activeShapeMeta = activeShapeLayer ? getConstructorShape(activeShapeLayer.shapeKey) : null;
     const activeShapeIsLine = activeShapeMeta?.category === "lines";
 
-    const renderShapeSizeControl = () => (
+    // MAX_LINE_STROKE_WIDTH в useConstructorState — 100. Дублируем здесь,
+    // чтобы корректно ограничивать высоту линии при ручном вводе.
+    const LINE_MAX_STROKE_WIDTH = 100;
+    const currentStrokeWidth = Math.max(1, Number(shapeStrokeWidth) || 1);
+    const lineMaxHeightCm = activeShapeIsLine && safeShapeHeightCm > 0
+      ? Math.min(
+          safePrintAreaHeightCm,
+          Number(((safeShapeHeightCm * LINE_MAX_STROKE_WIDTH) / currentStrokeWidth).toFixed(2)),
+        )
+      : safePrintAreaHeightCm;
+    const lineMinHeightCm = activeShapeIsLine && safeShapeHeightCm > 0
+      ? Math.max(
+          0.1,
+          Number(((safeShapeHeightCm * 1) / currentStrokeWidth).toFixed(2)),
+        )
+      : 0.1;
+    const renderShapeSizeControl = () => {
+      const SHAPE_MIN_CM = 0.1;
+      const handleShapeInputChange = (axis, rawValue, setInput) => {
+        setInput(rawValue);
+        if (rawValue === "" || rawValue === "-") return;
+        const parsed = Number(rawValue);
+        // Для линий ось «высота» = толщина штриха (lineHeightPx). Чтобы
+        // ползунок «Толщина» в попапе тоже обновился, переводим cm в strokeWidth
+        // и зовём onShapeStrokeWidthChange (он клампит до MAX_LINE_STROKE_WIDTH).
+        if (activeShapeIsLine && axis === "height" && onShapeStrokeWidthChange && Number.isFinite(parsed) && safeShapeHeightCm > 0) {
+          const clampedCm = Math.max(lineMinHeightCm, Math.min(parsed, lineMaxHeightCm));
+          const nextStrokeWidth = Math.max(1, Math.min(
+            LINE_MAX_STROKE_WIDTH,
+            Math.round((clampedCm / safeShapeHeightCm) * currentStrokeWidth),
+          ));
+          onShapeStrokeWidthChange(nextStrokeWidth);
+          if (parsed > lineMaxHeightCm) {
+            setInput(lineMaxHeightCm.toFixed(1));
+          } else if (parsed < lineMinHeightCm) {
+            setInput(lineMinHeightCm.toFixed(1));
+          }
+          return;
+        }
+        if (setShapeDimensionCm) setShapeDimensionCm(axis, rawValue, shapeAspectLock);
+        // Если пользователь ввёл значение ниже минимального — сразу
+        // подставляем фактический минимум в видимое поле.
+        if (Number.isFinite(parsed) && parsed < SHAPE_MIN_CM) {
+          setInput(SHAPE_MIN_CM.toFixed(1));
+        }
+      };
+      const sizeFieldLabel = activeShapeIsLine ? "Размер линии в см" : "Размер фигуры в см";
+      return (
       activeShapeLayer ? (
-        <SidebarFieldRow label="Размер печати">
+        <SidebarFieldRow label={sizeFieldLabel}>
           <div style={{ display: "grid", gap: 8 }}>
             {activeShapeIsLine ? (
               <>
-                <div style={{ padding: "8px 10px", borderRadius: 12, background: "rgba(255,255,255,.03)", border: "1px solid rgba(255,255,255,.08)" }}>
-                  <div style={{ fontSize: 10, lineHeight: 1.2, letterSpacing: ".08em", textTransform: "uppercase", color: "rgba(240,238,245,.38)", marginBottom: 4 }}>Фактический размер линии</div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: "#f0eef5", whiteSpace: "nowrap" }}>{safeShapeWidthCm.toFixed(1)} × {safeShapeHeightCm.toFixed(1)} см</div>
-                </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1, minWidth: 0 }}>
                     <label style={{ fontSize: 11, color: "rgba(240,238,245,.4)", fontWeight: 500 }}>Ш, см</label>
@@ -1828,7 +1945,7 @@ export default function ConstructorSidebarPanel({
                       value={shapeWidthFocused ? shapeWidthInput : safeShapeWidthCm.toFixed(1)}
                       onFocus={(e) => { setShapeWidthFocused(true); setShapeWidthInput(safeShapeWidthCm.toFixed(1)); e.target.select(); }}
                       onBlur={() => { setShapeWidthFocused(false); }}
-                      onChange={(e) => { setShapeWidthInput(e.target.value); if (setShapeDimensionCm) setShapeDimensionCm("width", e.target.value, shapeAspectLock); }}
+                      onChange={(e) => { handleShapeInputChange("width", e.target.value, setShapeWidthInput); }}
                       onKeyDown={(e) => { if (e.key === "Enter") { e.target.blur(); } }}
                       style={{ width: "100%", padding: "6px 8px", borderRadius: 8, border: "1px solid rgba(255,255,255,.1)", background: "rgba(255,255,255,.04)", color: "#f0eef5", fontSize: 13, fontFamily: "'Outfit',sans-serif", outline: "none", boxSizing: "border-box" }}
                     />
@@ -1851,25 +1968,22 @@ export default function ConstructorSidebarPanel({
                     <label style={{ fontSize: 11, color: "rgba(240,238,245,.4)", fontWeight: 500 }}>В, см</label>
                     <input
                       type="number"
-                      min="0.1"
-                      max={safePrintAreaHeightCm}
+                      min={lineMinHeightCm}
+                      max={lineMaxHeightCm}
                       step="0.1"
                       value={shapeHeightFocused ? shapeHeightInput : safeShapeHeightCm.toFixed(1)}
                       onFocus={(e) => { setShapeHeightFocused(true); setShapeHeightInput(safeShapeHeightCm.toFixed(1)); e.target.select(); }}
                       onBlur={() => { setShapeHeightFocused(false); }}
-                      onChange={(e) => { setShapeHeightInput(e.target.value); if (setShapeDimensionCm) setShapeDimensionCm("height", e.target.value, shapeAspectLock); }}
+                      onChange={(e) => { handleShapeInputChange("height", e.target.value, setShapeHeightInput); }}
                       onKeyDown={(e) => { if (e.key === "Enter") { e.target.blur(); } }}
                       style={{ width: "100%", padding: "6px 8px", borderRadius: 8, border: "1px solid rgba(255,255,255,.1)", background: "rgba(255,255,255,.04)", color: "#f0eef5", fontSize: 13, fontFamily: "'Outfit',sans-serif", outline: "none", boxSizing: "border-box" }}
                     />
                   </div>
                 </div>
+                <div style={{ fontSize: 12, color: "rgba(240,238,245,.48)" }}>Максимальная зона — {physicalPrintAreaLabel}.</div>
               </>
             ) : (
               <>
-                <div style={{ padding: "8px 10px", borderRadius: 12, background: "rgba(255,255,255,.03)", border: "1px solid rgba(255,255,255,.08)" }}>
-                  <div style={{ fontSize: 10, lineHeight: 1.2, letterSpacing: ".08em", textTransform: "uppercase", color: "rgba(240,238,245,.38)", marginBottom: 4 }}>Фактический размер фигуры</div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: "#f0eef5", whiteSpace: "nowrap" }}>{safeShapeVisualWidthCm.toFixed(1)} × {safeShapeVisualHeightCm.toFixed(1)} см</div>
-                </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                   <input type="range" min="1" max={safePrintAreaWidthCm} step="0.1" value={safeShapeWidthCm} onChange={(event) => onShapeWidthCmChange(Number(event.target.value))} style={{ width: "100%" }} />
                 </div>
@@ -1884,7 +1998,7 @@ export default function ConstructorSidebarPanel({
                       value={shapeWidthFocused ? shapeWidthInput : safeShapeWidthCm.toFixed(1)}
                       onFocus={(e) => { setShapeWidthFocused(true); setShapeWidthInput(safeShapeWidthCm.toFixed(1)); e.target.select(); }}
                       onBlur={() => { setShapeWidthFocused(false); }}
-                      onChange={(e) => { setShapeWidthInput(e.target.value); if (setShapeDimensionCm) setShapeDimensionCm("width", e.target.value, shapeAspectLock); }}
+                      onChange={(e) => { handleShapeInputChange("width", e.target.value, setShapeWidthInput); }}
                       onKeyDown={(e) => { if (e.key === "Enter") { e.target.blur(); } }}
                       style={{ width: "100%", padding: "6px 8px", borderRadius: 8, border: "1px solid rgba(255,255,255,.1)", background: "rgba(255,255,255,.04)", color: "#f0eef5", fontSize: 13, fontFamily: "'Outfit',sans-serif", outline: "none", boxSizing: "border-box" }}
                     />
@@ -1913,7 +2027,7 @@ export default function ConstructorSidebarPanel({
                       value={shapeHeightFocused ? shapeHeightInput : safeShapeHeightCm.toFixed(1)}
                       onFocus={(e) => { setShapeHeightFocused(true); setShapeHeightInput(safeShapeHeightCm.toFixed(1)); e.target.select(); }}
                       onBlur={() => { setShapeHeightFocused(false); }}
-                      onChange={(e) => { setShapeHeightInput(e.target.value); if (setShapeDimensionCm) setShapeDimensionCm("height", e.target.value, shapeAspectLock); }}
+                      onChange={(e) => { handleShapeInputChange("height", e.target.value, setShapeHeightInput); }}
                       onKeyDown={(e) => { if (e.key === "Enter") { e.target.blur(); } }}
                       style={{ width: "100%", padding: "6px 8px", borderRadius: 8, border: "1px solid rgba(255,255,255,.1)", background: "rgba(255,255,255,.04)", color: "#f0eef5", fontSize: 13, fontFamily: "'Outfit',sans-serif", outline: "none", boxSizing: "border-box" }}
                     />
@@ -1926,6 +2040,7 @@ export default function ConstructorSidebarPanel({
         </SidebarFieldRow>
       ) : null
     );
+    };
 
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>

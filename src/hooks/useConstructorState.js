@@ -49,7 +49,7 @@ const DEFAULT_TEXT_WEIGHT = 700;
 const DEFAULT_TEXT_BOX_WIDTH = 60;
 const DEFAULT_TEXT_STROKE_COLOR = "#ed5bb7";
 const DEFAULT_TEXT_SHADOW_COLOR = "#824ef0";
-const MIN_TEXT_FONT_SIZE = 12;
+const MIN_TEXT_FONT_SIZE = 6;
 const MAX_TEXT_FONT_SIZE = 400;
 const MIN_TEXT_BOX_WIDTH_PERCENT = 1;
 const SNAP_THRESHOLD_PX = 2;
@@ -3112,6 +3112,45 @@ export default function useConstructorState({
     pushHistoryCheckpoint();
     updateActiveTextLayer({ size: clampedSize });
   };
+  // Пропорциональное масштабирование активного текстового слоя по заданному
+  // множителю. Используется при ручном вводе ширины/высоты в см: множитель
+  // вычисляется как newCm / currentCm. Скейл применяется ко всем размерным
+  // полям (size, textBoxWidth, letterSpacing, strokeWidth, shadow*),
+  // аналогично угловому resize-handle (resizeTextLayer.js), чтобы пропорции
+  // и визуальные эффекты сохранялись.
+  const scaleActiveTextLayer = (multiplier) => {
+    if (!activeTextLayer) return;
+    const rawMultiplier = Number(multiplier);
+    if (!Number.isFinite(rawMultiplier) || rawMultiplier <= 0) return;
+
+    const currentSize = Math.max(MIN_TEXT_FONT_SIZE, Number(activeTextLayer.size) || 36);
+    const currentBoxWidth = Math.min(100, Math.max(MIN_TEXT_BOX_WIDTH_PERCENT, Number(activeTextLayer.textBoxWidth) || DEFAULT_TEXT_BOX_WIDTH));
+    const minSizeMultiplier = MIN_TEXT_FONT_SIZE / currentSize;
+    const maxSizeMultiplier = MAX_TEXT_FONT_SIZE / currentSize;
+    const minBoxMultiplier = MIN_TEXT_BOX_WIDTH_PERCENT / currentBoxWidth;
+    const maxBoxMultiplier = 100 / currentBoxWidth;
+    const minMultiplier = Math.max(minSizeMultiplier, minBoxMultiplier);
+    const maxMultiplier = Math.min(maxSizeMultiplier, maxBoxMultiplier);
+    const safeMultiplier = Math.min(maxMultiplier, Math.max(minMultiplier, rawMultiplier));
+    if (Math.abs(safeMultiplier - 1) < 0.0005) return;
+
+    pushHistoryCheckpoint();
+    updateActiveTextLayer((layer) => ({
+      ...layer,
+      size: currentSize * safeMultiplier,
+      textBoxWidth: currentBoxWidth * safeMultiplier,
+      letterSpacing: (Number(layer.letterSpacing) || 0) * safeMultiplier,
+      strokeWidth: (Number(layer.strokeWidth) || 0) * safeMultiplier,
+      outlineWidth: (Number(layer.outlineWidth) || 0) * safeMultiplier,
+      ...(layer.shadowEnabled
+        ? {
+          shadowOffsetX: (Number(layer.shadowOffsetX) || 0) * safeMultiplier,
+          shadowOffsetY: (Number(layer.shadowOffsetY) || 0) * safeMultiplier,
+          shadowBlur: (Number(layer.shadowBlur) || 0) * safeMultiplier,
+        }
+        : {}),
+    }));
+  };
   const setTextColor = (nextColor) => { pushHistoryCheckpoint(); updateActiveTextLayer({ textFillMode: "solid", color: nextColor }); };
   const setTextGradientKey = (nextGradientKey) => {
     const nextGradient = getConstructorTextGradient(nextGradientKey);
@@ -3442,6 +3481,7 @@ export default function useConstructorState({
     setTextValue,
     textSize: activeTextLayer?.size || 36,
     setTextSize,
+    scaleActiveTextLayer,
     minTextFontSize: MIN_TEXT_FONT_SIZE,
     maxTextFontSize: MAX_TEXT_FONT_SIZE,
     textFillMode: activeTextLayer?.textFillMode || "solid",

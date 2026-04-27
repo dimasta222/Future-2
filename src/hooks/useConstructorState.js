@@ -1953,13 +1953,25 @@ export default function useConstructorState({
     const resolvedText = String(resolvedLayer.value || "");
     const widthPercent = Math.min(100, Math.max(1, resolvedLayer.textBoxWidth ?? 88));
     const boxWidth = Math.min(areaWidth, areaWidth * (widthPercent / 100));
+    // Wrap текста считаем в ЛОГИЧЕСКИХ координатах (LOGICAL_PRINT_PX_PER_CM=10),
+    // т.к. layer.size задан в логических px и DOM-рендер их масштабирует
+    // через previewTextScale = renderedAreaPx / logicalAreaPx. Если бы мы
+    // считали wrap в rendered px, на мобильных (узкая printArea) текст
+    // ошибочно переносился бы на больше строк, чем в DOM, и contentHeight
+    // получался бы огромным → clamp пушил бы текст вниз. Конвертируем
+    // обратно в rendered px после расчётов.
+    const renderedToLogicalScale = areaWidth > 0 && areaWidthCm > 0
+      ? (areaWidthCm * LOGICAL_PRINT_PX_PER_CM) / areaWidth
+      : 1;
+    const logicalToRenderedScale = renderedToLogicalScale > 0 ? (1 / renderedToLogicalScale) : 1;
+    const boxWidthLogical = boxWidth * renderedToLogicalScale;
     const resolvedFont = getConstructorTextFont(resolvedLayer.fontKey || DEFAULT_TEXT_FONT.key);
     const fontFamily = resolvedLayer.fontFamily || resolvedFont.family || DEFAULT_TEXT_FONT.family;
     const fontWeight = resolvedFont.supportsBold
       ? (resolvedLayer.weight ?? resolvedFont.regularWeight ?? DEFAULT_TEXT_WEIGHT)
       : (resolvedFont.regularWeight ?? 400);
     const fontStyle = resolvedFont.supportsItalic && resolvedLayer.italic ? "italic" : "normal";
-    const contentMetrics = getTextContentMetricsPx({
+    const contentMetricsLogical = getTextContentMetricsPx({
       text: resolvedLayer.uppercase ? resolvedText.toUpperCase() : resolvedText,
       fontFamily,
       fontSize: resolvedLayer.size ?? 36,
@@ -1967,9 +1979,16 @@ export default function useConstructorState({
       fontStyle,
       lineHeight: resolvedLayer.lineHeight ?? DEFAULT_TEXT_LINE_HEIGHT,
       letterSpacing: resolvedLayer.letterSpacing ?? 1,
-      boxWidthPx: boxWidth,
+      boxWidthPx: boxWidthLogical,
     });
-    const visualPadding = getTextVisualPaddingPx({
+    const contentMetrics = {
+      ...contentMetricsLogical,
+      contentWidthPx: contentMetricsLogical.contentWidthPx * logicalToRenderedScale,
+      contentHeightPx: contentMetricsLogical.contentHeightPx * logicalToRenderedScale,
+      glyphHeightPx: (contentMetricsLogical.glyphHeightPx || 0) * logicalToRenderedScale,
+      lineHeightPx: (contentMetricsLogical.lineHeightPx || 0) * logicalToRenderedScale,
+    };
+    const visualPaddingLogical = getTextVisualPaddingPx({
       strokeWidth: resolvedLayer.strokeWidth,
       shadowOffsetX: resolvedLayer.shadowEnabled ? resolvedLayer.shadowOffsetX : 0,
       shadowOffsetY: resolvedLayer.shadowEnabled ? resolvedLayer.shadowOffsetY : 0,
@@ -1977,19 +1996,27 @@ export default function useConstructorState({
       underline: resolvedLayer.underline,
       fontSize: resolvedLayer.size ?? 36,
     });
+    // visualPadding посчитан в логических px (fontSize, shadowBlur — логические),
+    // конвертируем в rendered, чтобы складывать с rendered contentMetrics.
+    const visualPadding = {
+      leftPaddingPx: visualPaddingLogical.leftPaddingPx * logicalToRenderedScale,
+      rightPaddingPx: visualPaddingLogical.rightPaddingPx * logicalToRenderedScale,
+      topPaddingPx: visualPaddingLogical.topPaddingPx * logicalToRenderedScale,
+      bottomPaddingPx: visualPaddingLogical.bottomPaddingPx * logicalToRenderedScale,
+    };
     const hasVisibleText = resolvedText.trim().length > 0;
     const rawContentWidth = hasVisibleText
       ? Math.max(1, contentMetrics.contentWidthPx)
       : Math.max(1, boxWidth);
     const rawContentHeight = hasVisibleText
       ? Math.max(1, contentMetrics.contentHeightPx)
-      : Math.max(1, (resolvedLayer.size ?? 36) * (resolvedLayer.lineHeight ?? DEFAULT_TEXT_LINE_HEIGHT));
+      : Math.max(1, (resolvedLayer.size ?? 36) * (resolvedLayer.lineHeight ?? DEFAULT_TEXT_LINE_HEIGHT) * logicalToRenderedScale);
     const contentWidth = hasVisibleText
       ? Math.max(1, contentMetrics.contentWidthPx + visualPadding.leftPaddingPx + visualPadding.rightPaddingPx)
       : Math.max(1, boxWidth);
     const contentHeight = hasVisibleText
       ? Math.max(1, contentMetrics.contentHeightPx + visualPadding.topPaddingPx + visualPadding.bottomPaddingPx)
-      : Math.max(1, (resolvedLayer.size ?? 36) * (resolvedLayer.lineHeight ?? DEFAULT_TEXT_LINE_HEIGHT));
+      : Math.max(1, (resolvedLayer.size ?? 36) * (resolvedLayer.lineHeight ?? DEFAULT_TEXT_LINE_HEIGHT) * logicalToRenderedScale);
     // Кламп идёт по ink-bbox (то, что реально печатается в PDF), а не по
     // DOM line-box. Это позволяет придвинуть текст вплотную к краю
     // печатной области — line-box браузера обычно больше ink на
@@ -2015,7 +2042,9 @@ export default function useConstructorState({
     const lineBoxFontSize = resolvedLayer.size ?? 36;
     const lineBoxLineHeight = resolvedLayer.lineHeight ?? DEFAULT_TEXT_LINE_HEIGHT;
     const lineBoxWidthPxComputed = boxWidth;
-    const lineBoxHeightPxComputed = Math.max(1, lineBoxLines * lineBoxFontSize * lineBoxLineHeight);
+    // Высота line-box тоже считается в логических px (lines × size × lineHeight),
+    // конвертируем в rendered, чтобы быть в одних единицах с contentMetrics.
+    const lineBoxHeightPxComputed = Math.max(1, lineBoxLines * lineBoxFontSize * lineBoxLineHeight * logicalToRenderedScale);
     // Если есть runtime DOM-bounds (реальный размер CSS line-box, как
     // браузер его разметил после word-wrap) — используем их. Это точнее
     // чем теоретическая формула, потому что DOM-wrap может отличаться от
@@ -2063,12 +2092,6 @@ export default function useConstructorState({
       areaHeight,
       width: rotatedContentWidth,
       height: rotatedContentHeight,
-      // Реальная высота DOM line-box, которую отрисует браузер
-      // (lines × fontSize × lineHeight). Используется для top-anchor
-      // при изменении размера/ширины: визуальный top — это центр минус
-      // половина line-box, а не половина ink-bbox.
-      lineBoxHeight: lineBoxHeightPx,
-      lineBoxWidth: lineBoxWidthPx,
       clampWidth: clampInkWidth > 0 ? clampInkWidth : rotatedContentWidth,
       clampHeight: clampInkHeight > 0 ? clampInkHeight : rotatedContentHeight,
       // Смещение центра ink относительно центра слоя (px). Используется для
@@ -3065,37 +3088,6 @@ export default function useConstructorState({
     });
   };
 
-  // При изменении размера/ширины текстового слоя через тулбар (+/− и ползунки)
-  // привязываем верхний край рамки: пользователь ожидает, что текст растёт
-  // вниз, а не «съезжает» из-за пересчёта центра. Считаем top-edge до патча
-  // и восстанавливаем его после, затем нормализуем (clamp учтёт края).
-  const updateActiveTextLayerKeepTopAnchor = (patch) => {
-    if (!activeTextLayer) return;
-    updateLayer(activeTextLayer.id, (layer) => {
-      const beforeMetrics = getLayerMetrics(layer);
-      const draft = typeof patch === "function" ? patch(layer) : { ...layer, ...patch };
-      const afterMetrics = getLayerMetrics(draft);
-      let nextDraft = draft;
-      // Используем lineBoxHeight (реальная высота DOM-бокса = lines × size ×
-      // lineHeight), а не ink-bbox: визуально пользователь видит именно
-      // line-box, и top edge должен «зацепиться» за неё.
-      const beforeBoxH = beforeMetrics?.lineBoxHeight ?? beforeMetrics?.height;
-      const afterBoxH = afterMetrics?.lineBoxHeight ?? afterMetrics?.height;
-      if (beforeMetrics?.areaHeight && afterMetrics?.areaHeight && beforeBoxH && afterBoxH) {
-        const oldHalfHPercent = (beforeBoxH / 2) / beforeMetrics.areaHeight * 100;
-        const newHalfHPercent = (afterBoxH / 2) / afterMetrics.areaHeight * 100;
-        const currentY = Number(layer.position?.y);
-        if (Number.isFinite(currentY)) {
-          const topPercent = currentY - oldHalfHPercent;
-          const nextY = topPercent + newHalfHPercent;
-          const basePosition = draft.position ?? layer.position ?? { x: 50, y: 50 };
-          nextDraft = { ...draft, position: { ...basePosition, y: nextY } };
-        }
-      }
-      return normalizeTextLayerState(nextDraft, layer);
-    });
-  };
-
   const updateActiveShapeLayer = (patch) => {
     if (!activeShapeLayer) return;
     updateLayer(activeShapeLayer.id, (layer) => {
@@ -3118,7 +3110,7 @@ export default function useConstructorState({
 
     const clampedSize = Math.min(MAX_TEXT_FONT_SIZE, Math.max(MIN_TEXT_FONT_SIZE, Number(nextSize)));
     pushHistoryCheckpoint();
-    updateActiveTextLayerKeepTopAnchor({ size: clampedSize });
+    updateActiveTextLayer({ size: clampedSize });
   };
   const setTextColor = (nextColor) => { pushHistoryCheckpoint(); updateActiveTextLayer({ textFillMode: "solid", color: nextColor }); };
   const setTextGradientKey = (nextGradientKey) => {
@@ -3156,8 +3148,8 @@ export default function useConstructorState({
       italic: nextFont.supportsItalic ? layer.italic : false,
     }));
   };
-  const setTextBoxWidth = (nextTextBoxWidth) => { pushHistoryCheckpoint(); updateActiveTextLayerKeepTopAnchor({ textBoxWidth: Math.min(100, Math.max(MIN_TEXT_BOX_WIDTH_PERCENT, Number(nextTextBoxWidth))) }); };
-  const setTextLineHeight = (nextLineHeight) => { pushHistoryCheckpoint(); updateActiveTextLayerKeepTopAnchor({ lineHeight: Math.min(2, Math.max(0.5, Number(nextLineHeight.toFixed(2)))) }); };
+  const setTextBoxWidth = (nextTextBoxWidth) => { pushHistoryCheckpoint(); updateActiveTextLayer({ textBoxWidth: Math.min(100, Math.max(MIN_TEXT_BOX_WIDTH_PERCENT, Number(nextTextBoxWidth))) }); };
+  const setTextLineHeight = (nextLineHeight) => { pushHistoryCheckpoint(); updateActiveTextLayer({ lineHeight: Math.min(2, Math.max(0.5, Number(nextLineHeight.toFixed(2)))) }); };
   const setTextLetterSpacing = (nextLetterSpacing) => { pushHistoryCheckpoint(); updateActiveTextLayer({ letterSpacing: nextLetterSpacing }); };
   const setTextAlign = (nextTextAlign) => { pushHistoryCheckpoint(); updateActiveTextLayer({ textAlign: nextTextAlign }); };
   const setTextStrokeWidth = (nextStrokeWidth) => { pushHistoryCheckpoint(); updateActiveTextLayer({ strokeWidth: Math.min(30, Math.max(0, Number(nextStrokeWidth))) }); };

@@ -448,7 +448,6 @@ function ShapeQuickToolbar({
 
       <ToolChip active={activeShapeToolPanel === "color"} onClick={() => onShapeToolPanelChange("color")} disabled={disabled} minWidth={86}>
         <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-          <PaletteIcon />
           <span style={{ width: 14, height: 14, borderRadius: 999, border: "1px solid rgba(255,255,255,.16)", background: shapeColor, boxShadow: "inset 0 1px 0 rgba(255,255,255,.18)" }} />
           <span>Цвет</span>
         </span>

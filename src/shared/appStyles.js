@@ -252,6 +252,11 @@ input[type=number]{-moz-appearance:textfield}
 	.modal-card{padding:16px!important}
 }
 @media(max-width:480px){
+	.constructor-shape-toolbar{gap:4px!important}
+	.constructor-shape-toolbar-main{flex:1 1 130px!important;min-width:120px!important}
+	.constructor-shape-toolbar > button,
+	.constructor-shape-toolbar > div > button,
+	.constructor-shape-toolbar-main > button{min-width:0!important;padding:0 8px!important;font-size:11.5px!important}
 	.page-shell,.page-shell-narrow{padding-left:16px!important;padding-right:16px!important}
 	.section-shell{padding:72px 16px!important}
 	.hero-shell{padding:96px 16px 64px!important}

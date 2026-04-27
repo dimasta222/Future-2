@@ -649,6 +649,7 @@ export default function useConstructorState({
   const historyPastRef = useRef([]);
   const historyFutureRef = useRef([]);
   const lastHistorySnapshotRef = useRef(null);
+  const historyCoalesceTimerRef = useRef(null);
   const restoredRef = useRef(false);
 
   if (layerIdRef.current === null) {
@@ -824,14 +825,43 @@ export default function useConstructorState({
     activeTab,
   });
 
+  const HISTORY_COALESCE_MS = 350;
+
+  // Leading-edge coalescing: первый вызов в "сессии" делает реальный snapshot
+  // (состояние ДО изменения), а все последующие вызовы в течение
+  // HISTORY_COALESCE_MS только продлевают окно. Это убирает per-event
+  // JSON.stringify+deep-clone при дёрганьи слайдеров (размер текста, ширина
+  // рамки, и т.п.) — undo всё равно возвращает к точке "до сессии".
   const pushHistoryCheckpoint = () => {
+    if (historyCoalesceTimerRef.current) {
+      clearTimeout(historyCoalesceTimerRef.current);
+      historyCoalesceTimerRef.current = setTimeout(() => {
+        historyCoalesceTimerRef.current = null;
+      }, HISTORY_COALESCE_MS);
+      return;
+    }
     const snapshot = captureSnapshot();
     const serialized = JSON.stringify(snapshot);
-    if (serialized === lastHistorySnapshotRef.current) return;
+    if (serialized === lastHistorySnapshotRef.current) {
+      historyCoalesceTimerRef.current = setTimeout(() => {
+        historyCoalesceTimerRef.current = null;
+      }, HISTORY_COALESCE_MS);
+      return;
+    }
     historyPastRef.current.push(snapshot);
     if (historyPastRef.current.length > 100) historyPastRef.current.shift();
     historyFutureRef.current = [];
     lastHistorySnapshotRef.current = serialized;
+    historyCoalesceTimerRef.current = setTimeout(() => {
+      historyCoalesceTimerRef.current = null;
+    }, HISTORY_COALESCE_MS);
+  };
+
+  const flushHistoryCoalesce = () => {
+    if (historyCoalesceTimerRef.current) {
+      clearTimeout(historyCoalesceTimerRef.current);
+      historyCoalesceTimerRef.current = null;
+    }
   };
 
   const applyHistorySnapshot = (snapshot) => {
@@ -848,6 +878,7 @@ export default function useConstructorState({
   };
 
   const undo = () => {
+    flushHistoryCoalesce();
     const previousSnapshot = historyPastRef.current.pop();
     if (!previousSnapshot) return;
     historyFutureRef.current.push(captureSnapshot());
@@ -855,6 +886,7 @@ export default function useConstructorState({
   };
 
   const redo = () => {
+    flushHistoryCoalesce();
     const nextSnapshot = historyFutureRef.current.pop();
     if (!nextSnapshot) return;
     historyPastRef.current.push(captureSnapshot());

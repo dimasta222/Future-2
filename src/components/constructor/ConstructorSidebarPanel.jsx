@@ -645,8 +645,17 @@ export default function ConstructorSidebarPanel({
   const showTextPanel = activeTab === "text" || showTextSidebarOverlay;
   const showTextLayerList = !showTextSidebarOverlay || currentTextToolPanel !== "font";
   const showShapesPanel = (activeTab === "shapes" || showShapeSidebarOverlay) && !showTextSidebarOverlay;
-  const safePrintAreaWidthCm = Math.max(1, Number(printArea?.physicalWidthCm) || 1);
-  const safePrintAreaHeightCm = Math.max(1, Number(printArea?.physicalHeightCm) || 1);
+  // Для UI-лейбла «Максимальная зона печати» показываем РЕАЛЬНЫЕ физические
+  // размеры футболки (physicalAreaWidthCm/HeightCm), а не "логический" холст
+  // (physicalWidthCm/HeightCm — он = baseline × min-scale, может быть нецелым).
+  const safePrintAreaWidthCm = Math.max(
+    1,
+    Number(printArea?.physicalAreaWidthCm) || Number(printArea?.physicalWidthCm) || 1,
+  );
+  const safePrintAreaHeightCm = Math.max(
+    1,
+    Number(printArea?.physicalAreaHeightCm) || Number(printArea?.physicalHeightCm) || 1,
+  );
   const physicalPrintAreaLabel = `${safePrintAreaWidthCm} × ${safePrintAreaHeightCm} см`;
   const safeShapeVisualWidthCm = Math.max(0.1, Number(activeShapeVisualMetricsCm?.widthCm) || 0.1);
   const safeShapeVisualHeightCm = Math.max(0.1, Number(activeShapeVisualMetricsCm?.heightCm) || 0.1);

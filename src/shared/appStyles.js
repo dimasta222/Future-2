@@ -175,8 +175,8 @@ input[type=number]{-moz-appearance:textfield}
 	.constructor-text-toolbar-open .constructor-text-toolbar-body{display:flex!important;justify-content:center!important}
 	.constructor-text-toolbar-body>*{flex:0 1 auto!important}
 	.constructor-text-toolbar-open .constructor-text-toolbar-toggle{margin-bottom:10px}
-	.constructor-upload-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:6px!important}
-	.constructor-upload-grid>div{padding:5px!important;border-radius:12px!important}
+	.constructor-upload-grid{grid-template-columns:repeat(auto-fill,115px)!important;gap:6px!important;justify-content:start!important}
+	.constructor-upload-grid>div{padding:4px!important;border-radius:10px!important;gap:5px!important}
 	.constructor-upload-grid>div>div:first-child{border-radius:8px!important}
 	.constructor-sidebar-close{display:flex!important}
 	.textile-order-line{flex-direction:column!important;align-items:flex-start!important}

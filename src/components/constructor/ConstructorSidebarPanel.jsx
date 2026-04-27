@@ -1238,7 +1238,7 @@ export default function ConstructorSidebarPanel({
         </label>
         {uploadedFiles.length ? (
           <SidebarFieldRow label="Загруженные файлы" minHeight={128}>
-            <div className="constructor-upload-grid" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8 }}>
+            <div className="constructor-upload-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, 101px)", gap: 8, justifyContent: "start" }}>
               {uploadedFiles.map((file) => (
                 <div key={file.id} style={{ display: "grid", gap: 7, padding: 7, borderRadius: 16, border: "1px solid rgba(255,255,255,.08)", background: "rgba(255,255,255,.03)", minWidth: 0 }}>
                   <div style={{ width: "100%", aspectRatio: "1 / 1", borderRadius: 12, backgroundColor: "rgba(255,255,255,.03)", backgroundImage: `url(${file.src})`, backgroundPosition: "center", backgroundRepeat: "no-repeat", backgroundSize: "contain" }} />

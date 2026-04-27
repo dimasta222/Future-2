@@ -1,6 +1,7 @@
 import { exportPrintPdf, collectFontNames, collectOriginalFiles } from "./exportPrintPdf.js";
 import { exportPreviewImage } from "./exportPreview.js";
 import { generateConstructorOrderPdf, buildConstructorOrderData } from "./constructorOrderPdf.js";
+import { generateOrderNumber } from "./orderNumber.js";
 
 const ORDER_API_URL = import.meta.env.VITE_ORDER_API_URL || null;
 
@@ -18,6 +19,7 @@ export async function buildOrderPayload({
   currentTotal,
   contact,
 }) {
+  const orderNumber = generateOrderNumber("constructor");
   const frontLayers = layers.filter((l) => (l.side || "front") === "front" && l.visible);
   const backLayers = layers.filter((l) => l.side === "back" && l.visible);
   const hasFront = frontLayers.length > 0;
@@ -73,6 +75,7 @@ export async function buildOrderPayload({
   const fontNames = collectFontNames(layers);
 
   const orderJson = {
+    orderNumber,
     product: {
       name: product.displayName || product.name,
       model: product.model,
@@ -104,13 +107,14 @@ export async function buildOrderPayload({
       orderMeta,
       currentTotal,
       contact,
+      orderNumber,
     });
     const summaryPdf = await generateConstructorOrderPdf({
       data: summaryData,
       frontPreviewBlob: files["preview-front.png"] || null,
       backPreviewBlob: files["preview-back.png"] || null,
     });
-    files["Заказ FUTURE.pdf"] = summaryPdf;
+    files[`Заказ ${orderNumber}.pdf`] = summaryPdf;
   } catch (err) {
     console.warn("[buildOrderPayload] summary PDF failed:", err);
   }

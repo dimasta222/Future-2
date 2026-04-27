@@ -115,6 +115,8 @@ function buildHtml(data, previewFrontUrl, previewBackUrl) {
         .fs-logo-img { height: 72px; width: auto; display: block; image-rendering: -webkit-optimize-contrast; }
         .fs-meta { text-align: right; font-size: 11px; color: rgba(240,238,245,.55); line-height: 1.5; }
         .fs-meta b { color: #f0eef5; font-weight: 500; }
+        .fs-order-number { font-size: 13px; color: #e84393; letter-spacing: 1px; margin-bottom: 2px; }
+        .fs-order-number b { color: #e84393; font-weight: 600; }
 
         .fs-title { margin: 14px 0 2px; font-size: 18px; font-weight: 200; flex-shrink: 0; }
         .fs-title b { font-weight: 600; color: #e84393; }
@@ -159,6 +161,7 @@ function buildHtml(data, previewFrontUrl, previewBackUrl) {
           <img class="fs-logo-img" src="${LOGO_FULL_SRC}" alt="Future Studio" />
         </div>
         <div class="fs-meta">
+          ${data.orderNumber ? `<div class="fs-order-number"><b>Заказ № ${escapeHtml(data.orderNumber)}</b></div>` : ""}
           <div>${dateStr}</div>
           <div><b>Конструктор футболок</b></div>
         </div>
@@ -255,9 +258,10 @@ export async function generateConstructorOrderPdf({ data, frontPreviewBlob, back
   }
 }
 
-export function buildConstructorOrderData({ product, color, size, qty, orderMeta, currentTotal, contact }) {
+export function buildConstructorOrderData({ product, color, size, qty, orderMeta, currentTotal, contact, orderNumber }) {
   return {
     createdAt: new Date().toISOString(),
+    orderNumber: orderNumber || null,
     product: {
       name: product?.displayName || product?.name || null,
       model: product?.model || null,

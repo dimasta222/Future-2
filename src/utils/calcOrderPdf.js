@@ -64,6 +64,8 @@ function styleBlock() {
     .fs-logo-img { height: 110px; width: auto; display: block; image-rendering: -webkit-optimize-contrast; }
     .fs-meta { text-align: right; font-size: 12px; color: rgba(240,238,245,.55); line-height: 1.6; }
     .fs-meta b { color: #f0eef5; font-weight: 500; }
+    .fs-order-number { font-size: 14px; color: #e84393; letter-spacing: 1px; margin-bottom: 4px; }
+    .fs-order-number b { color: #e84393; font-weight: 600; }
     .fs-page-num { margin-top: 6px; font-size: 11px; color: rgba(240,238,245,.4); letter-spacing: 1px; text-transform: uppercase; }
 
     .fs-content { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: ${GAP}px; padding: ${CONTENT_GAP}px 0; overflow: hidden; }
@@ -120,9 +122,12 @@ function styleBlock() {
   `;
 }
 
-function headerHtml(dateStr, modeLabel, pageIdx, pageCount) {
+function headerHtml(dateStr, modeLabel, pageIdx, pageCount, orderNumber) {
   const pageNum = pageCount > 1
     ? `<div class="fs-page-num">Стр. ${pageIdx + 1} / ${pageCount}</div>`
+    : "";
+  const orderNumberHtml = orderNumber
+    ? `<div class="fs-order-number"><b>Заказ № ${orderNumber}</b></div>`
     : "";
   return `
     <div class="fs-header">
@@ -130,6 +135,7 @@ function headerHtml(dateStr, modeLabel, pageIdx, pageCount) {
         <img class="fs-logo-img" src="${LOGO_FULL_SRC}" alt="Future Studio" />
       </div>
       <div class="fs-meta">
+        ${orderNumberHtml}
         <div>${dateStr}</div>
         <div><b>${modeLabel}</b></div>
         ${pageNum}
@@ -335,12 +341,12 @@ function packPages(chunks, heights) {
   return pages;
 }
 
-function buildPageHtml(chunks, indices, pageIdx, pageCount, dateStr, modeLabel) {
+function buildPageHtml(chunks, indices, pageIdx, pageCount, dateStr, modeLabel, orderNumber) {
   const body = indices.map((i) => chunks[i].html).join("");
   return `
     <div class="fs-pdf-root">
       <style>${styleBlock()}</style>
-      ${headerHtml(dateStr, modeLabel, pageIdx, pageCount)}
+      ${headerHtml(dateStr, modeLabel, pageIdx, pageCount, orderNumber)}
       <div class="fs-content">${body}</div>
       ${footerHtml()}
     </div>
@@ -395,7 +401,7 @@ export async function generateCalcOrderPdf(data) {
   const pageHmm = 297;
 
   for (let p = 0; p < pageGroups.length; p++) {
-    const html = buildPageHtml(chunks, pageGroups[p], p, pageCount, dateStr, modeLabel);
+    const html = buildPageHtml(chunks, pageGroups[p], p, pageCount, dateStr, modeLabel, data.orderNumber);
     const canvas = await renderPageToCanvas(html);
     const dataUrl = canvas.toDataURL("image/jpeg", 0.95);
     if (p > 0) doc.addPage();
@@ -405,9 +411,10 @@ export async function generateCalcOrderPdf(data) {
   return doc.output("blob");
 }
 
-export function buildCalcOrderData({ items, mode, totalQty, lengthCm, metersRound, costLines, total }) {
+export function buildCalcOrderData({ items, mode, totalQty, lengthCm, metersRound, costLines, total, orderNumber }) {
   return {
     createdAt: new Date().toISOString(),
+    orderNumber: orderNumber || null,
     mode,
     totalQty,
     lengthCm,
@@ -421,6 +428,7 @@ export function buildCalcOrderData({ items, mode, totalQty, lengthCm, metersRoun
 export function buildOrderMessage(data) {
   const lines = [
     "Здравствуйте! Оформляю заказ DTF-печати.",
+    ...(data.orderNumber ? [`Номер заказа: ${data.orderNumber}`] : []),
     "",
     `Режим: ${data.mode === "withApply" ? "Печать + нанесение" : "Только печать"}`,
     `Принтов: ${data.totalQty} шт`,

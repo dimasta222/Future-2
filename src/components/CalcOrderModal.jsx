@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import JSZip from "jszip";
 import { generateCalcOrderPdf, buildCalcOrderData, buildOrderMessage } from "../utils/calcOrderPdf.js";
+import { generateOrderNumber } from "../utils/orderNumber.js";
 import { reachGoal } from "../utils/metrika.js";
 
 const TELEGRAM_URL = "https://t.me/FUTURE_178";
@@ -32,7 +33,8 @@ export default function CalcOrderModal({ open, onClose, items, mode, totalQty, l
 
   const orderData = useMemo(() => {
     if (!open) return null;
-    return buildCalcOrderData({ items, mode, totalQty, lengthCm, metersRound, costLines, total });
+    const orderNumber = generateOrderNumber("calculator");
+    return buildCalcOrderData({ items, mode, totalQty, lengthCm, metersRound, costLines, total, orderNumber });
   }, [open, items, mode, totalQty, lengthCm, metersRound, costLines, total]);
 
   const message = useMemo(() => (orderData ? buildOrderMessage(orderData) : ""), [orderData]);
@@ -76,7 +78,8 @@ export default function CalcOrderModal({ open, onClose, items, mode, totalQty, l
   const downloadPdf = () => {
     if (!pdfBlob) return;
     reachGoal("calc_download_pdf");
-    downloadBlob(pdfBlob, `future-studio-order-${Date.now()}.pdf`);
+    const fileName = orderData?.orderNumber ? `Заказ ${orderData.orderNumber}.pdf` : `future-studio-order-${Date.now()}.pdf`;
+    downloadBlob(pdfBlob, fileName);
   };
 
   const downloadAllAssets = async () => {
@@ -85,8 +88,9 @@ export default function CalcOrderModal({ open, onClose, items, mode, totalQty, l
     setZipping(true);
     try {
       const zip = new JSZip();
-      zip.file("Заказ FUTURE.pdf", pdfBlob);
-      const used = new Set(["Заказ FUTURE.pdf"]);
+      const pdfName = orderData?.orderNumber ? `Заказ ${orderData.orderNumber}.pdf` : "Заказ FUTURE.pdf";
+      zip.file(pdfName, pdfBlob);
+      const used = new Set([pdfName]);
       items.forEach((it, i) => {
         if (!it.originalFile) return;
         const ext = getExtension(it.originalFile.name);
@@ -100,7 +104,8 @@ export default function CalcOrderModal({ open, onClose, items, mode, totalQty, l
         zip.file(name, it.originalFile);
       });
       const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } });
-      downloadBlob(blob, `future-studio-order-${Date.now()}.zip`);
+      const zipName = orderData?.orderNumber ? `Заказ ${orderData.orderNumber}.zip` : `future-studio-order-${Date.now()}.zip`;
+      downloadBlob(blob, zipName);
     } catch (err) {
       console.error("[CalcOrderModal] ZIP build failed:", err);
       setError("Не удалось собрать ZIP-архив");

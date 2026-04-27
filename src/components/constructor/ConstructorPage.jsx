@@ -3,6 +3,7 @@ import LogoMini from "../LogoMini.jsx";
 import TshirtSizeGuideTable from "../TshirtSizeGuideTable.jsx";
 import ConstructorOrderPanel from "./ConstructorOrderPanel.jsx";
 import ConstructorOrderModal from "./ConstructorOrderModal.jsx";
+import ConstructorOrderSuccessModal from "./ConstructorOrderSuccessModal.jsx";
 import ConstructorPreviewPanel from "./ConstructorPreviewPanel.jsx";
 import ConstructorOnboarding from "./ConstructorOnboarding.jsx";
 import ConstructorSidebarPanel from "./ConstructorSidebarPanel.jsx";
@@ -763,6 +764,7 @@ export default function ConstructorPage({ onBack, products, onOpenProductDetails
   const [shapeSidebarOverlayOpen, setShapeSidebarOverlayOpen] = useState(false);
   const [sizeGuideOpen, setSizeGuideOpen] = useState(false);
   const [orderModalOpen, setOrderModalOpen] = useState(false);
+  const [orderSuccess, setOrderSuccess] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const shapeToolbarOverlayRef = useRef(null);
   const shapeStrokeButtonRef = useRef(null);
@@ -1035,15 +1037,25 @@ export default function ConstructorPage({ onBack, products, onOpenProductDetails
         contact,
       });
       const result = await submitOrder(payload);
+      const summaryFileName = `Заказ ${payload.orderJson?.orderNumber || ""}.pdf`.trim();
+      const summaryBlob = payload.files?.[summaryFileName] || null;
       if (result.success) {
         reachGoal("constructor_order_send", { qty, sum: currentTotal });
         setOrderModalOpen(false);
-        alert("Заказ успешно отправлен! Мы свяжемся с вами в ближайшее время.");
+        setOrderSuccess({
+          orderNumber: payload.orderJson?.orderNumber || null,
+          summaryBlob,
+          isLocalFallback: false,
+        });
       } else {
         reachGoal("constructor_order_local", { qty, sum: currentTotal });
         await downloadOrderLocally(payload);
         setOrderModalOpen(false);
-        alert("Файлы заказа сохранены. Бэкенд пока не настроен — свяжитесь с нами в Telegram для оформления.");
+        setOrderSuccess({
+          orderNumber: payload.orderJson?.orderNumber || null,
+          summaryBlob,
+          isLocalFallback: true,
+        });
       }
     } catch (err) {
       console.error("Order submit error:", err);
@@ -1371,6 +1383,14 @@ export default function ConstructorPage({ onBack, products, onOpenProductDetails
           onClose={() => setOrderModalOpen(false)}
           onSubmit={handleOrderSubmit}
           isSubmitting={isSubmitting}
+        />
+      )}
+      {orderSuccess && (
+        <ConstructorOrderSuccessModal
+          orderNumber={orderSuccess.orderNumber}
+          summaryBlob={orderSuccess.summaryBlob}
+          isLocalFallback={orderSuccess.isLocalFallback}
+          onClose={() => setOrderSuccess(null)}
         />
       )}
     </div>

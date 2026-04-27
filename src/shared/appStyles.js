@@ -101,8 +101,8 @@ a{color:inherit}
 .bp::after{content:'';position:absolute;top:0;width:60%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.15),transparent);animation:shimmer 3s infinite}
 .bo{background:0 0;border:1.5px solid rgba(232,67,147,.5);color:#e84393;padding:14px 36px;border-radius:50px;font-size:16px;font-weight:400;cursor:pointer;transition:all .4s;font-family:'Outfit',sans-serif}
 .bo:hover{background:rgba(232,67,147,.1);border-color:#e84393}
-.btg{background:linear-gradient(135deg,#0088cc,#6c5ce7);border:none;color:#fff;padding:14px 36px;border-radius:50px;font-size:16px;font-weight:500;cursor:pointer;transition:all .4s;font-family:'Outfit',sans-serif;display:inline-flex;align-items:center;gap:10px;text-decoration:none}
-.btg:hover{box-shadow:0 10px 40px rgba(0,136,204,.3)}
+.btg{background:linear-gradient(135deg,#e84393,#6c5ce7);border:none;color:#fff;padding:14px 36px;border-radius:50px;font-size:16px;font-weight:500;cursor:pointer;transition:all .4s;font-family:'Outfit',sans-serif;display:inline-flex;align-items:center;gap:10px;text-decoration:none}
+.btg:hover{box-shadow:0 10px 40px rgba(232,67,147,.35)}
 .bcalc{background:linear-gradient(135deg,rgba(232,67,147,.15),rgba(108,92,231,.15));border:1.5px solid rgba(232,67,147,.3);color:#f0eef5;padding:14px 36px;border-radius:50px;font-size:16px;font-weight:500;cursor:pointer;transition:all .4s;font-family:'Outfit',sans-serif;display:inline-flex;align-items:center;gap:10px}
 .bcalc:hover{background:linear-gradient(135deg,rgba(232,67,147,.25),rgba(108,92,231,.25));box-shadow:0 10px 40px rgba(232,67,147,.2)}
 .hero-primary:hover,.hero-secondary:hover,.hero-tertiary:hover,.hero-support:hover{transform:none!important}

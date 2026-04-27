@@ -17,6 +17,27 @@ function cmToPt(cm) {
   return cm * CM_TO_PT;
 }
 
+// Применяет CSS-style вращение слоя через PDF CTM. jsPDF принимает координаты
+// пользователя (top-left, y-down), но `setCurrentTransformationMatrix` пишет
+// `cm`-оператор, который применяется в PDF native (bottom-left, y-up). Поэтому
+// центр поворота надо инвертировать по Y: pivotY_pdf = pageH - pivotY_user.
+// Без этого pivot оказывается возле нижнего края страницы и слой улетает за
+// пределы листа (как симптом — «квадрат повёрнут на 90° → пропал», «текст
+// уехал в сторону», «линии под наклоном сместились вверх»).
+function applyLayerRotation(doc, rotationDeg, cxPt, cyPt, pageHPt) {
+  if (!rotationDeg) return false;
+  const rad = (rotationDeg * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  const px = cxPt;
+  const py = pageHPt - cyPt;
+  doc.saveGraphicsState();
+  doc.setCurrentTransformationMatrix(
+    doc.Matrix(cos, sin, -sin, cos, px - px * cos + py * sin, py - px * sin - py * cos),
+  );
+  return true;
+}
+
 function getDirectionalOffsetCm(angleDeg, distancePx) {
   const radians = ((Number(angleDeg) || 0) * Math.PI) / 180;
   const radiusCm = (Number(distancePx) || 0) / LOGICAL_PRINT_PX_PER_CM;
@@ -222,18 +243,11 @@ async function renderUploadLayer(doc, layer, printArea) {
   const wPt = cmToPt(pos.w);
   const hPt = cmToPt(pos.h);
   const rotationDeg = layer.rotationDeg ?? 0;
+  const pageHPt = cmToPt(printArea.effectivePhysH ?? printArea.physicalHeightCm);
 
   const applyRotation = () => {
     if (!rotationDeg) return;
-    const cxPt = xPt + wPt / 2;
-    const cyPt = yPt + hPt / 2;
-    doc.saveGraphicsState();
-    const rad = (rotationDeg * Math.PI) / 180;
-    const cos = Math.cos(rad);
-    const sin = Math.sin(rad);
-    doc.setCurrentTransformationMatrix(
-      doc.Matrix(cos, sin, -sin, cos, cxPt - cxPt * cos + cyPt * sin, cyPt - cxPt * sin - cyPt * cos),
-    );
+    applyLayerRotation(doc, rotationDeg, xPt + wPt / 2, yPt + hPt / 2, pageHPt);
   };
   const restoreRotation = () => {
     if (rotationDeg) doc.restoreGraphicsState();
@@ -527,13 +541,8 @@ async function renderTextViaCanvas(doc, layer, textValue, opts) {
   if (rotationDeg) {
     const cxPt = cmToPt(cx);
     const cyPt = cmToPt(cy);
-    doc.saveGraphicsState();
-    const rad = (rotationDeg * Math.PI) / 180;
-    const cos = Math.cos(rad);
-    const sin = Math.sin(rad);
-    doc.setCurrentTransformationMatrix(
-      doc.Matrix(cos, sin, -sin, cos, cxPt - cxPt * cos + cyPt * sin, cyPt - cxPt * sin - cyPt * cos),
-    );
+    const pageHPt = cmToPt(opts.effH ?? opts.physH);
+    applyLayerRotation(doc, rotationDeg, cxPt, cyPt, pageHPt);
   }
 
   doc.addImage(imgData, "PNG", xPt, yPt, wPt, hPt);
@@ -760,13 +769,8 @@ async function renderShapeLayer(doc, layer, printArea) {
     if (rotationDeg) {
       const cxPt = cmToPt(pos.cx);
       const cyPt = cmToPt(pos.cy);
-      doc.saveGraphicsState();
-      const rad = (rotationDeg * Math.PI) / 180;
-      const cos = Math.cos(rad);
-      const sin = Math.sin(rad);
-      doc.setCurrentTransformationMatrix(
-        doc.Matrix(cos, sin, -sin, cos, cxPt - cxPt * cos + cyPt * sin, cyPt - cxPt * sin - cyPt * cos),
-      );
+      const pageHPt = cmToPt(printArea.effectivePhysH ?? printArea.physicalHeightCm);
+      applyLayerRotation(doc, rotationDeg, cxPt, cyPt, pageHPt);
     }
 
     doc.addImage(dataUrl, "PNG", cmToPt(drawXCm), cmToPt(drawYCm), cmToPt(totalWCm), cmToPt(totalHCm));

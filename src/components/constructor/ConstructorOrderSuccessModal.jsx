@@ -65,7 +65,7 @@ export default function ConstructorOrderSuccessModal({
         </div>
 
         <h2 style={{ margin: "0 0 8px", fontSize: 26, fontWeight: 700, letterSpacing: -.3 }}>
-          {isLocalFallback ? "Файлы заказа сохранены" : "Заказ успешно отправлен"}
+          {isLocalFallback ? "Заказ отправлен" : "Заказ успешно отправлен"}
         </h2>
 
         {orderNumber && (

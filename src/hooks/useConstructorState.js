@@ -1134,12 +1134,10 @@ export default function useConstructorState({
 
     if (layer.type === "shape") {
       const shape = getConstructorShape(layer.shapeKey);
-      const shapeDimensionsCm = isLineShapeKey(layer.shapeKey)
-        ? getLineDimensionsCmFromPx(layer, getStoredLineCanvasDimensions(layer, getLayerSide(layer)), getLayerSide(layer))
-        : {
-          widthCm: layer.widthCm ?? 0,
-          heightCm: layer.heightCm ?? 0,
-        };
+      const summaryShapeMetricsCm = getShapeVisualMetricsCm(layer, getLayerSide(layer), 1);
+      const shapeDimensionsCm = summaryShapeMetricsCm
+        ? { widthCm: summaryShapeMetricsCm.widthCm, heightCm: summaryShapeMetricsCm.heightCm }
+        : { widthCm: layer.widthCm ?? 0, heightCm: layer.heightCm ?? 0 };
       const fillSummary = layer.fillMode === "gradient"
         ? `градиент ${getConstructorTextGradient(layer.gradientKey).label}`
         : `цвет ${layer.color}`;
@@ -1466,10 +1464,6 @@ export default function useConstructorState({
     }
 
     if (layer?.type === "shape") {
-      if (isLineShapeKey(layer.shapeKey)) {
-        return getLineDimensionsCmFromPx(layer, getStoredLineCanvasDimensions(layer, getLayerSide(layer)), getLayerSide(layer));
-      }
-
       const shapeSizeScale = areaMetrics.areaWidthCm > 0 && areaMetrics.baselinePhysicalWidthCm > 0
         ? areaMetrics.areaWidthCm / areaMetrics.baselinePhysicalWidthCm
         : 1;

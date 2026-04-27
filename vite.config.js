@@ -26,11 +26,20 @@ export default defineConfig({
   plugins: [react(), localFontsPlugin()],
   base: isGitHubActionsBuild && repositoryName ? `/${repositoryName}/` : '/',
   build: {
+    chunkSizeWarningLimit: 1200,
     rollupOptions: {
       output: {
         manualChunks(id) {
           if (id.includes('node_modules/react') || id.includes('node_modules/react-dom')) {
             return 'react-vendor'
+          }
+
+          if (id.includes('node_modules/jspdf') || id.includes('node_modules/html2canvas')) {
+            return 'pdf-vendor'
+          }
+
+          if (id.includes('node_modules/pdfjs-dist')) {
+            return 'pdfjs-vendor'
           }
 
           if (id.includes('/src/components/constructor/') || id.includes('/src/utils/constructor/')) {
